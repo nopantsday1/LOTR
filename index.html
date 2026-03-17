@@ -1360,8 +1360,8 @@ window.showToast=showToast;
 // =====================================================================
 // LIVE MATCH DETECTION & AUTO-RESULT
 // =====================================================================
-const LOBBY_API = 'https://corsproxy.io/?url=https://aoe-api.worldsedgelink.com/community/advertisement/findAdvertisements?title=age2';
-const HISTORY_API = id => `https://corsproxy.io/?url=https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=[${id}]`;
+const LOBBY_API = 'lobby.json'; // Updated by GitHub Actions every 2 minutes
+const HISTORY_API = id => `https://api.allorigins.win/raw?url=${encodeURIComponent('https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=['+id+']')}`;
 const POLL_INTERVAL = 30000;
 let pollTimer = null;
 let resultPollTimer = null;
