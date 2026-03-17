@@ -7,26 +7,22 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
 <style>
 :root {
-  --evil: #9B1C1C; --evil-light: #C0392B; --evil-dim: #2D0A0A; --evil-border: #5A1818;
-  --good: #1A4F7A; --good-light: #2980B9; --good-dim: #0A1E2D; --good-border: #1A3F5A;
-  --gold: #C9A84C; --gold-dim: #6B5520; --gold-dark: #3D2E0A;
-  --bg: #0C0A08; --surface: #161210; --surface2: #1E1A14; --surface3: #26211A;
-  --border: #332C20; --border2: #443A28;
-  --text: #D4C9A8; --text-muted: #7A7060; --text-dim: #4A4438;
-  --radius: 4px; --radius-lg: 8px;
-  --green: #2D6A2D; --green-light: #4CAF50;
+  --evil:#9B1C1C;--evil-light:#C0392B;--evil-dim:#2D0A0A;--evil-border:#5A1818;
+  --good:#1A4F7A;--good-light:#2980B9;--good-dim:#0A1E2D;--good-border:#1A3F5A;
+  --gold:#C9A84C;--gold-dim:#6B5520;--gold-dark:#3D2E0A;
+  --bg:#0C0A08;--surface:#161210;--surface2:#1E1A14;--surface3:#26211A;
+  --border:#332C20;--border2:#443A28;
+  --text:#D4C9A8;--text-muted:#7A7060;--text-dim:#4A4438;
+  --radius:4px;--radius-lg:8px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Crimson Pro',Georgia,serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:16px;line-height:1.5;background-image:radial-gradient(ellipse at 20% 0%,rgba(155,28,28,0.06) 0%,transparent 50%),radial-gradient(ellipse at 80% 100%,rgba(26,79,122,0.06) 0%,transparent 50%)}
-
-/* NAV */
-nav{position:sticky;top:0;z-index:200;background:rgba(12,10,8,0.97);border-bottom:1px solid var(--border);display:flex;align-items:stretch;padding:0 1.5rem;gap:0;backdrop-filter:blur(8px)}
+nav{position:sticky;top:0;z-index:200;background:rgba(12,10,8,0.97);border-bottom:1px solid var(--border);display:flex;align-items:stretch;padding:0 1.5rem;backdrop-filter:blur(8px)}
 .nav-logo{font-family:'Cinzel',serif;font-size:13px;color:var(--gold);letter-spacing:0.12em;padding:0 1.5rem 0 0;margin-right:1rem;border-right:1px solid var(--border);display:flex;align-items:center;gap:8px;white-space:nowrap}
-.nav-logo span{color:var(--text-muted);font-size:11px;letter-spacing:0.06em}
-.nav-tabs{display:flex;gap:0}
+.nav-logo span{color:var(--text-muted);font-size:11px}
+.nav-tabs{display:flex}
 .nav-tab{font-family:'Cinzel',serif;font-size:11px;letter-spacing:0.1em;padding:0 1.1rem;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;transition:color 0.2s,border-color 0.2s;user-select:none;display:flex;align-items:center;gap:6px;height:52px}
-.nav-tab:hover{color:var(--text)}
-.nav-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+.nav-tab:hover{color:var(--text)}.nav-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
 .nav-tab svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.5}
 .nav-right{margin-left:auto;display:flex;align-items:center;gap:8px}
 .admin-btn{font-family:'Cinzel',serif;font-size:10px;letter-spacing:0.08em;padding:5px 12px;background:transparent;color:var(--text-dim);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all 0.2s}
@@ -34,21 +30,13 @@ nav{position:sticky;top:0;z-index:200;background:rgba(12,10,8,0.97);border-botto
 .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--text-dim);display:inline-block;margin-right:4px;transition:background 0.3s}
 .sync-dot.ok{background:#4CAF50}.sync-dot.err{background:#e08080}.sync-dot.loading{background:var(--gold);animation:pulse 1s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
-
-/* MAIN */
 main{max-width:1100px;margin:0 auto;padding:2rem 1.5rem}
 .page{display:none}.page.active{display:block}
-
-/* HEADINGS */
 .page-header{margin-bottom:1.75rem;padding-bottom:1rem;border-bottom:1px solid var(--border)}
 .page-title{font-family:'Cinzel',serif;font-size:20px;font-weight:600;color:var(--gold);letter-spacing:0.06em;margin-bottom:3px}
 .page-sub{color:var(--text-muted);font-size:14px;font-style:italic}
-
-/* CARDS */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.25rem 1.5rem}
 .card-title{font-family:'Cinzel',serif;font-size:12px;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:1rem}
-
-/* BUTTONS */
 button{font-family:'Cinzel',serif;cursor:pointer;border:none;outline:none;transition:all 0.15s}
 .btn{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:7px 14px;font-size:11px;letter-spacing:0.07em}
 .btn:hover{border-color:var(--border2);color:var(--gold)}
@@ -60,55 +48,43 @@ button{font-family:'Cinzel',serif;cursor:pointer;border:none;outline:none;transi
 .btn-evil{background:var(--evil-dim);color:#e08080;border:1px solid var(--evil-border);border-radius:var(--radius);padding:6px 12px;font-size:11px;letter-spacing:0.06em;cursor:pointer}
 .btn-evil:hover{background:var(--evil);color:#fff}
 .btn-danger:hover{color:#e08080;border-color:var(--evil-border)}
-.btn-icon{background:transparent;border:1px solid var(--border);border-radius:var(--radius);padding:5px 8px;color:var(--text-muted);cursor:pointer}
-.btn-icon:hover{border-color:var(--gold-dim);color:var(--gold)}
-
-/* INPUTS */
 input,select,textarea{font-family:'Crimson Pro',serif;font-size:15px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:7px 10px;outline:none;transition:border-color 0.2s;width:100%}
-input:focus,select:focus,textarea:focus{border-color:var(--gold-dim)}
+input:focus,select:focus{border-color:var(--gold-dim)}
 input[type=range]{padding:0;accent-color:var(--gold);height:4px;cursor:pointer;background:transparent}
 input[type=checkbox]{width:auto;accent-color:var(--gold);cursor:pointer}
 label{font-size:13px;color:var(--text-muted);display:block;margin-bottom:4px}
-
-/* GRID */
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
-.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem}
 .flex{display:flex;align-items:center;gap:8px}
 .flex-between{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .gap-sm{gap:6px}
 .mt1{margin-top:.5rem}.mt2{margin-top:1rem}.mt3{margin-top:1.5rem}
 .mb1{margin-bottom:.5rem}.mb2{margin-bottom:1rem}
-
-/* BADGES */
 .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;font-family:'Cinzel',serif;letter-spacing:0.04em}
 .badge-evil{background:var(--evil-dim);color:#e08080;border:1px solid var(--evil-border)}
 .badge-good{background:var(--good-dim);color:#80b4d4;border:1px solid var(--good-border)}
-.badge-neutral{background:var(--surface2);color:var(--text-muted);border:1px solid var(--border)}
-
-/* ELO DISPLAY */
 .elo-val{font-family:'Cinzel',serif;font-size:15px;font-weight:600;color:var(--gold)}
-
-/* TABLE */
 table{width:100%;border-collapse:collapse}
 th{font-family:'Cinzel',serif;font-size:10px;letter-spacing:0.1em;color:var(--text-dim);font-weight:400;padding:8px 10px;text-align:left;border-bottom:1px solid var(--border)}
 td{padding:10px 10px;font-size:14px;border-bottom:1px solid rgba(255,255,255,0.03)}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:rgba(255,255,255,0.015)}
-
 hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
 
-/* BALANCE PAGE */
-.team-panel{border-radius:var(--radius-lg);border:1px solid;padding:1.25rem;min-height:320px}
+/* BALANCE */
+.team-panel{border-radius:var(--radius-lg);border:1px solid;padding:1.25rem;min-height:280px}
 .team-panel.evil{border-color:var(--evil-border);background:linear-gradient(160deg,var(--evil-dim) 0%,var(--surface) 60%)}
 .team-panel.good{border-color:var(--good-border);background:linear-gradient(160deg,var(--good-dim) 0%,var(--surface) 60%)}
-.team-label{font-family:'Cinzel',serif;font-size:13px;letter-spacing:0.12em;font-weight:600;margin-bottom:1rem;display:flex;align-items:center;gap:8px}
+.team-label{font-family:'Cinzel',serif;font-size:13px;letter-spacing:0.12em;font-weight:600;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between}
 .team-label.evil{color:#e08080}.team-label.good{color:#80b4d4}
-.player-row{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:rgba(0,0,0,0.25);border-radius:var(--radius);margin-bottom:6px;border:1px solid rgba(255,255,255,0.04)}
+.player-row{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:rgba(0,0,0,0.25);border-radius:var(--radius);margin-bottom:6px;border:1px solid rgba(255,255,255,0.04);gap:8px}
 .player-row-name{font-size:14px;font-weight:600;color:var(--text)}
 .player-row-civ{font-size:12px;color:var(--text-muted);font-style:italic}
-.player-row-elo{font-family:'Cinzel',serif;font-size:13px}
+.player-row-elo{font-family:'Cinzel',serif;font-size:13px;white-space:nowrap}
 .team-panel.evil .player-row-elo{color:#e08080}
 .team-panel.good .player-row-elo{color:#80b4d4}
+.swap-btn{background:transparent;border:1px solid var(--border);border-radius:var(--radius);padding:3px 7px;font-size:10px;color:var(--text-dim);cursor:pointer;font-family:'Cinzel',serif;letter-spacing:0.04em;white-space:nowrap}
+.swap-btn:hover{border-color:var(--gold-dim);color:var(--gold)}
+.swap-btn.selecting{border-color:var(--gold);color:var(--gold);background:var(--gold-dark)}
 .balance-bar-wrap{margin:1rem 0;padding:1rem;background:var(--surface2);border-radius:var(--radius-lg);border:1px solid var(--border)}
 .balance-bar-track{height:8px;background:var(--surface3);border-radius:4px;overflow:hidden;position:relative;margin:8px 0}
 .balance-bar-evil{position:absolute;left:0;top:0;height:100%;background:var(--evil);transition:width 0.6s cubic-bezier(.4,0,.2,1)}
@@ -121,6 +97,16 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
 .player-check-item input{width:14px;height:14px}
 .player-check-name{font-size:14px;flex:1}
 .player-check-elo{font-family:'Cinzel',serif;font-size:12px;color:var(--text-muted)}
+.search-wrap{position:relative;margin-bottom:.75rem}
+.search-wrap input{padding-left:30px}
+.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-dim);font-size:14px;pointer-events:none}
+
+/* CIV PREFERENCE ICONS */
+.civ-pref{display:inline-flex;align-items:center;gap:3px;font-size:11px;padding:1px 6px;border-radius:12px;cursor:pointer;border:1px solid transparent;transition:all 0.15s;font-family:'Cinzel',serif}
+.civ-pref.fav{background:rgba(201,168,76,0.15);color:var(--gold);border-color:var(--gold-dim)}
+.civ-pref.avoid{background:rgba(155,28,28,0.15);color:#e08080;border-color:var(--evil-border)}
+.civ-pref.none{color:var(--text-dim);border-color:var(--border)}
+.civ-pref:hover{border-color:var(--border2);color:var(--text)}
 
 /* HISTORY */
 .game-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1rem 1.25rem;margin-bottom:.75rem}
@@ -150,11 +136,6 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
 .modal-close{position:absolute;top:1rem;right:1rem;background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:18px;line-height:1}
 .modal-close:hover{color:var(--text)}
 
-/* FIREBASE SETUP BANNER */
-.setup-banner{background:var(--surface2);border:1px solid var(--gold-dim);border-radius:var(--radius-lg);padding:1.25rem 1.5rem;margin-bottom:1.5rem}
-.setup-banner-title{font-family:'Cinzel',serif;font-size:13px;color:var(--gold);margin-bottom:.5rem;letter-spacing:0.08em}
-.setup-code{font-family:monospace;font-size:12px;background:var(--surface3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;color:#80d4b4;margin:.5rem 0;word-break:break-all}
-
 /* TOAST */
 .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--surface3);border:1px solid var(--gold-dim);color:var(--gold);font-family:'Cinzel',serif;font-size:12px;letter-spacing:0.06em;padding:10px 18px;border-radius:var(--radius-lg);z-index:999;opacity:0;transform:translateY(8px);transition:all 0.3s;pointer-events:none}
 .toast.show{opacity:1;transform:translateY(0)}
@@ -166,13 +147,29 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
 .loading-sub{font-size:14px;color:var(--text-muted);font-style:italic}
 .spinner{width:32px;height:32px;border:2px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-
 .empty{text-align:center;padding:3rem 1rem;color:var(--text-dim);font-style:italic;font-size:15px}
+/* LIVE PAGE */
+.live-waiting{text-align:center;padding:4rem 2rem}
+.live-pulse{width:48px;height:48px;border-radius:50%;background:var(--evil-dim);border:2px solid var(--evil);margin:0 auto 1.5rem;display:flex;align-items:center;justify-content:center;font-size:20px}
+.live-pulse.active{background:rgba(155,28,28,0.3);animation:livepulse 1.5s ease-in-out infinite}
+@keyframes livepulse{0%,100%{box-shadow:0 0 0 0 rgba(155,28,28,0.4)}50%{box-shadow:0 0 0 16px rgba(155,28,28,0)}}
+.live-dashboard{display:none}
+.live-dashboard.active{display:block}
+.live-timer{font-family:'Cinzel',serif;font-size:48px;font-weight:700;color:var(--gold);text-align:center;letter-spacing:0.05em;margin-bottom:4px}
+.live-timer-label{text-align:center;font-size:12px;color:var(--text-dim);letter-spacing:0.1em;font-family:'Cinzel',serif;margin-bottom:1.5rem}
+.live-team-panel{border-radius:var(--radius-lg);border:1px solid;padding:1.25rem}
+.live-team-panel.evil{border-color:var(--evil-border);background:linear-gradient(160deg,var(--evil-dim) 0%,var(--surface) 60%)}
+.live-team-panel.good{border-color:var(--good-border);background:linear-gradient(160deg,var(--good-dim) 0%,var(--surface) 60%)}
+.live-player-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(0,0,0,0.2);border-radius:var(--radius);margin-bottom:6px;border:1px solid rgba(255,255,255,0.04);gap:8px}
+.live-player-name{font-size:15px;font-weight:600}
+.live-civ-select{font-size:13px;background:var(--surface3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:4px 8px;min-width:160px;font-family:'Crimson Pro',serif}
+.live-tab-dot{width:6px;height:6px;border-radius:50%;background:var(--text-dim);display:inline-block;margin-left:4px}
+.live-tab-dot.active{background:#4CAF50;animation:livepulse 1.5s ease-in-out infinite}
+.poll-status{font-size:12px;color:var(--text-dim);font-style:italic;text-align:center;margin-top:.5rem}
 </style>
 </head>
 <body>
 
-<!-- Loading screen -->
 <div class="loading-screen" id="loadingScreen">
   <div class="loading-title">⚔ WAR OF THE RING</div>
   <div class="spinner"></div>
@@ -182,18 +179,11 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
 <nav>
   <div class="nav-logo">⚔ WAR OF THE RING <span>BALANCER</span></div>
   <div class="nav-tabs">
-    <div class="nav-tab active" onclick="showPage('balance')">
-      <svg viewBox="0 0 24 24"><path d="M12 3l9 18H3L12 3z"/></svg>BALANCE
-    </div>
-    <div class="nav-tab" onclick="showPage('players')">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>PLAYERS
-    </div>
-    <div class="nav-tab" onclick="showPage('history')">
-      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>HISTORY
-    </div>
-    <div class="nav-tab" onclick="showPage('leaderboard')">
-      <svg viewBox="0 0 24 24"><path d="M8 18V10M12 18V6M16 18v-4"/></svg>LEADERBOARD
-    </div>
+    <div class="nav-tab active" onclick="showPage('balance')"><svg viewBox="0 0 24 24"><path d="M12 3l9 18H3L12 3z"/></svg>BALANCE</div>
+    <div class="nav-tab" onclick="showPage('players')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>PLAYERS</div>
+    <div class="nav-tab" onclick="showPage('history')"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>HISTORY</div>
+    <div class="nav-tab" onclick="showPage('leaderboard')"><svg viewBox="0 0 24 24"><path d="M8 18V10M12 18V6M16 18v-4"/></svg>LEADERBOARD</div>
+    <div class="nav-tab" id="liveTab" onclick="showPage('live')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4"/></svg>LIVE</div>
   </div>
   <div class="nav-right">
     <span class="sync-dot loading" id="syncDot"></span>
@@ -203,7 +193,7 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
 
 <main>
 
-<!-- =========== BALANCE PAGE =========== -->
+<!-- BALANCE PAGE -->
 <div class="page active" id="page-balance">
   <div class="page-header">
     <div class="page-title">Match Balancer</div>
@@ -211,12 +201,17 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
   </div>
   <div class="card mb2">
     <div class="card-title">SELECT PLAYERS FOR THIS MATCH</div>
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input type="text" id="playerSearch" placeholder="Search players..." oninput="renderPlayerCheckGrid()">
+    </div>
     <div id="playerCheckGrid" class="player-check-grid"></div>
     <div class="flex mt2" style="justify-content:space-between;align-items:center">
       <span id="selectedCount" style="font-size:13px;color:var(--text-muted)">0 / 8 selected</span>
       <button class="btn-primary" id="balanceBtn" onclick="runBalancer()" disabled>GENERATE BALANCED TEAMS</button>
     </div>
   </div>
+
   <div id="balanceResult" style="display:none">
     <div class="balance-bar-wrap">
       <div class="flex-between mb1">
@@ -233,24 +228,28 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
         <span id="goodTotalLabel" class="elo-val" style="color:#80b4d4"></span>
       </div>
     </div>
+    <div id="swapHint" style="font-size:13px;color:var(--text-muted);text-align:center;margin-bottom:.75rem;font-style:italic;display:none">
+      Click a player's SWAP button, then click another player to swap them between teams.
+    </div>
     <div class="grid2">
       <div class="team-panel evil">
-        <div class="team-label evil">⚔ EVIL FORCES</div>
+        <div class="team-label evil"><span>⚔ EVIL FORCES</span></div>
         <div id="evilTeam"></div>
       </div>
       <div class="team-panel good">
-        <div class="team-label good">✦ FREE PEOPLES</div>
+        <div class="team-label good"><span>✦ FREE PEOPLES</span></div>
         <div id="goodTeam"></div>
       </div>
     </div>
     <div class="flex mt2" style="gap:10px;justify-content:center">
-      <button class="btn" onclick="runBalancer()">↻ REGENERATE</button>
+      <button class="btn" onclick="runBalancerRandom()">↻ SHUFFLE</button>
+      <button class="btn" onclick="runBalancer()">★ BEST BALANCE</button>
       <button class="btn-primary" onclick="openRecordModal()">RECORD RESULT</button>
     </div>
   </div>
 </div>
 
-<!-- =========== PLAYERS PAGE =========== -->
+<!-- PLAYERS PAGE -->
 <div class="page" id="page-players">
   <div class="page-header flex-between">
     <div>
@@ -261,15 +260,13 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
   </div>
   <div class="card">
     <table>
-      <thead>
-        <tr><th>PLAYER</th><th>MAIN ELO</th><th>W</th><th>L</th><th>WIN%</th><th>BEST CIV</th><th>GAMES</th><th></th></tr>
-      </thead>
+      <thead><tr><th>PLAYER</th><th>MAIN ELO</th><th>W</th><th>L</th><th>WIN%</th><th>FAV CIV</th><th>AVOID CIV</th><th>GAMES</th><th></th></tr></thead>
       <tbody id="playerTableBody"></tbody>
     </table>
   </div>
 </div>
 
-<!-- =========== HISTORY PAGE =========== -->
+<!-- HISTORY PAGE -->
 <div class="page" id="page-history">
   <div class="page-header">
     <div class="page-title">Match History</div>
@@ -278,7 +275,7 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
   <div id="historyList"></div>
 </div>
 
-<!-- =========== LEADERBOARD PAGE =========== -->
+<!-- LEADERBOARD PAGE -->
 <div class="page" id="page-leaderboard">
   <div class="page-header">
     <div class="page-title">Leaderboard</div>
@@ -287,33 +284,28 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
   <div id="leaderboardList"></div>
 </div>
 
-<!-- =========== ADMIN PAGE =========== -->
+<!-- ADMIN PAGE -->
 <div class="page" id="page-admin">
   <div id="adminGateWrap">
     <div class="admin-gate">
       <div class="admin-gate-title">Admin Access</div>
       <div class="page-sub mb2">Enter the admin password to manage players and ratings</div>
       <div class="rune-divider">᛫ ᛫ ᛫</div>
-      <div class="mt2 mb2">
-        <label>Password</label>
-        <input type="password" id="adminPassInput" placeholder="••••••••" onkeydown="if(event.key==='Enter')checkAdmin()">
-      </div>
+      <div class="mt2 mb2"><label>Password</label><input type="password" id="adminPassInput" placeholder="••••••••" onkeydown="if(event.key==='Enter')checkAdmin()"></div>
       <button class="btn-primary" onclick="checkAdmin()">ENTER</button>
       <div id="adminError" style="color:#e08080;font-size:13px;margin-top:.75rem;display:none">Incorrect password.</div>
     </div>
   </div>
   <div id="adminPanel" style="display:none">
     <div class="page-header flex-between">
-      <div><div class="page-title">Admin Panel</div><div class="page-sub">Manage players, ratings, and match records</div></div>
+      <div><div class="page-title">Admin Panel</div><div class="page-sub">Manage players, ratings, and records</div></div>
       <button class="btn btn-sm" onclick="lockAdmin()">LOCK</button>
     </div>
     <div class="grid2">
       <div class="card">
         <div class="card-title">CHANGE ADMIN PASSWORD</div>
-        <label>New Password</label>
-        <input type="password" id="newPass1" placeholder="New password" class="mb1">
-        <label>Confirm</label>
-        <input type="password" id="newPass2" placeholder="Confirm" class="mb2">
+        <label>New Password</label><input type="password" id="newPass1" placeholder="New password" class="mb1">
+        <label>Confirm</label><input type="password" id="newPass2" placeholder="Confirm" class="mb2">
         <button class="btn btn-sm" onclick="changePassword()">UPDATE PASSWORD</button>
       </div>
       <div class="card">
@@ -331,17 +323,80 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
     </div>
   </div>
 </div>
+<!-- LIVE PAGE -->
+<div class="page" id="page-live">
+  <div class="page-header flex-between">
+    <div>
+      <div class="page-title">Live Match <span class="live-tab-dot" id="liveDashDot"></span></div>
+      <div class="page-sub">Auto-detects when your community is in a game — polls every 30 seconds</div>
+    </div>
+    <div class="flex gap-sm">
+      <button class="btn btn-sm" onclick="pollNow()">↻ CHECK NOW</button>
+      <button class="btn btn-sm" id="liveToggleBtn" onclick="toggleLivePolling()">PAUSE</button>
+    </div>
+  </div>
+
+  <!-- WAITING STATE -->
+  <div class="live-waiting" id="liveWaiting">
+    <div class="live-pulse" id="livePulseIcon">⚔</div>
+    <div class="page-title" style="font-size:16px;margin-bottom:.5rem">Watching for a match...</div>
+    <div class="page-sub mb2">The site will automatically detect when 4+ community members are in the same lobby.</div>
+    <div class="poll-status" id="pollStatus">Last checked: never</div>
+    <div style="margin-top:2rem" class="card" id="profilesWithoutId" style="display:none">
+      <div class="card-title">PLAYERS WITHOUT AoE2 PROFILE ID</div>
+      <div id="missingProfileList"></div>
+    </div>
+  </div>
+
+  <!-- LIVE DASHBOARD -->
+  <div class="live-dashboard" id="liveDashboard">
+    <div class="live-timer" id="liveTimer">00:00</div>
+    <div class="live-timer-label">MATCH IN PROGRESS</div>
+
+    <div class="balance-bar-wrap mb2">
+      <div class="flex-between mb1">
+        <span class="balance-label">EVIL FORCES</span>
+        <span id="liveGapLabel" class="balance-label" style="color:var(--gold)"></span>
+        <span class="balance-label">FREE PEOPLES</span>
+      </div>
+      <div class="balance-bar-track">
+        <div class="balance-bar-evil" id="liveBarEvil"></div>
+        <div class="balance-bar-good" id="liveBarGood"></div>
+      </div>
+      <div class="flex-between">
+        <span id="liveEvilTotal" class="elo-val" style="color:#e08080"></span>
+        <span id="liveGoodTotal" class="elo-val" style="color:#80b4d4"></span>
+      </div>
+    </div>
+
+    <div class="grid2 mb2">
+      <div class="live-team-panel evil">
+        <div class="team-label evil"><span>⚔ EVIL FORCES</span></div>
+        <div id="liveEvilTeam"></div>
+      </div>
+      <div class="live-team-panel good">
+        <div class="team-label good"><span>✦ FREE PEOPLES</span></div>
+        <div id="liveGoodTeam"></div>
+      </div>
+    </div>
+
+    <div class="flex" style="gap:10px;justify-content:center">
+      <button class="btn" onclick="endLiveMatch()">✕ END MATCH</button>
+      <button class="btn-primary" onclick="requireAdmin(()=>openLiveRecordModal())">RECORD RESULT</button>
+    </div>
+  </div>
+</div>
 
 </main>
 
-<!-- =========== MODALS =========== -->
-
+<!-- MODALS -->
 <div class="modal-overlay" id="modalAddPlayer">
   <div class="modal">
     <button class="modal-close" onclick="closeModal('modalAddPlayer')">✕</button>
     <div class="modal-title">Add New Player</div>
     <div class="mb2"><label>Player Name</label><input type="text" id="newPlayerName" placeholder="Username"></div>
     <div class="mb2"><label>Main Elo Rating</label><input type="number" id="newPlayerElo" placeholder="1200" min="800" max="2000"></div>
+    <div class="mb2"><label>AoE2 Profile ID <span style="font-family:'Crimson Pro',serif;color:var(--text-dim);font-weight:400">(optional — for live match detection)</span></label><input type="number" id="newPlayerProfileId" placeholder="e.g. 123456"></div>
     <div class="mb2">
       <div class="card-title" style="margin-bottom:.75rem">CIV PROFICIENCY (% of main Elo)</div>
       <div id="civSliders"></div>
@@ -356,8 +411,10 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
     <div class="modal-title" id="editModalTitle">Edit Player</div>
     <div class="mb2"><label>Player Name</label><input type="text" id="editPlayerName"></div>
     <div class="mb2"><label>Main Elo Rating</label><input type="number" id="editPlayerElo" min="800" max="2000"></div>
+    <div class="mb2"><label>AoE2 Profile ID <span style="font-family:'Crimson Pro',serif;color:var(--text-dim);font-weight:400">(optional — for live match detection)</span></label><input type="number" id="editPlayerProfileId" placeholder="e.g. 123456"></div>
     <div class="mb2">
-      <div class="card-title" style="margin-bottom:.75rem">CIV PROFICIENCY</div>
+      <div class="card-title" style="margin-bottom:.5rem">CIV PROFICIENCY & PREFERENCES</div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:.75rem;font-style:italic">Use ★ to mark a favourite civ, ✕ to mark one to avoid. The balancer prioritises favourites and avoids assigning avoided civs.</p>
       <div id="editCivSliders"></div>
     </div>
     <input type="hidden" id="editPlayerId">
@@ -400,7 +457,18 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
   </div>
 </div>
 
-<!-- Admin required modal -->
+<div class="modal-overlay" id="modalDeleteHistory">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-title">Delete Match</div>
+    <p style="font-size:14px;color:var(--text-muted);margin-bottom:1.25rem">Remove this match from history? This will not reverse any civ rating changes.</p>
+    <input type="hidden" id="deleteHistoryId">
+    <div class="flex" style="gap:10px">
+      <button class="btn" style="flex:1" onclick="closeModal('modalDeleteHistory')">CANCEL</button>
+      <button class="btn-evil" style="flex:1;padding:9px" onclick="confirmDeleteHistory()">DELETE</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalAdminRequired">
   <div class="modal" style="max-width:360px">
     <button class="modal-close" onclick="closeModal('modalAdminRequired')">✕</button>
@@ -412,16 +480,24 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
   </div>
 </div>
 
+<div class="modal-overlay" id="modalLiveRecord">
+  <div class="modal" style="max-width:360px">
+    <button class="modal-close" onclick="closeModal('modalLiveRecord')">✕</button>
+    <div class="modal-title">Record Live Match Result</div>
+    <p style="font-size:14px;color:var(--text-muted);margin-bottom:1.25rem">Which team won? Civ ratings and W/L will be updated.</p>
+    <div class="grid2">
+      <button class="btn" style="padding:1rem;font-size:13px" onclick="recordLiveResult('evil')">⚔ EVIL WINS</button>
+      <button class="btn" style="padding:1rem;font-size:13px" onclick="recordLiveResult('good')">✦ GOOD WINS</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
-<!-- Firebase SDK -->
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc, query, orderBy, limit } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc, query, orderBy, limit, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
-// =====================================================================
-// FIREBASE CONFIG — replace with your own values from Firebase console
-// =====================================================================
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDDrsJEQ0OOESWLYmyNJWGaWhFAm0fDUVg",
   authDomain: "lotr-9a2f2.firebaseapp.com",
@@ -430,12 +506,11 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "348198417891",
   appId: "1:348198417891:web:70334fb06dacf508ee1cd6"
 };
-// =====================================================================
 
 const CIVS = [
   {id:'goblin',    name:'P4 Goblin',        side:'evil'},
   {id:'dolguldur', name:'P1 Dol Guldur',    side:'evil'},
-  {id:'dolguldur2',name:'P2 Dol Guldur', side:'evil'},
+  {id:'dolguldur2',name:'P2 Dol Guldur',    side:'evil'},
   {id:'azog',      name:"P3 Azog's Host",   side:'evil'},
   {id:'elfs',      name:'P7 Elves',          side:'good'},
   {id:'ironhills', name:'P8 Iron Hills',    side:'good'},
@@ -445,54 +520,46 @@ const CIVS = [
 const EVIL_CIVS = CIVS.filter(c=>c.side==='evil');
 const GOOD_CIVS = CIVS.filter(c=>c.side==='good');
 
-let db, players=[], history=[], adminPass='admin123', adminUnlocked=false, lastBalance=null;
-let pendingAdminAction = null;
-const selectedPlayers = new Set();
+// FAV/AVOID BONUS: favourite civ gets +15% effective boost, avoided gets penalty that makes balancer avoid it
+const FAV_BONUS = 15;    // % points added to effective elo when civ is favourite
+const AVOID_PENALTY = 40; // % points subtracted — makes balancer strongly avoid assigning it
 
-// ---- FIREBASE INIT ----
-function setSyncDot(state){ // 'ok','err','loading'
-  const d = document.getElementById('syncDot');
-  d.className = 'sync-dot ' + state;
-}
+let db, players=[], history=[], adminPass='admin123', adminUnlocked=false, lastBalance=null;
+let pendingAdminAction=null;
+const selectedPlayers=new Set();
+
+// Swap state
+let swapSource=null; // {team:'evil'|'good', index:number}
+
+function setSyncDot(s){ document.getElementById('syncDot').className='sync-dot '+s; }
 
 async function initFirebase(){
   try {
-    if(FIREBASE_CONFIG.apiKey === 'REPLACE_API_KEY'){
-      showSetupBanner();
-      document.getElementById('loadingScreen').style.display='none';
-      return;
-    }
-    const app = initializeApp(FIREBASE_CONFIG);
-    db = getFirestore(app);
-    document.getElementById('loadingMsg').textContent = 'Loading players...';
+    const app=initializeApp(FIREBASE_CONFIG);
+    db=getFirestore(app);
+    document.getElementById('loadingMsg').textContent='Loading data...';
     await loadAllData();
     setupRealtimeListeners();
     document.getElementById('loadingScreen').style.display='none';
     setSyncDot('ok');
-  } catch(e) {
+  } catch(e){
     console.error(e);
-    document.getElementById('loadingMsg').textContent = 'Connection failed. Check your config.';
+    document.getElementById('loadingMsg').textContent='Connection failed. Check Firebase rules.';
     setSyncDot('err');
-    setTimeout(()=>{ document.getElementById('loadingScreen').style.display='none'; }, 2500);
+    setTimeout(()=>{ document.getElementById('loadingScreen').style.display='none'; },2500);
   }
 }
 
 async function loadAllData(){
-  // Load settings (admin pass)
-  const settingsSnap = await getDoc(doc(db,'settings','main'));
-  if(settingsSnap.exists()) adminPass = settingsSnap.data().adminPass || 'admin123';
-
-  // Load players
-  const pSnap = await getDocs(collection(db,'players'));
-  players = [];
-  pSnap.forEach(d=>players.push({id:d.id, ...d.data()}));
+  const settingsSnap=await getDoc(doc(db,'settings','main'));
+  if(settingsSnap.exists()) adminPass=settingsSnap.data().adminPass||'admin123';
+  const pSnap=await getDocs(collection(db,'players'));
+  players=[];
+  pSnap.forEach(d=>players.push({id:d.id,...d.data()}));
   players.sort((a,b)=>b.elo-a.elo);
-
-  // Load history (last 50)
-  const hSnap = await getDocs(query(collection(db,'history'), orderBy('timestamp','desc'), limit(50)));
-  history = [];
-  hSnap.forEach(d=>history.push({id:d.id, ...d.data()}));
-
+  const hSnap=await getDocs(query(collection(db,'history'),orderBy('timestamp','desc'),limit(50)));
+  history=[];
+  hSnap.forEach(d=>history.push({id:d.id,...d.data()}));
   renderPlayerCheckGrid();
   renderPlayers();
   renderHistory();
@@ -500,83 +567,60 @@ async function loadAllData(){
 }
 
 function setupRealtimeListeners(){
-  // Real-time players
-  onSnapshot(collection(db,'players'), snap=>{
-    players = [];
-    snap.forEach(d=>players.push({id:d.id, ...d.data()}));
+  onSnapshot(collection(db,'players'),snap=>{
+    players=[];
+    snap.forEach(d=>players.push({id:d.id,...d.data()}));
     players.sort((a,b)=>b.elo-a.elo);
     renderPlayerCheckGrid();
     renderPlayers();
     renderLeaderboard();
     setSyncDot('ok');
   });
-  // Real-time history
-  onSnapshot(query(collection(db,'history'), orderBy('timestamp','desc'), limit(50)), snap=>{
-    history = [];
-    snap.forEach(d=>history.push({id:d.id, ...d.data()}));
+  onSnapshot(query(collection(db,'history'),orderBy('timestamp','desc'),limit(50)),snap=>{
+    history=[];
+    snap.forEach(d=>history.push({id:d.id,...d.data()}));
     renderHistory();
   });
 }
 
 async function savePlayer(p){
   setSyncDot('loading');
-  const {id, ...data} = p;
-  await setDoc(doc(db,'players',String(id)), data);
+  const{id,...data}=p;
+  await setDoc(doc(db,'players',String(id)),data);
   setSyncDot('ok');
 }
-
-async function saveSettings(){
-  await setDoc(doc(db,'settings','main'), {adminPass});
-}
-
-// ---- SETUP BANNER ----
-function showSetupBanner(){
-  document.getElementById('page-balance').insertAdjacentHTML('afterbegin',`
-    <div class="setup-banner">
-      <div class="setup-banner-title">⚙ FIREBASE SETUP REQUIRED</div>
-      <p style="font-size:14px;color:var(--text-muted);margin-bottom:.75rem">
-        Replace the placeholder values in the HTML file with your Firebase project credentials.
-        See the README for step-by-step instructions.
-      </p>
-      <p style="font-size:13px;color:var(--text-muted)">1. Go to <strong style="color:var(--text)">console.firebase.google.com</strong> → Create project</p>
-      <p style="font-size:13px;color:var(--text-muted)">2. Add a Web app → copy the config object</p>
-      <p style="font-size:13px;color:var(--text-muted)">3. Firestore Database → Create database → Start in <strong style="color:var(--text)">test mode</strong></p>
-      <p style="font-size:13px;color:var(--text-muted)">4. Paste your values into the <code style="color:#80d4b4">FIREBASE_CONFIG</code> section in the HTML file</p>
-    </div>
-  `);
-}
+async function saveSettings(){ await setDoc(doc(db,'settings','main'),{adminPass}); }
 
 // ---- ROUTING ----
 function showPage(name){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
-  const tabs = document.querySelectorAll('.nav-tab');
-  ['balance','players','history','leaderboard'].forEach((n,i)=>{ if(n===name) tabs[i].classList.add('active'); });
+  ['balance','players','history','leaderboard','live'].forEach((n,i)=>{
+    if(n===name) document.querySelectorAll('.nav-tab')[i].classList.add('active');
+  });
+  if(name==='live') renderMissingProfiles();
 }
-window.showPage = showPage;
+window.showPage=showPage;
 
 // ---- ADMIN ----
 function requireAdmin(action){
   if(adminUnlocked){ action(); return; }
-  pendingAdminAction = action;
+  pendingAdminAction=action;
   document.getElementById('quickAdminPass').value='';
   document.getElementById('quickAdminError').style.display='none';
   openModal('modalAdminRequired');
 }
-window.requireAdmin = requireAdmin;
+window.requireAdmin=requireAdmin;
 
-window.checkQuickAdmin = function(){
-  if(document.getElementById('quickAdminPass').value === adminPass){
-    adminUnlocked = true;
-    closeModal('modalAdminRequired');
+window.checkQuickAdmin=function(){
+  if(document.getElementById('quickAdminPass').value===adminPass){
+    adminUnlocked=true; closeModal('modalAdminRequired');
     if(pendingAdminAction){ pendingAdminAction(); pendingAdminAction=null; }
-  } else {
-    document.getElementById('quickAdminError').style.display='block';
-  }
+  } else { document.getElementById('quickAdminError').style.display='block'; }
 };
 
-window.toggleAdmin = function(){
+window.toggleAdmin=function(){
   if(document.getElementById('page-admin').classList.contains('active')){ showPage('balance'); return; }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
@@ -591,10 +635,9 @@ window.toggleAdmin = function(){
   }
 };
 
-window.checkAdmin = function(){
-  if(document.getElementById('adminPassInput').value === adminPass){
-    adminUnlocked=true; showAdminPanel();
-  } else { document.getElementById('adminError').style.display='block'; }
+window.checkAdmin=function(){
+  if(document.getElementById('adminPassInput').value===adminPass){ adminUnlocked=true; showAdminPanel(); }
+  else document.getElementById('adminError').style.display='block';
 };
 
 function showAdminPanel(){
@@ -603,18 +646,17 @@ function showAdminPanel(){
   renderAdminPlayerList();
 }
 
-window.lockAdmin = function(){
-  adminUnlocked=false; showPage('balance');
-  document.getElementById('adminNavBtn').classList.remove('active');
-};
+window.lockAdmin=function(){ adminUnlocked=false; showPage('balance'); document.getElementById('adminNavBtn').classList.remove('active'); };
 
-// ---- BALANCE ENGINE ----
+// ---- PLAYER SEARCH & SELECTION ----
 function renderPlayerCheckGrid(){
-  const grid = document.getElementById('playerCheckGrid');
+  const grid=document.getElementById('playerCheckGrid');
   if(!grid) return;
-  grid.innerHTML = '';
-  players.forEach(p=>{
-    const div = document.createElement('div');
+  const q=(document.getElementById('playerSearch')?.value||'').toLowerCase();
+  const filtered=players.filter(p=>p.name.toLowerCase().includes(q));
+  grid.innerHTML='';
+  filtered.forEach(p=>{
+    const div=document.createElement('div');
     div.className='player-check-item'+(selectedPlayers.has(p.id)?' selected':'');
     div.dataset.id=p.id;
     div.innerHTML=`<input type="checkbox" ${selectedPlayers.has(p.id)?'checked':''} onchange="togglePlayer('${p.id}')">
@@ -625,17 +667,18 @@ function renderPlayerCheckGrid(){
   });
   updateSelectedCount();
 }
+window.renderPlayerCheckGrid=renderPlayerCheckGrid;
 
-window.togglePlayer = function(id){
+window.togglePlayer=function(id){
   if(selectedPlayers.has(id)) selectedPlayers.delete(id);
   else {
     if(selectedPlayers.size>=8){ showToast('Maximum 8 players','error'); return; }
     selectedPlayers.add(id);
   }
   document.querySelectorAll('.player-check-item').forEach(el=>{
-    const pid = el.dataset.id;
-    el.classList.toggle('selected', selectedPlayers.has(pid));
-    el.querySelector('input').checked = selectedPlayers.has(pid);
+    const pid=el.dataset.id;
+    el.classList.toggle('selected',selectedPlayers.has(pid));
+    el.querySelector('input').checked=selectedPlayers.has(pid);
   });
   updateSelectedCount();
 };
@@ -643,50 +686,38 @@ window.togglePlayer = function(id){
 function updateSelectedCount(){
   const n=selectedPlayers.size;
   document.getElementById('selectedCount').textContent=`${n} / 8 selected`;
-  document.getElementById('balanceBtn').disabled = n!==8;
+  document.getElementById('balanceBtn').disabled=n!==8;
 }
 
-function effectiveElo(player, civId){
-  return Math.round(player.elo * ((player.civPct?.[civId]??75)/100));
-}
-
-window.runBalancer = function(){
-  const ids=[...selectedPlayers];
-  if(ids.length!==8){ showToast('Select exactly 8 players','error'); return; }
-  const selected=ids.map(id=>players.find(p=>p.id===id||p.id===parseInt(id))).filter(Boolean);
-  if(selected.length!==8){ showToast('Player data error','error'); return; }
-
-  const splits=[];
-  for(let mask=0;mask<256;mask++) if(countBits(mask)===4) splits.push(mask);
-
-  let best=null, bestGap=Infinity;
-  for(const mask of splits){
-    const ep=selected.filter((_,i)=>(mask>>i)&1);
-    const gp=selected.filter((_,i)=>!((mask>>i)&1));
-    const ea=bestCivAssign(ep,EVIL_CIVS);
-    const ga=bestCivAssign(gp,GOOD_CIVS);
-    const et=ea.reduce((s,a)=>s+a.effElo,0);
-    const gt=ga.reduce((s,a)=>s+a.effElo,0);
-    const gap=Math.abs(et-gt);
-    if(gap<bestGap){ bestGap=gap; best={evilPlayers:ep,goodPlayers:gp,evilAssign:ea,goodAssign:ga,evilTotal:et,goodTotal:gt,gap}; }
+// ---- BALANCE ENGINE ----
+function effectiveElo(player, civId, applyPrefs=true){
+  let pct=(player.civPct?.[civId]??75);
+  if(applyPrefs){
+    if((player.favCivs||[]).includes(civId)) pct+=FAV_BONUS;
+    if((player.avoidCivs||[]).includes(civId)) pct-=AVOID_PENALTY;
   }
-  lastBalance=best;
-  renderBalanceResult(best);
-};
+  return Math.round(player.elo*(Math.max(10,pct)/100));
+}
 
-function countBits(n){ let c=0; while(n){c+=n&1;n>>=1;} return c; }
-
-function bestCivAssign(ps,civs){
+function bestCivAssign(ps, civs, applyPrefs=true){
   const ids=civs.map(c=>c.id);
   const perms=permutations(ids);
   let best=null, bestScore=-Infinity;
   for(const perm of perms){
-    const score=ps.reduce((s,p,i)=>s+effectiveElo(p,perm[i]),0);
+    const score=ps.reduce((s,p,i)=>s+effectiveElo(p,perm[i],applyPrefs),0);
     if(score>bestScore){ bestScore=score; best=perm; }
   }
-  return ps.map((p,i)=>({player:p,civId:best[i],civName:CIVS.find(c=>c.id===best[i]).name,effElo:effectiveElo(p,best[i]),pct:p.civPct?.[best[i]]??75}));
+  return ps.map((p,i)=>({
+    player:p, civId:best[i],
+    civName:CIVS.find(c=>c.id===best[i]).name,
+    effElo:effectiveElo(p,best[i],false), // display real elo without pref boost
+    pct:p.civPct?.[best[i]]??75,
+    isFav:(p.favCivs||[]).includes(best[i]),
+    isAvoided:(p.avoidCivs||[]).includes(best[i]),
+  }));
 }
 
+function countBits(n){ let c=0; while(n){c+=n&1;n>>=1;} return c; }
 function permutations(arr){
   if(arr.length<=1) return [arr];
   const r=[];
@@ -697,37 +728,142 @@ function permutations(arr){
   return r;
 }
 
+function doBalance(randomize=false){
+  const ids=[...selectedPlayers];
+  if(ids.length!==8){ showToast('Select exactly 8 players','error'); return null; }
+  const selected=ids.map(id=>players.find(p=>p.id===id||p.id===parseInt(id))).filter(Boolean);
+  if(selected.length!==8){ showToast('Player data error','error'); return null; }
+
+  const splits=[];
+  for(let mask=0;mask<256;mask++) if(countBits(mask)===4) splits.push(mask);
+
+  if(randomize){
+    // Pick a random valid split (different from current if possible)
+    const shuffled=splits.sort(()=>Math.random()-0.5);
+    const mask=shuffled[0];
+    const ep=selected.filter((_,i)=>(mask>>i)&1);
+    const gp=selected.filter((_,i)=>!((mask>>i)&1));
+    const ea=bestCivAssign(ep,EVIL_CIVS);
+    const ga=bestCivAssign(gp,GOOD_CIVS);
+    const et=ea.reduce((s,a)=>s+a.effElo,0);
+    const gt=ga.reduce((s,a)=>s+a.effElo,0);
+    return{evilAssign:ea,goodAssign:ga,evilTotal:et,goodTotal:gt,gap:Math.abs(et-gt)};
+  } else {
+    let best=null, bestGap=Infinity;
+    for(const mask of splits){
+      const ep=selected.filter((_,i)=>(mask>>i)&1);
+      const gp=selected.filter((_,i)=>!((mask>>i)&1));
+      const ea=bestCivAssign(ep,EVIL_CIVS);
+      const ga=bestCivAssign(gp,GOOD_CIVS);
+      const et=ea.reduce((s,a)=>s+a.effElo,0);
+      const gt=ga.reduce((s,a)=>s+a.effElo,0);
+      const gap=Math.abs(et-gt);
+      if(gap<bestGap){ bestGap=gap; best={evilAssign:ea,goodAssign:ga,evilTotal:et,goodTotal:gt,gap}; }
+    }
+    return best;
+  }
+}
+
+window.runBalancer=function(){
+  swapSource=null;
+  const r=doBalance(false);
+  if(r){ lastBalance=r; renderBalanceResult(r); }
+};
+
+window.runBalancerRandom=function(){
+  swapSource=null;
+  const r=doBalance(true);
+  if(r){ lastBalance=r; renderBalanceResult(r); }
+};
+
+// ---- SWAP PLAYERS ----
+window.startSwap=function(team, index){
+  if(swapSource && swapSource.team===team && swapSource.index===index){
+    // Deselect
+    swapSource=null;
+    document.getElementById('swapHint').style.display='none';
+    renderTeamPanels();
+    return;
+  }
+  if(swapSource){
+    // Execute swap
+    const a=swapSource, b={team,index};
+    if(a.team===b.team){
+      // Same team — swap civs only
+      const aAssign=lastBalance[a.team+'Assign'][a.index];
+      const bAssign=lastBalance[b.team+'Assign'][b.index];
+      [aAssign.civId,bAssign.civId]=[bAssign.civId,aAssign.civId];
+      [aAssign.civName,bAssign.civName]=[bAssign.civName,aAssign.civName];
+      [aAssign.effElo,bAssign.effElo]=[bAssign.effElo,aAssign.effElo];
+      [aAssign.pct,bAssign.pct]=[bAssign.pct,aAssign.pct];
+    } else {
+      // Different teams — swap players entirely
+      const aArr=lastBalance[a.team+'Assign'];
+      const bArr=lastBalance[b.team+'Assign'];
+      const tmp=aArr[a.index];
+      // Re-assign civ from other side's civ list
+      const aNewCiv=bArr[b.index].civId; // keep civ slot
+      const bNewCiv=tmp.civId;
+      const aPlayer=tmp.player;
+      const bPlayer=bArr[b.index].player;
+      aArr[a.index]={player:bPlayer,civId:aNewCiv,civName:CIVS.find(c=>c.id===aNewCiv).name,effElo:effectiveElo(bPlayer,aNewCiv,false),pct:bPlayer.civPct?.[aNewCiv]??75,isFav:(bPlayer.favCivs||[]).includes(aNewCiv),isAvoided:(bPlayer.avoidCivs||[]).includes(aNewCiv)};
+      bArr[b.index]={player:aPlayer,civId:bNewCiv,civName:CIVS.find(c=>c.id===bNewCiv).name,effElo:effectiveElo(aPlayer,bNewCiv,false),pct:aPlayer.civPct?.[bNewCiv]??75,isFav:(aPlayer.favCivs||[]).includes(bNewCiv),isAvoided:(aPlayer.avoidCivs||[]).includes(bNewCiv)};
+    }
+    // Recalculate totals
+    lastBalance.evilTotal=lastBalance.evilAssign.reduce((s,a)=>s+a.effElo,0);
+    lastBalance.goodTotal=lastBalance.goodAssign.reduce((s,a)=>s+a.effElo,0);
+    lastBalance.gap=Math.abs(lastBalance.evilTotal-lastBalance.goodTotal);
+    swapSource=null;
+    document.getElementById('swapHint').style.display='none';
+    renderBalanceResult(lastBalance);
+  } else {
+    swapSource={team,index};
+    document.getElementById('swapHint').style.display='block';
+    renderTeamPanels();
+  }
+};
+
 function renderBalanceResult(r){
   document.getElementById('balanceResult').style.display='block';
   const total=r.evilTotal+r.goodTotal;
   const ep=Math.round(r.evilTotal/total*100);
   document.getElementById('barEvil').style.width=ep+'%';
   document.getElementById('barGood').style.width=(100-ep)+'%';
-  document.getElementById('evilTotalLabel').textContent=r.evilTotal+' avg Elo';
-  document.getElementById('goodTotalLabel').textContent=r.goodTotal+' avg Elo';
-  document.getElementById('gapLabel').textContent=`Gap: ${r.gap} Elo`;
-  renderTeamPanel('evilTeam',r.evilAssign);
-  renderTeamPanel('goodTeam',r.goodAssign);
+  document.getElementById('evilTotalLabel').textContent=r.evilTotal+' Elo';
+  document.getElementById('goodTotalLabel').textContent=r.goodTotal+' Elo';
+  document.getElementById('gapLabel').textContent=`Gap: ${r.gap}`;
+  renderTeamPanels();
 }
 
-function renderTeamPanel(elId,assignments){
-  document.getElementById(elId).innerHTML=assignments.map(a=>`
-    <div class="player-row">
-      <div>
+function renderTeamPanels(){
+  if(!lastBalance) return;
+  renderTeamPanel('evilTeam',lastBalance.evilAssign,'evil');
+  renderTeamPanel('goodTeam',lastBalance.goodAssign,'good');
+}
+
+function renderTeamPanel(elId,assignments,team){
+  document.getElementById(elId).innerHTML=assignments.map((a,i)=>{
+    const isSelecting=swapSource&&swapSource.team===team&&swapSource.index===i;
+    const isTarget=swapSource&&!(swapSource.team===team&&swapSource.index===i);
+    const favIcon=a.isFav?' ★':'';
+    return `<div class="player-row" style="${isSelecting?'border-color:var(--gold);background:rgba(201,168,76,0.08)':''}${isTarget?'cursor:pointer':''}" ${isTarget?`onclick="startSwap('${team}',${i})"`:''}>
+      <div style="flex:1;min-width:0">
         <div class="player-row-name">${a.player.name}</div>
-        <div class="player-row-civ">${a.civName} <span style="color:var(--text-dim)">(${a.pct}%)</span></div>
+        <div class="player-row-civ">${a.civName}${favIcon} <span style="color:var(--text-dim)">(${a.pct}%)</span></div>
       </div>
       <div class="player-row-elo">${a.effElo}</div>
-    </div>`).join('');
+      <button class="swap-btn ${isSelecting?'selecting':''}" onclick="event.stopPropagation();startSwap('${team}',${i})">SWAP</button>
+    </div>`;
+  }).join('');
 }
 
 // ---- RECORD RESULT ----
-window.openRecordModal = function(){
+window.openRecordModal=function(){
   if(!lastBalance){ showToast('No balance generated yet','error'); return; }
   requireAdmin(()=>openModal('modalRecord'));
 };
 
-window.recordResult = async function(winner){
+window.recordResult=async function(winner){
   const r=lastBalance; if(!r) return;
   closeModal('modalRecord');
   setSyncDot('loading');
@@ -735,24 +871,34 @@ window.recordResult = async function(winner){
   const winA=winner==='evil'?r.evilAssign:r.goodAssign;
   const loseA=winner==='evil'?r.goodAssign:r.evilAssign;
 
+  // Update winners: +2% on civ played, +1 win
   for(const a of winA){
     const p=players.find(pl=>pl.id===a.player.id);
-    if(p){ p.civPct=p.civPct||{}; p.civPct[a.civId]=Math.min(100,(p.civPct[a.civId]??75)+2); p.wins=(p.wins||0)+1; await savePlayer(p); }
+    if(!p) continue;
+    p.civPct=p.civPct||{};
+    p.civPct[a.civId]=Math.min(100,(p.civPct[a.civId]??75)+2);
+    p.wins=(p.wins||0)+1;
+    await savePlayer(p);
   }
+  // Update losers: -1% on civ played, +1 loss
   for(const a of loseA){
     const p=players.find(pl=>pl.id===a.player.id);
-    if(p){ p.civPct=p.civPct||{}; p.civPct[a.civId]=Math.max(40,(p.civPct[a.civId]??75)-1); p.losses=(p.losses||0)+1; await savePlayer(p); }
+    if(!p) continue;
+    p.civPct=p.civPct||{};
+    p.civPct[a.civId]=Math.max(40,(p.civPct[a.civId]??75)-1);
+    p.losses=(p.losses||0)+1;
+    await savePlayer(p);
   }
 
   await addDoc(collection(db,'history'),{
-    date, winner,
-    evilTotal:r.evilTotal, goodTotal:r.goodTotal, gap:r.gap,
-    timestamp: Date.now(),
+    date,winner,
+    evilTotal:r.evilTotal,goodTotal:r.goodTotal,gap:r.gap,
+    timestamp:Date.now(),
     evilAssign:r.evilAssign.map(a=>({name:a.player.name,civName:a.civName,effElo:a.effElo})),
     goodAssign:r.goodAssign.map(a=>({name:a.player.name,civName:a.civName,effElo:a.effElo})),
   });
 
-  lastBalance=null;
+  lastBalance=null; swapSource=null;
   document.getElementById('balanceResult').style.display='none';
   selectedPlayers.clear();
   renderPlayerCheckGrid();
@@ -767,14 +913,16 @@ function renderPlayers(){
   tbody.innerHTML=players.map(p=>{
     const total=(p.wins||0)+(p.losses||0);
     const wp=total?Math.round((p.wins||0)/total*100)+'%':'—';
-    const bc=bestCivForPlayer(p);
+    const favs=(p.favCivs||[]).map(id=>CIVS.find(c=>c.id===id)?.name).filter(Boolean).join(', ')||'—';
+    const avoids=(p.avoidCivs||[]).map(id=>CIVS.find(c=>c.id===id)?.name).filter(Boolean).join(', ')||'—';
     return `<tr>
       <td style="font-weight:600">${p.name}</td>
       <td><span class="elo-val">${p.elo}</span></td>
       <td style="color:#4CAF50">${p.wins||0}</td>
       <td style="color:#e08080">${p.losses||0}</td>
       <td>${wp}</td>
-      <td><span class="badge ${bc.side==='evil'?'badge-evil':'badge-good'}">${bc.name}</span></td>
+      <td style="font-size:13px;color:var(--gold)">${favs}</td>
+      <td style="font-size:13px;color:#e08080">${avoids}</td>
       <td style="color:var(--text-muted)">${total}</td>
       <td><div class="flex gap-sm">
         <button class="btn btn-sm" onclick="requireAdmin(()=>openEditPlayer('${p.id}'))">Edit</button>
@@ -784,19 +932,21 @@ function renderPlayers(){
   }).join('');
 }
 
-function bestCivForPlayer(p){
-  let bestId=null, best=0;
-  CIVS.forEach(c=>{ if((p.civPct?.[c.id]??75)>best){ best=p.civPct?.[c.id]??75; bestId=c.id; }});
-  return CIVS.find(c=>c.id===bestId)||CIVS[0];
-}
-
-function buildCivSliders(prefix, p){
+function buildCivSliders(prefix,p){
+  const favs=p?.favCivs||[];
+  const avoids=p?.avoidCivs||[];
   return CIVS.map(c=>{
     const val=p?.civPct?.[c.id]??75;
-    return `<div style="margin-bottom:10px">
+    const isFav=favs.includes(c.id);
+    const isAvoid=avoids.includes(c.id);
+    return `<div style="margin-bottom:12px;padding:8px;background:var(--surface3);border-radius:var(--radius);border:1px solid ${isFav?'var(--gold-dim)':isAvoid?'var(--evil-border)':'var(--border)'}">
       <div class="flex-between mb1">
         <label style="margin:0"><span class="badge ${c.side==='evil'?'badge-evil':'badge-good'}">${c.name}</span></label>
-        <span class="pct-display" id="${prefix}_pct_${c.id}">${val}%</span>
+        <div class="flex gap-sm">
+          <button class="civ-pref ${isFav?'fav':'none'}" id="${prefix}_fav_${c.id}" onclick="toggleCivPref('${prefix}','${c.id}','fav')" title="Favourite">★</button>
+          <button class="civ-pref ${isAvoid?'avoid':'none'}" id="${prefix}_avoid_${c.id}" onclick="toggleCivPref('${prefix}','${c.id}','avoid')" title="Avoid">✕</button>
+          <span class="pct-display" id="${prefix}_pct_${c.id}">${val}%</span>
+        </div>
       </div>
       <input type="range" min="40" max="100" step="1" value="${val}" id="${prefix}_sl_${c.id}"
         oninput="document.getElementById('${prefix}_pct_${c.id}').textContent=this.value+'%'">
@@ -804,58 +954,90 @@ function buildCivSliders(prefix, p){
   }).join('');
 }
 
+window.toggleCivPref=function(prefix,civId,type){
+  const favBtn=document.getElementById(`${prefix}_fav_${civId}`);
+  const avoidBtn=document.getElementById(`${prefix}_avoid_${civId}`);
+  const wrap=favBtn.closest('div[style*="border:"]');
+  if(type==='fav'){
+    const isNowFav=!favBtn.classList.contains('fav');
+    favBtn.className='civ-pref '+(isNowFav?'fav':'none');
+    if(isNowFav){ avoidBtn.className='civ-pref none'; }
+  } else {
+    const isNowAvoid=!avoidBtn.classList.contains('avoid');
+    avoidBtn.className='civ-pref '+(isNowAvoid?'avoid':'none');
+    if(isNowAvoid){ favBtn.className='civ-pref none'; }
+  }
+  // Update border
+  const isFav=favBtn.classList.contains('fav');
+  const isAvoid=avoidBtn.classList.contains('avoid');
+  wrap.style.borderColor=isFav?'var(--gold-dim)':isAvoid?'var(--evil-border)':'var(--border)';
+};
+
 function getCivSliderValues(prefix){
-  const obj={};
-  CIVS.forEach(c=>{ obj[c.id]=parseInt(document.getElementById(`${prefix}_sl_${c.id}`).value); });
-  return obj;
+  const pct={}, favs=[], avoids=[];
+  CIVS.forEach(c=>{
+    pct[c.id]=parseInt(document.getElementById(`${prefix}_sl_${c.id}`).value);
+    if(document.getElementById(`${prefix}_fav_${c.id}`).classList.contains('fav')) favs.push(c.id);
+    if(document.getElementById(`${prefix}_avoid_${c.id}`).classList.contains('avoid')) avoids.push(c.id);
+  });
+  return{pct,favs,avoids};
 }
 
-window.openAddPlayer = function(){
+function bestCivForPlayer(p){
+  let bestId=null, best=0;
+  CIVS.forEach(c=>{ if((p.civPct?.[c.id]??75)>best){ best=p.civPct?.[c.id]??75; bestId=c.id; }});
+  return CIVS.find(c=>c.id===bestId)||CIVS[0];
+}
+
+window.openAddPlayer=function(){
   document.getElementById('newPlayerName').value='';
   document.getElementById('newPlayerElo').value='1200';
   document.getElementById('civSliders').innerHTML=buildCivSliders('add',null);
   openModal('modalAddPlayer');
 };
 
-window.saveNewPlayer = async function(){
+window.saveNewPlayer=async function(){
   const name=document.getElementById('newPlayerName').value.trim();
   const elo=parseInt(document.getElementById('newPlayerElo').value);
   if(!name){ showToast('Enter a player name','error'); return; }
   if(!elo||elo<800||elo>2000){ showToast('Elo must be 800–2000','error'); return; }
-  const civPct=getCivSliderValues('add');
+  const{pct:civPct,favs:favCivs,avoids:avoidCivs}=getCivSliderValues('add');
+  const profileId=parseInt(document.getElementById('newPlayerProfileId').value)||null;
   setSyncDot('loading');
-  await addDoc(collection(db,'players'),{name,elo,wins:0,losses:0,civPct});
+  await addDoc(collection(db,'players'),{name,elo,wins:0,losses:0,civPct,favCivs,avoidCivs,profileId});
   closeModal('modalAddPlayer');
   showToast(`${name} added to the roster`);
 };
 
-window.openEditPlayer = function(id){
+window.openEditPlayer=function(id){
   const p=players.find(pl=>pl.id===id||pl.id===parseInt(id));
   if(!p) return;
   document.getElementById('editModalTitle').textContent=`Edit — ${p.name}`;
   document.getElementById('editPlayerName').value=p.name;
   document.getElementById('editPlayerElo').value=p.elo;
   document.getElementById('editPlayerId').value=p.id;
+  document.getElementById('editPlayerProfileId').value=p.profileId||'';
   document.getElementById('editCivSliders').innerHTML=buildCivSliders('edit',p);
   openModal('modalEditPlayer');
 };
 
-window.saveEditPlayer = async function(){
+window.saveEditPlayer=async function(){
   const id=document.getElementById('editPlayerId').value;
   const name=document.getElementById('editPlayerName').value.trim();
   const elo=parseInt(document.getElementById('editPlayerElo').value);
   if(!name){ showToast('Enter a player name','error'); return; }
   if(!elo||elo<800||elo>2000){ showToast('Elo must be 800–2000','error'); return; }
-  const civPct=getCivSliderValues('edit');
+  const{pct:civPct,favs:favCivs,avoids:avoidCivs}=getCivSliderValues('edit');
+  const profileId=parseInt(document.getElementById('editPlayerProfileId').value)||null;
   const p=players.find(pl=>pl.id===id||pl.id===parseInt(id));
   if(!p) return;
-  p.name=name; p.elo=elo; p.civPct=civPct;
+  p.name=name; p.elo=elo; p.civPct=civPct; p.favCivs=favCivs; p.avoidCivs=avoidCivs; p.profileId=profileId;
   await savePlayer(p);
   closeModal('modalEditPlayer');
   showToast('Player updated');
 };
 
-window.deletePlayer = function(id){
+window.deletePlayer=function(id){
   const p=players.find(pl=>pl.id===id||pl.id===parseInt(id));
   if(!p) return;
   document.getElementById('deleteConfirmName').textContent=p.name;
@@ -863,7 +1045,7 @@ window.deletePlayer = function(id){
   openModal('modalDeleteConfirm');
 };
 
-window.confirmDelete = async function(){
+window.confirmDelete=async function(){
   const id=document.getElementById('deleteConfirmId').value;
   setSyncDot('loading');
   await deleteDoc(doc(db,'players',String(id)));
@@ -880,10 +1062,11 @@ function renderHistory(){
   el.innerHTML=history.map(h=>`
     <div class="game-card">
       <div class="flex-between mb1">
-        <span class="game-winner-badge ${h.winner==='evil'?'game-winner-evil':'game-winner-good'}">
-          ${h.winner==='evil'?'⚔ EVIL WIN':'✦ GOOD WIN'}
-        </span>
-        <span style="font-size:13px;color:var(--text-muted)">${h.date} · Gap: ${h.gap} Elo</span>
+        <span class="game-winner-badge ${h.winner==='evil'?'game-winner-evil':'game-winner-good'}">${h.winner==='evil'?'⚔ EVIL WIN':'✦ GOOD WIN'}</span>
+        <div class="flex gap-sm">
+          <span style="font-size:13px;color:var(--text-muted)">${h.date} · Gap: ${h.gap} Elo</span>
+          <button class="btn-danger" onclick="requireAdmin(()=>deleteHistory('${h.id}'))">✕</button>
+        </div>
       </div>
       <div class="grid2" style="gap:8px;margin-top:8px">
         <div>
@@ -897,6 +1080,20 @@ function renderHistory(){
       </div>
     </div>`).join('');
 }
+
+window.deleteHistory=function(id){
+  document.getElementById('deleteHistoryId').value=id;
+  openModal('modalDeleteHistory');
+};
+
+window.confirmDeleteHistory=async function(){
+  const id=document.getElementById('deleteHistoryId').value;
+  setSyncDot('loading');
+  await deleteDoc(doc(db,'history',String(id)));
+  closeModal('modalDeleteHistory');
+  showToast('Match removed from history');
+  setSyncDot('ok');
+};
 
 // ---- LEADERBOARD ----
 function renderLeaderboard(){
@@ -916,8 +1113,8 @@ function renderLeaderboard(){
   }).join('');
 }
 
-// ---- ADMIN PANEL ----
-window.renderAdminPlayerList = function(){
+// ---- ADMIN ----
+window.renderAdminPlayerList=function(){
   const el=document.getElementById('adminPlayerList');
   el.innerHTML=players.map(p=>`
     <div style="padding:12px 0;border-bottom:1px solid var(--border)">
@@ -925,8 +1122,7 @@ window.renderAdminPlayerList = function(){
         <span style="font-weight:600;font-size:15px">${p.name}</span>
         <div class="flex gap-sm">
           <label style="margin:0;display:inline">Elo:</label>
-          <input type="number" value="${p.elo}" min="800" max="2000" style="width:80px"
-            onchange="adminUpdateElo('${p.id}',this.value)">
+          <input type="number" value="${p.elo}" min="800" max="2000" style="width:80px" onchange="adminUpdateElo('${p.id}',this.value)">
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px">
@@ -943,47 +1139,45 @@ window.renderAdminPlayerList = function(){
     </div>`).join('');
 };
 
-window.adminUpdateElo = async function(id,val){
+window.adminUpdateElo=async function(id,val){
   const elo=parseInt(val);
   if(elo<800||elo>2000) return;
   const p=players.find(pl=>pl.id===id||pl.id===parseInt(id));
   if(p){ p.elo=elo; await savePlayer(p); }
 };
 
-window.adminUpdateCiv = async function(id,civId,val){
+window.adminUpdateCiv=async function(id,civId,val){
   const p=players.find(pl=>pl.id===id||pl.id===parseInt(id));
   if(p){ p.civPct=p.civPct||{}; p.civPct[civId]=parseInt(val); await savePlayer(p); }
 };
 
-window.changePassword = async function(){
+window.changePassword=async function(){
   const p1=document.getElementById('newPass1').value;
   const p2=document.getElementById('newPass2').value;
   if(!p1||p1.length<4){ showToast('Password must be at least 4 characters','error'); return; }
   if(p1!==p2){ showToast('Passwords do not match','error'); return; }
-  adminPass=p1;
-  await saveSettings();
+  adminPass=p1; await saveSettings();
   document.getElementById('newPass1').value='';
   document.getElementById('newPass2').value='';
   showToast('Password updated');
 };
 
-window.exportData = function(){
+window.exportData=function(){
   const blob=new Blob([JSON.stringify({players,history},null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='wotr_data.json'; a.click();
 };
 
-window.resetAll = function(){ openModal('modalResetConfirm'); };
+window.resetAll=function(){ openModal('modalResetConfirm'); };
 
-window.confirmReset = async function(){
+window.confirmReset=async function(){
   setSyncDot('loading');
   const pSnap=await getDocs(collection(db,'players'));
   for(const d of pSnap.docs) await deleteDoc(d.ref);
   const hSnap=await getDocs(collection(db,'history'));
   for(const d of hSnap.docs) await deleteDoc(d.ref);
   closeModal('modalResetConfirm');
-  selectedPlayers.clear();
-  lastBalance=null;
+  selectedPlayers.clear(); lastBalance=null;
   document.getElementById('balanceResult').style.display='none';
   showToast('All data reset');
   setSyncDot('ok');
@@ -1010,8 +1204,237 @@ function showToast(msg,type=''){
 }
 window.showToast=showToast;
 
-// ---- INIT ----
+
+// =====================================================================
+// LIVE MATCH DETECTION
+// =====================================================================
+const LOBBY_API = 'https://aoe-api.worldsedgelink.com/community/advertisement/findAdvertisements?title=age2';
+const POLL_INTERVAL = 30000; // 30 seconds
+let pollTimer = null;
+let liveActive = false;
+let liveMatchData = null; // {evilPlayers, goodPlayers, startTime, lobbyId}
+let liveTimerInterval = null;
+let pollingEnabled = true;
+
+function renderMissingProfiles(){
+  const missing = players.filter(p=>!p.profileId);
+  const wrap = document.getElementById('profilesWithoutId');
+  const list = document.getElementById('missingProfileList');
+  if(!missing.length){ wrap.style.display='none'; return; }
+  wrap.style.display='block';
+  list.innerHTML = missing.map(p=>`
+    <div class="flex-between" style="padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:14px">${p.name}</span>
+      <button class="btn btn-sm" onclick="requireAdmin(()=>openEditPlayer('${p.id}'))">Add Profile ID</button>
+    </div>`).join('');
+}
+
+async function pollLobby(){
+  if(!pollingEnabled || liveActive) return;
+  try {
+    const resp = await fetch(LOBBY_API);
+    if(!resp.ok) throw new Error('API error');
+    const data = await resp.json();
+    const matches = data.matches || [];
+    checkForCommunityMatch(matches);
+    const now = new Date().toLocaleTimeString();
+    document.getElementById('pollStatus').textContent = `Last checked: ${now}`;
+  } catch(e){
+    document.getElementById('pollStatus').textContent = `Last checked: failed (${new Date().toLocaleTimeString()})`;
+  }
+}
+
+function checkForCommunityMatch(matches){
+  const profileMap = {};
+  players.forEach(p=>{ if(p.profileId) profileMap[p.profileId]=p; });
+  const communityIds = new Set(Object.keys(profileMap).map(Number));
+
+  for(const match of matches){
+    const members = match.matchmembers || [];
+    const found = members.filter(m=>communityIds.has(m.profile_id));
+    if(found.length >= 4){
+      // Found a match with 4+ community players!
+      const foundPlayers = found.map(m=>profileMap[m.profile_id]);
+      activateLiveDashboard(match, foundPlayers);
+      return;
+    }
+  }
+}
+
+function activateLiveDashboard(match, foundPlayers){
+  liveActive = true;
+  liveMatchData = { match, foundPlayers, startTime: Date.now(), civAssignments: {} };
+
+  // Show live tab dot
+  document.getElementById('liveDashDot').className = 'live-tab-dot active';
+  document.getElementById('livePulseIcon').className = 'live-pulse active';
+
+  // Show dashboard
+  document.getElementById('liveWaiting').style.display = 'none';
+  document.getElementById('liveDashboard').style.display = 'block';
+
+  // Split into teams — use our last balance if available, otherwise split by elo
+  renderLiveTeams(foundPlayers);
+  startLiveTimer();
+  showToast('⚔ Live match detected!');
+}
+
+function renderLiveTeams(foundPlayers){
+  if(!foundPlayers || !foundPlayers.length) return;
+
+  // If we have a lastBalance that matches these players, use it
+  let evilPlayers, goodPlayers;
+  if(lastBalance){
+    const balEvilIds = new Set(lastBalance.evilAssign.map(a=>a.player.id));
+    const balPlayers = lastBalance.evilAssign.map(a=>a.player).concat(lastBalance.goodAssign.map(a=>a.player));
+    const matchIds = new Set(foundPlayers.map(p=>p.id));
+    const overlap = balPlayers.filter(p=>matchIds.has(p.id));
+    if(overlap.length >= foundPlayers.length * 0.75){
+      evilPlayers = lastBalance.evilAssign.map(a=>({player:a.player, civId:a.civId, civName:a.civName}));
+      goodPlayers = lastBalance.goodAssign.map(a=>({player:a.player, civId:a.civId, civName:a.civName}));
+    }
+  }
+
+  if(!evilPlayers){
+    // Fallback: split by elo
+    const sorted = [...foundPlayers].sort((a,b)=>b.elo-a.elo);
+    evilPlayers = sorted.filter((_,i)=>i%2===0).slice(0,4).map(p=>({player:p, civId:null, civName:null}));
+    goodPlayers = sorted.filter((_,i)=>i%2===1).slice(0,4).map(p=>({player:p, civId:null, civName:null}));
+  }
+
+  liveMatchData.evilPlayers = evilPlayers;
+  liveMatchData.goodPlayers = goodPlayers;
+
+  renderLiveTeamPanel('liveEvilTeam', evilPlayers, 'evil');
+  renderLiveTeamPanel('liveGoodTeam', goodPlayers, 'good');
+  updateLiveEloBar(evilPlayers, goodPlayers);
+}
+
+function renderLiveTeamPanel(elId, assignments, team){
+  const el = document.getElementById(elId);
+  el.innerHTML = assignments.map((a,i)=>{
+    const civOptions = (team==='evil'?EVIL_CIVS:GOOD_CIVS).map(c=>
+      `<option value="${c.id}" ${a.civId===c.id?'selected':''}>${c.name}</option>`
+    ).join('');
+    return `<div class="live-player-row">
+      <div class="live-player-name">${a.player.name}</div>
+      <select class="live-civ-select" onchange="updateLiveCiv('${team}',${i},this.value)">
+        <option value="">— select civ —</option>
+        ${civOptions}
+      </select>
+    </div>`;
+  }).join('');
+}
+
+window.updateLiveCiv = function(team, index, civId){
+  const arr = team==='evil' ? liveMatchData.evilPlayers : liveMatchData.goodPlayers;
+  arr[index].civId = civId;
+  arr[index].civName = CIVS.find(c=>c.id===civId)?.name || null;
+  updateLiveEloBar(liveMatchData.evilPlayers, liveMatchData.goodPlayers);
+};
+
+function updateLiveEloBar(ep, gp){
+  const et = ep.reduce((s,a)=>s+(a.civId?effectiveElo(a.player,a.civId,false):a.player.elo),0);
+  const gt = gp.reduce((s,a)=>s+(a.civId?effectiveElo(a.player,a.civId,false):a.player.elo),0);
+  const total = et+gt;
+  const pct = Math.round(et/total*100);
+  document.getElementById('liveBarEvil').style.width=pct+'%';
+  document.getElementById('liveBarGood').style.width=(100-pct)+'%';
+  document.getElementById('liveEvilTotal').textContent=et+' Elo';
+  document.getElementById('liveGoodTotal').textContent=gt+' Elo';
+  document.getElementById('liveGapLabel').textContent=`Gap: ${Math.abs(et-gt)}`;
+}
+
+function startLiveTimer(){
+  if(liveTimerInterval) clearInterval(liveTimerInterval);
+  liveTimerInterval = setInterval(()=>{
+    if(!liveMatchData) return;
+    const elapsed = Math.floor((Date.now()-liveMatchData.startTime)/1000);
+    const m = Math.floor(elapsed/60).toString().padStart(2,'0');
+    const s = (elapsed%60).toString().padStart(2,'0');
+    document.getElementById('liveTimer').textContent = `${m}:${s}`;
+  }, 1000);
+}
+
+window.endLiveMatch = function(){
+  liveActive = false;
+  liveMatchData = null;
+  if(liveTimerInterval){ clearInterval(liveTimerInterval); liveTimerInterval=null; }
+  document.getElementById('liveDashDot').className='live-tab-dot';
+  document.getElementById('livePulseIcon').className='live-pulse';
+  document.getElementById('liveWaiting').style.display='block';
+  document.getElementById('liveDashboard').style.display='none';
+  document.getElementById('liveTimer').textContent='00:00';
+  document.getElementById('pollStatus').textContent='Match ended — watching for next game...';
+};
+
+window.openLiveRecordModal = function(){
+  if(!liveMatchData){ showToast('No live match active','error'); return; }
+  openModal('modalLiveRecord');
+};
+
+window.recordLiveResult = async function(winner){
+  if(!liveMatchData) return;
+  closeModal('modalLiveRecord');
+  setSyncDot('loading');
+  const date = new Date().toLocaleDateString('en-CA');
+  const ep = liveMatchData.evilPlayers;
+  const gp = liveMatchData.goodPlayers;
+  const winA = winner==='evil'?ep:gp;
+  const loseA = winner==='evil'?gp:ep;
+
+  for(const a of winA){
+    const p = players.find(pl=>pl.id===a.player.id);
+    if(!p||!a.civId) continue;
+    p.civPct=p.civPct||{};
+    p.civPct[a.civId]=Math.min(100,(p.civPct[a.civId]??75)+2);
+    p.wins=(p.wins||0)+1;
+    await savePlayer(p);
+  }
+  for(const a of loseA){
+    const p = players.find(pl=>pl.id===a.player.id);
+    if(!p||!a.civId) continue;
+    p.civPct=p.civPct||{};
+    p.civPct[a.civId]=Math.max(40,(p.civPct[a.civId]??75)-1);
+    p.losses=(p.losses||0)+1;
+    await savePlayer(p);
+  }
+
+  const evilTotal = ep.reduce((s,a)=>s+(a.civId?effectiveElo(a.player,a.civId,false):a.player.elo),0);
+  const goodTotal = gp.reduce((s,a)=>s+(a.civId?effectiveElo(a.player,a.civId,false):a.player.elo),0);
+
+  await addDoc(collection(db,'history'),{
+    date, winner,
+    evilTotal, goodTotal, gap: Math.abs(evilTotal-goodTotal),
+    timestamp: Date.now(),
+    source: 'live',
+    evilAssign: ep.map(a=>({name:a.player.name, civName:a.civName||'?', effElo:a.civId?effectiveElo(a.player,a.civId,false):a.player.elo})),
+    goodAssign: gp.map(a=>({name:a.player.name, civName:a.civName||'?', effElo:a.civId?effectiveElo(a.player,a.civId,false):a.player.elo})),
+  });
+
+  endLiveMatch();
+  showToast(winner==='evil'?'⚔ Evil Forces win recorded!':'✦ Free Peoples win recorded!');
+  setSyncDot('ok');
+};
+
+window.pollNow = function(){ pollLobby(); };
+
+window.toggleLivePolling = function(){
+  pollingEnabled = !pollingEnabled;
+  document.getElementById('liveToggleBtn').textContent = pollingEnabled?'PAUSE':'RESUME';
+  if(pollingEnabled){ startPolling(); showToast('Live polling resumed'); }
+  else { if(pollTimer){clearInterval(pollTimer);pollTimer=null;} showToast('Live polling paused'); }
+};
+
+function startPolling(){
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(pollLobby, POLL_INTERVAL);
+  pollLobby(); // immediate first check
+}
+
+
 initFirebase();
+startPolling();
 </script>
 </body>
 </html>
