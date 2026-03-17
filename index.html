@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>War of the Ring — Match Balancer</title>
+<title>The Hobbit — Match Balancer</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -171,13 +171,13 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
 <body>
 
 <div class="loading-screen" id="loadingScreen">
-  <div class="loading-title">⚔ WAR OF THE RING</div>
+  <div class="loading-title">⚔ THE HOBBIT</div>
   <div class="spinner"></div>
   <div class="loading-sub" id="loadingMsg">Connecting to Firebase...</div>
 </div>
 
 <nav>
-  <div class="nav-logo">⚔ WAR OF THE RING <span>BALANCER</span></div>
+  <div class="nav-logo">⚔ THE HOBBIT <span>BALANCER</span></div>
   <div class="nav-tabs">
     <div class="nav-tab active" onclick="showPage('balance')"><svg viewBox="0 0 24 24"><path d="M12 3l9 18H3L12 3z"/></svg>BALANCE</div>
     <div class="nav-tab" onclick="showPage('players')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>PLAYERS</div>
@@ -545,6 +545,23 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
     </div>
     <p style="font-size:12px;color:var(--text-muted);margin:.75rem 0;font-style:italic">This will record the match in history but will NOT update player ratings or W/L counts.</p>
     <button class="btn-primary" onclick="saveAddMatch()">ADD MATCH</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalResultConflict">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title" style="color:#e08080">⚠ Result Conflict Detected</div>
+    <p style="font-size:14px;color:var(--text-muted);margin-bottom:1rem">
+      The API reports a <strong id="conflictApiWinner" style="color:var(--text)"></strong> victory,
+      but this match was already manually recorded as a <strong id="conflictManualWinner" style="color:var(--text)"></strong> victory.
+    </p>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:1.25rem;font-style:italic">
+      Which result is correct? The wrong entry will be deleted and ratings corrected.
+    </p>
+    <div class="grid2" style="gap:8px">
+      <button class="btn" onclick="resolveConflict('manual')">Keep Manual Result</button>
+      <button class="btn-evil" style="padding:9px" onclick="resolveConflict('api')">Use API Result</button>
+    </div>
   </div>
 </div>
 
@@ -1300,7 +1317,7 @@ window.changePassword=async function(){
 window.exportData=function(){
   const blob=new Blob([JSON.stringify({players,history},null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download='wotr_data.json'; a.click();
+  a.download='hobbit_data.json'; a.click();
 };
 
 window.resetAll=function(){ openModal('modalResetConfirm'); };
@@ -1343,8 +1360,8 @@ window.showToast=showToast;
 // =====================================================================
 // LIVE MATCH DETECTION & AUTO-RESULT
 // =====================================================================
-const LOBBY_API = 'https://aoe-api.worldsedgelink.com/community/advertisement/findAdvertisements?title=age2';
-const HISTORY_API = id => `https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=[${id}]`;
+const LOBBY_API = 'https://corsproxy.io/?url=https://aoe-api.worldsedgelink.com/community/advertisement/findAdvertisements?title=age2';
+const HISTORY_API = id => `https://corsproxy.io/?url=https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=[${id}]`;
 const POLL_INTERVAL = 30000;
 let pollTimer = null;
 let resultPollTimer = null;
@@ -1353,6 +1370,8 @@ let liveMatchData = null;
 let liveTimerInterval = null;
 let pollingEnabled = true;
 let knownLobbyId = null; // lobby id of the active match
+let manualResultRecorded = null; // 'evil' | 'good' | null — set when admin manually records
+let manualHistoryDocId = null;   // Firestore doc id of the manually recorded entry
 
 function renderMissingProfiles(){
   const missing = players.filter(p=>!p.profileId);
@@ -1417,10 +1436,9 @@ function activateLiveDashboard(match, foundPlayers){
 
 // ---- AUTO-RESULT DETECTION ----
 async function pollForResult(){
-  if(!liveActive || !liveMatchData || liveMatchData.autoRecorded) return;
+  if(!liveMatchData || liveMatchData.autoRecorded) return;
   const fp = liveMatchData.foundPlayers;
   if(!fp||!fp.length) return;
-  // Pick a player with a profileId to check
   const probe = fp.find(p=>p.profileId);
   if(!probe) return;
   try {
@@ -1430,26 +1448,85 @@ async function pollForResult(){
     const matches = (data.matchHistoryStats||[]);
     if(!matches.length) return;
     const latest = matches[0];
-    // Check if this looks like our match (recent, 8 players)
-    const seenAt = latest.startgametime ? latest.startgametime * 1000 : 0;
-    const matchAge = Date.now() - liveMatchData.startTime;
-    // Only auto-record if: match is finished (has a result), started within last 3 hours
     if(!latest.matchhistorymember || !latest.matchhistorymember.length) return;
     const probeResult = latest.matchhistorymember.find(m=>Number(m.profile_id)===Number(probe.profileId));
-    if(!probeResult || probeResult.resulttype === 0) return; // 0 = in progress / unknown
+    if(!probeResult || probeResult.resulttype === 0) return; // 0 = in progress
 
-    // resulttype: 1 = win, 2 = loss
-    // Determine which team won based on the probe player's result
     const probeWon = probeResult.resulttype === 1;
-    // Find which team the probe player is on
     const isEvilPlayer = liveMatchData.evilPlayers?.some(a=>a.player.id===probe.id);
-    const winner = (probeWon && isEvilPlayer) || (!probeWon && !isEvilPlayer) ? 'evil' : 'good';
+    const apiWinner = (probeWon && isEvilPlayer) || (!probeWon && !isEvilPlayer) ? 'evil' : 'good';
 
-    liveMatchData.autoRecorded = true;
     clearInterval(resultPollTimer);
-    await doRecordLiveResult(winner, true);
+    liveMatchData.autoRecorded = true;
+
+    // If admin already manually recorded a result, check for conflict
+    if(manualResultRecorded !== null){
+      if(manualResultRecorded === apiWinner){
+        // Same result — API confirms manual record, just end cleanly
+        showToast('✓ API confirms the recorded result');
+        endLiveMatch();
+      } else {
+        // CONFLICT — different winners, alert the admin
+        showConflict(apiWinner, manualResultRecorded);
+      }
+      return;
+    }
+
+    // No manual record yet — auto-record normally
+    await doRecordLiveResult(apiWinner, true);
   } catch(e){ /* silent fail */ }
 }
+
+function showConflict(apiWinner, manualWinner){
+  const fmt = w => w === 'evil' ? '⚔ Evil Forces' : '✦ Free Peoples';
+  document.getElementById('conflictApiWinner').textContent = fmt(apiWinner);
+  document.getElementById('conflictManualWinner').textContent = fmt(manualWinner);
+  // Store for resolution
+  liveMatchData._conflictApiWinner = apiWinner;
+  openModal('modalResultConflict');
+}
+
+window.resolveConflict = async function(keep){
+  closeModal('modalResultConflict');
+  if(!liveMatchData) return;
+  const apiWinner = liveMatchData._conflictApiWinner;
+  const manualWinner = manualResultRecorded;
+
+  if(keep === 'manual'){
+    // Keep manual entry, ignore API — just end
+    showToast('Manual result kept');
+    endLiveMatch();
+  } else {
+    // Use API result: delete the manual entry, reverse its rating effects, record correct result
+    setSyncDot('loading');
+    // 1. Delete the wrong manual history entry
+    if(manualHistoryDocId){
+      try { await deleteDoc(doc(db,'history',String(manualHistoryDocId))); } catch(e){}
+    }
+    // 2. Reverse the wrong rating changes (undo +2/-1 that were applied for manualWinner)
+    const ep = liveMatchData.evilPlayers||[];
+    const gp = liveMatchData.goodPlayers||[];
+    const wrongWinners = manualWinner==='evil'?ep:gp;
+    const wrongLosers  = manualWinner==='evil'?gp:ep;
+    for(const a of wrongWinners){
+      const p=players.find(pl=>pl.id===a.player.id);
+      if(!p||!a.civId) continue;
+      p.civPct[a.civId]=Math.max(40,(p.civPct[a.civId]??75)-2); // undo +2
+      p.wins=Math.max(0,(p.wins||1)-1);
+      await savePlayer(p);
+    }
+    for(const a of wrongLosers){
+      const p=players.find(pl=>pl.id===a.player.id);
+      if(!p||!a.civId) continue;
+      p.civPct[a.civId]=Math.min(100,(p.civPct[a.civId]??75)+1); // undo -1
+      p.losses=Math.max(0,(p.losses||1)-1);
+      await savePlayer(p);
+    }
+    // 3. Record the correct result
+    await doRecordLiveResult(apiWinner, true);
+    showToast('Result corrected using API data');
+  }
+};
 
 async function doRecordLiveResult(winner, isAuto=false){
   if(!liveMatchData) return;
@@ -1480,13 +1557,14 @@ async function doRecordLiveResult(winner, isAuto=false){
   const evilTotal=ep.reduce((s,a)=>s+(a.civId?effectiveElo(a.player,a.civId,false):a.player.elo),0);
   const goodTotal=gp.reduce((s,a)=>s+(a.civId?effectiveElo(a.player,a.civId,false):a.player.elo),0);
 
-  await addDoc(collection(db,'history'),{
+  const histRef = await addDoc(collection(db,'history'),{
     date, winner, evilTotal, goodTotal, gap:Math.abs(evilTotal-goodTotal),
     timestamp:Date.now(),
     source: isAuto ? 'auto' : 'live',
     evilAssign:ep.map(a=>({name:a.player.name,civName:a.civName||'?',effElo:a.civId?effectiveElo(a.player,a.civId,false):a.player.elo})),
     goodAssign:gp.map(a=>({name:a.player.name,civName:a.civName||'?',effElo:a.civId?effectiveElo(a.player,a.civId,false):a.player.elo})),
   });
+  if(!isAuto) manualHistoryDocId = histRef.id;
 
   endLiveMatch();
   showToast(isAuto
@@ -1568,6 +1646,7 @@ function startLiveTimer(){
 
 window.endLiveMatch=function(){
   liveActive=false; liveMatchData=null; knownLobbyId=null;
+  manualResultRecorded=null; manualHistoryDocId=null;
   if(liveTimerInterval){clearInterval(liveTimerInterval);liveTimerInterval=null;}
   if(resultPollTimer){clearInterval(resultPollTimer);resultPollTimer=null;}
   document.getElementById('liveDashDot').className='live-tab-dot';
@@ -1585,6 +1664,7 @@ window.openLiveRecordModal=function(){
 
 window.recordLiveResult=async function(winner){
   closeModal('modalLiveRecord');
+  manualResultRecorded = winner;
   await doRecordLiveResult(winner, false);
 };
 
