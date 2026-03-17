@@ -63,6 +63,9 @@ label{font-size:13px;color:var(--text-muted);display:block;margin-bottom:4px}
 .badge-evil{background:var(--evil-dim);color:#e08080;border:1px solid var(--evil-border)}
 .badge-good{background:var(--good-dim);color:#80b4d4;border:1px solid var(--good-border)}
 .elo-val{font-family:'Cinzel',serif;font-size:15px;font-weight:600;color:var(--gold)}
+.sortable-th{cursor:pointer;user-select:none;white-space:nowrap}
+.sortable-th:hover{color:var(--text)}
+.sort-arrow{font-size:10px;color:var(--gold)}
 table{width:100%;border-collapse:collapse}
 th{font-family:'Cinzel',serif;font-size:10px;letter-spacing:0.1em;color:var(--text-dim);font-weight:400;padding:8px 10px;text-align:left;border-bottom:1px solid var(--border)}
 td{padding:10px 10px;font-size:14px;border-bottom:1px solid rgba(255,255,255,0.03)}
@@ -259,8 +262,24 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
     <button class="btn" onclick="requireAdmin(openAddPlayer)">+ ADD PLAYER</button>
   </div>
   <div class="card">
+    <div class="search-wrap mb2">
+      <span class="search-icon">⌕</span>
+      <input type="text" id="rosterSearch" placeholder="Search players..." oninput="renderPlayers()">
+    </div>
     <table>
-      <thead><tr><th>PLAYER</th><th>MAIN ELO</th><th>W</th><th>L</th><th>WIN%</th><th>FAV CIV</th><th>AVOID CIV</th><th>GAMES</th><th></th></tr></thead>
+      <thead>
+        <tr>
+          <th class="sortable-th" onclick="setSortPlayers('name')" id="th-name">PLAYER <span class="sort-arrow" id="arr-name"></span></th>
+          <th class="sortable-th" onclick="setSortPlayers('elo')" id="th-elo">MAIN ELO <span class="sort-arrow" id="arr-elo"></span></th>
+          <th class="sortable-th" onclick="setSortPlayers('wins')" id="th-wins">W <span class="sort-arrow" id="arr-wins"></span></th>
+          <th class="sortable-th" onclick="setSortPlayers('losses')" id="th-losses">L <span class="sort-arrow" id="arr-losses"></span></th>
+          <th class="sortable-th" onclick="setSortPlayers('winpct')" id="th-winpct">WIN% <span class="sort-arrow" id="arr-winpct"></span></th>
+          <th>FAV CIV</th>
+          <th>AVOID CIV</th>
+          <th class="sortable-th" onclick="setSortPlayers('games')" id="th-games">GAMES <span class="sort-arrow" id="arr-games"></span></th>
+          <th></th>
+        </tr>
+      </thead>
       <tbody id="playerTableBody"></tbody>
     </table>
   </div>
@@ -593,6 +612,20 @@ const CIVS = [
 const EVIL_CIVS = CIVS.filter(c=>c.side==='evil');
 const GOOD_CIVS = CIVS.filter(c=>c.side==='good');
 
+// Maps AoE2 DE civilization_id integers to scenario civ ids
+// P1 Celts=4, P2 Hindustanis=38, P3 Incas=17, P4 Ethiopians=25
+// P5 Vikings=12, P6 Bulgarians=32, P7 Japanese=9, P8 Slavs=22
+const AOE2_CIV_ID_MAP = {
+  4:  'dolguldur',   // P1 Dol Guldur  → Celts
+  38: 'dolguldur2',  // P2 Dol Guldur  → Hindustanis
+  17: 'azog',        // P3 Azog's Host → Incas
+  25: 'goblin',      // P4 Goblin      → Ethiopians
+  12: 'bluemts',     // P5 Blue Mts    → Vikings
+  32: 'northmen',    // P6 Northmen    → Bulgarians
+  9:  'elfs',        // P7 Elves       → Japanese
+  22: 'ironhills',   // P8 Iron Hills  → Slavs
+};
+
 // FAV/AVOID BONUS: favourite civ gets +15% effective boost, avoided gets penalty that makes balancer avoid it
 const FAV_BONUS = 15;    // % points added to effective elo when civ is favourite
 const AVOID_PENALTY = 40; // % points subtracted — makes balancer strongly avoid assigning it
@@ -600,6 +633,8 @@ const AVOID_PENALTY = 40; // % points subtracted — makes balancer strongly avo
 let db, players=[], history=[], adminPass='admin123', adminUnlocked=false, lastBalance=null;
 let pendingAdminAction=null;
 const selectedPlayers=new Set();
+let playerSortKey='name';
+let playerSortDir=1; // 1=asc, -1=desc
 
 // Swap state
 let swapSource=null; // {team:'evil'|'good', index:number}
@@ -726,7 +761,7 @@ function renderPlayerCheckGrid(){
   const grid=document.getElementById('playerCheckGrid');
   if(!grid) return;
   const q=(document.getElementById('playerSearch')?.value||'').toLowerCase();
-  const filtered=players.filter(p=>p.name.toLowerCase().includes(q));
+  const filtered=[...players].sort((a,b)=>a.name.localeCompare(b.name)).filter(p=>p.name.toLowerCase().includes(q));
   grid.innerHTML='';
   filtered.forEach(p=>{
     const div=document.createElement('div');
@@ -980,10 +1015,46 @@ window.recordResult=async function(winner){
 };
 
 // ---- PLAYERS ----
+window.setSortPlayers=function(key){
+  if(playerSortKey===key) playerSortDir*=-1;
+  else{ playerSortKey=key; playerSortDir= key==='name'?1:-1; }
+  renderPlayers();
+};
+
 function renderPlayers(){
   const tbody=document.getElementById('playerTableBody');
   if(!tbody) return;
-  tbody.innerHTML=players.map(p=>{
+  const q=(document.getElementById('rosterSearch')?.value||'').toLowerCase().trim();
+
+  // Filter
+  let filtered=players.filter(p=>!q||p.name.toLowerCase().includes(q));
+
+  // Sort
+  filtered=[...filtered].sort((a,b)=>{
+    let av,bv;
+    const at=(a.wins||0)+(a.losses||0);
+    const bt=(b.wins||0)+(b.losses||0);
+    switch(playerSortKey){
+      case 'name':   av=a.name.toLowerCase(); bv=b.name.toLowerCase(); break;
+      case 'elo':    av=a.elo; bv=b.elo; break;
+      case 'wins':   av=a.wins||0; bv=b.wins||0; break;
+      case 'losses': av=a.losses||0; bv=b.losses||0; break;
+      case 'winpct': av=at?(a.wins||0)/at:0; bv=bt?(b.wins||0)/bt:0; break;
+      case 'games':  av=at; bv=bt; break;
+      default:       av=a.name.toLowerCase(); bv=b.name.toLowerCase();
+    }
+    if(av<bv) return -1*playerSortDir;
+    if(av>bv) return 1*playerSortDir;
+    return 0;
+  });
+
+  // Update arrow indicators
+  ['name','elo','wins','losses','winpct','games'].forEach(k=>{
+    const el=document.getElementById('arr-'+k);
+    if(el) el.textContent = playerSortKey===k ? (playerSortDir===1?' ↑':' ↓') : '';
+  });
+
+  tbody.innerHTML=filtered.map(p=>{
     const total=(p.wins||0)+(p.losses||0);
     const wp=total?Math.round((p.wins||0)/total*100)+'%':'—';
     const favs=(p.favCivs||[]).map(id=>CIVS.find(c=>c.id===id)?.name).filter(Boolean).join(', ')||'—';
@@ -1002,7 +1073,7 @@ function renderPlayers(){
         <button class="btn-danger" onclick="requireAdmin(()=>deletePlayer('${p.id}'))">✕</button>
       </div></td>
     </tr>`;
-  }).join('');
+  }).join('') || '<tr><td colspan="9" class="empty">No players found.</td></tr>';
 }
 
 function buildCivSliders(prefix,p){
@@ -1065,6 +1136,7 @@ function bestCivForPlayer(p){
 window.openAddPlayer=function(){
   document.getElementById('newPlayerName').value='';
   document.getElementById('newPlayerElo').value='1200';
+  document.getElementById('newPlayerProfileId').value='';
   document.getElementById('civSliders').innerHTML=buildCivSliders('add',null);
   openModal('modalAddPlayer');
 };
@@ -1407,15 +1479,26 @@ function checkForCommunityMatch(matches){
   const profileMap = {};
   players.forEach(p=>{ if(p.profileId) profileMap[Number(p.profileId)]=p; });
   const communityIds = new Set(Object.keys(profileMap).map(Number));
+
+  // DEBUG
+  console.log('[LIVE] Lobbies in lobby.json:', matches.length);
+  console.log('[LIVE] Community IDs registered:', [...communityIds]);
+
+  let bestCount = 0;
   for(const match of matches){
     const members = match.matchmembers||[];
     const found = members.filter(m=>communityIds.has(Number(m.profile_id)));
+    if(found.length > 0){
+      console.log('[LIVE] Lobby "' + match.description + '" id=' + match.id + ' members=' + members.map(m=>m.profile_id) + ' community hits=' + found.length);
+    }
+    if(found.length > bestCount) bestCount = found.length;
     if(found.length >= 4){
       const foundPlayers = found.map(m=>profileMap[Number(m.profile_id)]);
       activateLiveDashboard(match, foundPlayers);
       return;
     }
   }
+  console.log('[LIVE] No match found. Best was ' + bestCount + ' community player(s) in one lobby. Threshold = 4.');
 }
 
 function activateLiveDashboard(match, foundPlayers){
@@ -1456,23 +1539,46 @@ async function pollForResult(){
     const isEvilPlayer = liveMatchData.evilPlayers?.some(a=>a.player.id===probe.id);
     const apiWinner = (probeWon && isEvilPlayer) || (!probeWon && !isEvilPlayer) ? 'evil' : 'good';
 
+    // --- Auto-assign civs from API civilization_id ---
+    // Build a profile_id → civ_id map from match history members
+    const profileCivMap = {};
+    (latest.matchhistorymember||[]).forEach(m=>{
+      const scenarioCivId = AOE2_CIV_ID_MAP[Number(m.civilization_id)];
+      if(scenarioCivId) profileCivMap[Number(m.profile_id)] = scenarioCivId;
+    });
+
+    // Assign civs to evil players
+    (liveMatchData.evilPlayers||[]).forEach(a=>{
+      const civId = profileCivMap[Number(a.player.profileId)];
+      if(civId && !a.civId){
+        a.civId = civId;
+        a.civName = CIVS.find(c=>c.id===civId)?.name||civId;
+      }
+    });
+    // Assign civs to good players
+    (liveMatchData.goodPlayers||[]).forEach(a=>{
+      const civId = profileCivMap[Number(a.player.profileId)];
+      if(civId && !a.civId){
+        a.civId = civId;
+        a.civName = CIVS.find(c=>c.id===civId)?.name||civId;
+      }
+    });
+
     clearInterval(resultPollTimer);
     liveMatchData.autoRecorded = true;
 
     // If admin already manually recorded a result, check for conflict
     if(manualResultRecorded !== null){
       if(manualResultRecorded === apiWinner){
-        // Same result — API confirms manual record, just end cleanly
         showToast('✓ API confirms the recorded result');
         endLiveMatch();
       } else {
-        // CONFLICT — different winners, alert the admin
         showConflict(apiWinner, manualResultRecorded);
       }
       return;
     }
 
-    // No manual record yet — auto-record normally
+    // No manual record yet — auto-record with civ data from API
     await doRecordLiveResult(apiWinner, true);
   } catch(e){ /* silent fail */ }
 }
