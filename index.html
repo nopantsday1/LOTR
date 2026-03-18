@@ -1399,40 +1399,42 @@ window.saveAddMatch=async function(){
   const date=document.getElementById('addMatchDate').value;
   const evilAssign=[],goodAssign=[];
   const evilPlayerObjs=[],goodPlayerObjs=[];
-  let valid=true;
-  ['evil','good'].forEach(side=>{
+
+  // Use proper for loops so we can return early correctly
+  for(const side of ['evil','good']){
     const arr=side==='evil'?evilAssign:goodAssign;
     const pObjs=side==='evil'?evilPlayerObjs:goodPlayerObjs;
     for(let i=0;i<4;i++){
       const pid=document.getElementById(`addMatch_${side}_p${i}`).value;
       const cid=document.getElementById(`addMatch_${side}_c${i}`).value;
-      if(!pid||!cid){ valid=false; return; }
-      const p=players.find(pl=>pl.id===pid);
-      if(!p){ valid=false; return; }
+      if(!pid||!cid){ showToast('Fill in all 8 players and civs','error'); return; }
+      const p=players.find(pl=>String(pl.id)===String(pid));
+      if(!p){ showToast(`Player not found: ${pid}`,'error'); return; }
       arr.push({name:p.name, civName:CIVS.find(c=>c.id===cid)?.name||cid, effElo:effectiveElo(p,cid,false), civId:cid});
       pObjs.push({player:p, civId:cid});
     }
-  });
-  if(!valid){ showToast('Fill in all 8 players and civs','error'); return; }
+  }
 
   const winA = winner==='evil'?evilPlayerObjs:goodPlayerObjs;
   const loseA = winner==='evil'?goodPlayerObjs:evilPlayerObjs;
 
   setSyncDot('loading');
 
-  // Apply Elo updates
+  // Apply Elo updates (uses current elo before wins increment)
   applyEloUpdates(winA, loseA);
 
-  // Update civ proficiency, W/L
+  // Update civ proficiency and W/L for each player individually
   for(const a of winA){
-    const p=players.find(pl=>pl.id===a.player.id); if(!p) continue;
+    const p=players.find(pl=>String(pl.id)===String(a.player.id));
+    if(!p) continue;
     p.civPct=p.civPct||{};
     p.civPct[a.civId]=Math.min(100,(p.civPct[a.civId]??75)+2);
     p.wins=(p.wins||0)+1;
     await savePlayer(p);
   }
   for(const a of loseA){
-    const p=players.find(pl=>pl.id===a.player.id); if(!p) continue;
+    const p=players.find(pl=>String(pl.id)===String(a.player.id));
+    if(!p) continue;
     p.civPct=p.civPct||{};
     p.civPct[a.civId]=Math.max(40,(p.civPct[a.civId]??75)-1);
     p.losses=(p.losses||0)+1;
