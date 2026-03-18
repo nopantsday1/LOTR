@@ -1,0 +1,92 @@
+name: Fetch Player Match History
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'   # every 6 hours
+  workflow_dispatch:          # allow manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Fetch match history for all players
+        run: |
+          python3 << 'PYEOF'
+          import urllib.request, json, time, os
+
+          # Load lobby.json to get current profile IDs if available
+          # Otherwise reads from a hardcoded list or players.json
+          # We'll fetch from Firebase REST API using the project ID
+
+          FIREBASE_PROJECT = "lotr-9a2f2"
+          FIREBASE_URL = f"https://firestore.googleapis.com/v1/projects/{FIREBASE_PROJECT}/databases/(default)/documents/players"
+          MATCH_API = "https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=[{pid}]&start_index={start}"
+          TWELVE_MONTHS = int(time.time()) - 365*24*60*60
+
+          # Fetch player list from Firestore (public read)
+          try:
+              with urllib.request.urlopen(FIREBASE_URL, timeout=10) as r:
+                  data = json.loads(r.read())
+              docs = data.get('documents', [])
+              players = []
+              for doc in docs:
+                  fields = doc.get('fields', {})
+                  pid_field = fields.get('profileId', {})
+                  pid = pid_field.get('integerValue') or pid_field.get('doubleValue') or pid_field.get('stringValue')
+                  name_field = fields.get('name', {})
+                  name = name_field.get('stringValue', 'Unknown')
+                  if pid:
+                      players.append({'name': name, 'profileId': int(pid)})
+              print(f"Found {len(players)} players with profile IDs")
+          except Exception as e:
+              print(f"Failed to fetch players: {e}")
+              players = []
+
+          all_matches = {}
+
+          for p in players:
+              pid = p['profileId']
+              name = p['name']
+              collected = []
+              start = 0
+              while len(collected) < 500:
+                  try:
+                      url = MATCH_API.format(pid=pid, start=start)
+                      with urllib.request.urlopen(url, timeout=15) as r:
+                          data = json.loads(r.read())
+                      page = data.get('matchHistoryStats', [])
+                      if not page:
+                          break
+                      recent = [m for m in page if ((m.get('completiontime') or m.get('startgametime') or 0)) >= TWELVE_MONTHS]
+                      collected.extend(recent)
+                      if len(recent) < len(page):
+                          break
+                      start += len(page)
+                      if len(page) < 10:
+                          break
+                      time.sleep(0.5)
+                  except Exception as e:
+                      print(f"  {name} page {start}: {e}")
+                      break
+              all_matches[str(pid)] = collected
+              print(f"  {name}: {len(collected)} matches")
+              time.sleep(1)
+
+          with open('matches.json', 'w') as f:
+              json.dump(all_matches, f)
+          print(f"Saved matches.json ({os.path.getsize('matches.json')} bytes)")
+          PYEOF
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add matches.json
+          git diff --staged --quiet || git commit -m "Update player match history"
+          git push
