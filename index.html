@@ -335,6 +335,7 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
         <p style="font-size:13px;color:var(--text-muted);margin-bottom:1rem">Export all data as JSON backup, or reset to defaults.</p>
         <div class="flex" style="gap:8px;flex-wrap:wrap">
           <button class="btn btn-sm" onclick="exportData()">EXPORT JSON</button>
+          <button class="btn btn-sm" onclick="requireAdmin(resetRatings)">RESET RATINGS</button>
           <button class="btn-danger" onclick="resetAll()">RESET ALL DATA</button>
         </div>
       </div>
@@ -631,6 +632,17 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
     <div class="grid2" style="gap:8px">
       <button class="btn" onclick="resolveConflict('manual')">Keep Manual Result</button>
       <button class="btn-evil" style="padding:9px" onclick="resolveConflict('api')">Use API Result</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalResetRatings">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-title">Reset All Ratings</div>
+    <p style="font-size:14px;color:var(--text-muted);margin-bottom:1.25rem">Reset every player to <strong style="color:var(--text)">1200 Elo</strong> and <strong style="color:var(--text)">60% proficiency</strong> on all civs. Player names and profile IDs are kept. W/L records and match history will be cleared.</p>
+    <div class="flex" style="gap:10px">
+      <button class="btn" style="flex:1" onclick="closeModal('modalResetRatings')">CANCEL</button>
+      <button class="btn-evil" style="flex:1;padding:9px" onclick="confirmResetRatings()">RESET RATINGS</button>
     </div>
   </div>
 </div>
@@ -1968,6 +1980,28 @@ async function doRecordLiveResult(winner, isAuto=false){
 window.pollNow=function(){};
 window.toggleLivePolling=function(){};
 
+
+window.resetRatings = function(){ openModal('modalResetRatings'); };
+
+window.confirmResetRatings = async function(){
+  closeModal('modalResetRatings');
+  setSyncDot('loading');
+  const defaultCivPct = {};
+  CIVS.forEach(c=>{ defaultCivPct[c.id]=60; });
+  // Delete all history
+  const hSnap = await getDocs(collection(db,'history'));
+  for(const d of hSnap.docs) await deleteDoc(d.ref);
+  // Reset all players: keep name, profileId, favCivs, avoidCivs — reset everything else
+  for(const p of players){
+    p.elo = 1200;
+    p.wins = 0;
+    p.losses = 0;
+    p.civPct = {...defaultCivPct};
+    await savePlayer(p);
+  }
+  showToast('All ratings and history reset');
+  setSyncDot('ok');
+};
 
 initFirebase();
 startPolling();
