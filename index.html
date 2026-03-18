@@ -1584,9 +1584,43 @@ window.showToast=showToast;
 // =====================================================================
 // LIVE — LOBBY + IN-PROGRESS + AUTO-RESULT
 // =====================================================================
-// Lobby: reads from lobby.json (updated by GitHub Action every minute)
-const LOBBY_API_CACHED = 'lobby.json';
-const HISTORY_API = id => `https://api.allorigins.win/raw?url=${encodeURIComponent('https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=['+id+']')}`;
+// Lobby & history: multiple CORS proxies with automatic fallback
+const TARGET_LOBBY = 'https://aoe-api.worldsedgelink.com/community/advertisement/findAdvertisements?title=age2&count=200';
+const CORS_PROXIES = [
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+  url => `https://thingproxy.freeboard.io/fetch/${url}`,
+];
+
+async function fetchWithProxy(targetUrl, isLobby=false){
+  // Try each CORS proxy
+  for(const proxy of CORS_PROXIES){
+    try {
+      const resp = await fetch(proxy(targetUrl), {signal: AbortSignal.timeout(6000)});
+      if(resp.ok){
+        const text = await resp.text();
+        if(text && text.length > 2){
+          const data = JSON.parse(text);
+          // Validate lobby response has matches array
+          if(isLobby && !Array.isArray(data.matches)) continue;
+          return data;
+        }
+      }
+    } catch(e){ /* try next proxy */ }
+  }
+  // For lobby: fall back to lobby.json cached by GitHub Action
+  if(isLobby){
+    try {
+      const resp = await fetch('lobby.json?_='+Date.now(), {signal: AbortSignal.timeout(4000)});
+      if(resp.ok){
+        const data = await resp.json();
+        if(Array.isArray(data.matches)) return {...data, _cached: true};
+      }
+    } catch(e){}
+  }
+  return null;
+}
+const HISTORY_TARGET = id => `https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=[${id}]`;
 const LIVE_POLL_MS = 30000;  // lobby poll
 const RESULT_POLL_MS = 45000; // result poll
 
@@ -1657,17 +1691,12 @@ async function pollLobby(){
 
   let matches = [];
   let source = '';
-  try {
-    const resp = await fetch(LOBBY_API_CACHED+'?_='+Date.now());
-    if(resp.ok){
-      const data = await resp.json();
-      matches = data.matches||[];
-      source = `${matches.length} lobbies`;
-    } else {
-      source = 'lobby.json unavailable';
-    }
-  } catch(e){
-    source = 'fetch failed — retrying next cycle';
+  const data = await fetchWithProxy(TARGET_LOBBY, true);
+  if(data){
+    matches = data.matches||[];
+    source = `${matches.length} lobbies${data._cached?' (cached)':''}` ;
+  } else {
+    source = 'all proxies failed — retrying next cycle';
   }
 
   if(statusEl) statusEl.textContent = `Last checked: ${now} — ${source}`;
@@ -1871,14 +1900,11 @@ async function pollForResult(){
   for(const probe of watchPlayers){
     if(!probe.profileId) continue;
     try {
-      const resp = await fetch(HISTORY_API(probe.profileId));
-      if(resp.ok){
-        const d = await resp.json();
-        if((d.matchHistoryStats||[]).length){
-          data = d;
-          usedProbe = probe;
-          break;
-        }
+      const d = await fetchWithProxy(HISTORY_TARGET(probe.profileId));
+      if(d && (d.matchHistoryStats||[]).length){
+        data = d;
+        usedProbe = probe;
+        break;
       }
     } catch(e){ /* try next player */ }
   }
@@ -2269,7 +2295,7 @@ async function bgPollMatches(){
   const probe = profiledPlayers[0];
 
   try {
-    const resp = await fetch(HISTORY_API(probe.profileId));
+    const resp = {ok:true, json: async()=>await fetchWithProxy(HISTORY_TARGET(probe.profileId))||{}};
     if(!resp.ok) return;
     const data = await resp.json();
     const matches = data.matchHistoryStats || [];
