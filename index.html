@@ -2018,8 +2018,7 @@ window.resetRatings = function(){ openModal('modalResetRatings'); };
 // =====================================================================
 // CALIBRATION FROM MATCH HISTORY
 // =====================================================================
-const CAL_HISTORY_API = (id, start=0) =>
-  `https://api.allorigins.win/raw?url=${encodeURIComponent('https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=['+id+']&start_index='+start)}`;
+const CAL_MATCHES_FILE = 'matches.json';
 const CAL_12_MONTHS = Date.now() - 365*24*60*60*1000;
 
 function calLog(msg, color=''){
@@ -2048,33 +2047,26 @@ window.startCalibration = async function(){
 
   const communityIds = new Set(profiled.map(p=>Number(p.profileId)));
 
-  // Step 1: fetch match history per player
+  // Step 1: load matches.json (fetched by GitHub Action every 6h)
+  calProgress(10, 'Loading match history from matches.json...');
   const allMatchesByPlayer={};
-  for(let i=0;i<profiled.length;i++){
-    const p=profiled[i];
-    calProgress(Math.round((i/profiled.length)*45), `Fetching matches for ${p.name}...`);
-    try {
-      let allMatches=[], start=0, keepGoing=true;
-      while(keepGoing && allMatches.length<500){
-        const resp=await fetch(CAL_HISTORY_API(p.profileId,start));
-        if(!resp.ok){ keepGoing=false; break; }
-        const data=await resp.json();
-        const page=data.matchHistoryStats||[];
-        if(!page.length){ keepGoing=false; break; }
-        const recent=page.filter(m=>((m.completiontime||m.startgametime)||0)*1000>=CAL_12_MONTHS);
-        allMatches=allMatches.concat(recent);
-        if(recent.length<page.length) keepGoing=false;
-        start+=page.length;
-        if(page.length<10) keepGoing=false;
-        await new Promise(r=>setTimeout(r,400));
-      }
-      allMatchesByPlayer[p.profileId]=allMatches;
-      calLog(`${p.name}: ${allMatches.length} matches found`,'#4CAF50');
-    } catch(e){
-      calLog(`${p.name}: failed — ${e.message}`,'#e08080');
-      allMatchesByPlayer[p.profileId]=[];
-    }
-    await new Promise(r=>setTimeout(r,800));
+  try {
+    const resp = await fetch(CAL_MATCHES_FILE+'?_='+Date.now());
+    if(!resp.ok) throw new Error('matches.json not found — run the GitHub Action first');
+    const raw = await resp.json();
+    // raw is { profileId: [...matches] }
+    profiled.forEach(p=>{
+      const matches = raw[String(p.profileId)] || [];
+      allMatchesByPlayer[p.profileId] = matches;
+      calLog(`${p.name}: ${matches.length} matches loaded`, matches.length>0?'#4CAF50':'#e08080');
+    });
+    calProgress(45, 'Match data loaded');
+  } catch(e){
+    calLog('Failed to load matches.json: '+e.message,'#e08080');
+    calLog('→ Go to your GitHub repo → Actions → "Fetch Player Match History" → Run workflow','#C9A84C');
+    calProgress(100,'Error');
+    document.getElementById('calibrateBtn').disabled=false;
+    return;
   }
 
   // Step 2: find community matches (5+ members)
