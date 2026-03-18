@@ -1,0 +1,198 @@
+name: Fetch Player Match History
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4 lxml --break-system-packages
+
+      - name: Fetch LOTR match history from aoe2insights
+        run: |
+          python3 << 'PYEOF'
+          import requests, json, time, re, sys
+          from bs4 import BeautifulSoup
+          from datetime import datetime, timedelta
+
+          FIREBASE_URL = "https://firestore.googleapis.com/v1/projects/lotr-9a2f2/databases/(default)/documents/players"
+          TWELVE_MONTHS_AGO = datetime.now() - timedelta(days=365)
+          SCENARIO_KEYWORDS = ['hobbit', 'lotr', 'lord of the ring', 'bfme']
+
+          HEADERS = {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              'Accept-Language': 'en-US,en;q=0.5',
+          }
+
+          # 1. Load players from Firebase
+          try:
+              r = requests.get(FIREBASE_URL, timeout=10)
+              docs = r.json().get('documents', [])
+              players = []
+              for doc in docs:
+                  f = doc.get('fields', {})
+                  pid = (f.get('profileId',{}).get('integerValue') or
+                         f.get('profileId',{}).get('stringValue'))
+                  name = f.get('name',{}).get('stringValue','Unknown')
+                  if pid:
+                      players.append({'name': name, 'profileId': int(pid)})
+              print(f"Loaded {len(players)} players with profile IDs")
+          except Exception as e:
+              print(f"Failed to load players: {e}")
+              sys.exit(1)
+
+          all_matches = {}  # { profile_id_str: [ {match_id, won, civ_id, team, timestamp}, ... ] }
+
+          for p in players:
+              pid = p['profileId']
+              name = p['name']
+              print(f"\nFetching {name} ({pid})...")
+              collected = []
+              seen_ids = set()
+              stop = False
+
+              for page in range(1, 30):  # up to 29 pages ~580 matches
+                  if stop:
+                      break
+                  url = f"https://www.aoe2insights.com/user/{pid}/matches/?page={page}"
+                  try:
+                      r = requests.get(url, headers=HEADERS, timeout=20)
+                      if r.status_code == 404:
+                          print(f"  Page {page}: 404, stopping")
+                          break
+                      if r.status_code != 200:
+                          print(f"  Page {page}: HTTP {r.status_code}, stopping")
+                          break
+
+                      soup = BeautifulSoup(r.text, 'lxml')
+
+                      # Each match is in a <div class="row match-row"> or similar
+                      # Look for match containers — aoe2insights uses card-style layouts
+                      match_blocks = (
+                          soup.find_all('div', class_=re.compile(r'match.row', re.I)) or
+                          soup.find_all('div', class_=re.compile(r'match-card', re.I)) or
+                          soup.find_all('div', attrs={'data-match-id': True}) or
+                          # fallback: find all divs containing a match link
+                          [a.find_parent('div') for a in soup.find_all('a', href=re.compile(r'/match/\d+/'))]
+                      )
+                      match_blocks = [b for b in match_blocks if b is not None]
+
+                      # Deduplicate blocks
+                      seen_blocks = set()
+                      unique_blocks = []
+                      for b in match_blocks:
+                          bid = id(b)
+                          if bid not in seen_blocks:
+                              seen_blocks.add(bid)
+                              unique_blocks.append(b)
+                      match_blocks = unique_blocks
+
+                      if not match_blocks:
+                          print(f"  Page {page}: no match blocks found, stopping")
+                          break
+
+                      page_matches = 0
+                      for block in match_blocks:
+                          text = block.get_text(' ', strip=True)
+
+                          # Extract match ID
+                          link = block.find('a', href=re.compile(r'/match/\d+'))
+                          if not link:
+                              continue
+                          m = re.search(r'/match/(\d+)', link['href'])
+                          if not m:
+                              continue
+                          match_id = int(m.group(1))
+                          if match_id in seen_ids:
+                              continue
+                          seen_ids.add(match_id)
+
+                          # Check if LOTR scenario
+                          text_lower = text.lower()
+                          if not any(kw in text_lower for kw in SCENARIO_KEYWORDS):
+                              continue
+
+                          # Check timestamp — look for "ago" text or date
+                          # aoe2insights shows "X days/weeks/months ago"
+                          time_match = re.search(
+                              r'(\d+)\s*(second|minute|hour|day|week|month|year)s?\s*ago',
+                              text_lower
+                          )
+                          if time_match:
+                              n, unit = int(time_match.group(1)), time_match.group(2)
+                              delta = {'second':1,'minute':60,'hour':3600,'day':86400,
+                                       'week':604800,'month':2592000,'year':31536000}
+                              ts = int(time.time()) - n * delta.get(unit, 86400)
+                              match_dt = datetime.fromtimestamp(ts)
+                              if match_dt < TWELVE_MONTHS_AGO:
+                                  stop = True
+                                  break
+
+                          # Check win/loss — look for crown icon or win class
+                          won = bool(
+                              block.find(class_=re.compile(r'win|winner|crown', re.I)) or
+                              '👑' in text or
+                              re.search(r'\bwon\b|\bwin\b', text_lower)
+                          )
+
+                          # Extract civ ID if present (civilization_id in data attrs)
+                          civ_id = -1
+                          civ_el = block.find(attrs={'data-civ': True})
+                          if civ_el:
+                              try: civ_id = int(civ_el['data-civ'])
+                              except: pass
+
+                          # Extract team from team color classes
+                          team = -1
+                          team_el = block.find(class_=re.compile(r'team-[12]|color[12]', re.I))
+                          if team_el:
+                              m2 = re.search(r'[12]', team_el.get('class', [''])[0])
+                              if m2: team = int(m2.group())
+
+                          collected.append({
+                              'match_id': match_id,
+                              'won': won,
+                              'civ_id': civ_id,
+                              'team': team,
+                          })
+                          page_matches += 1
+
+                      print(f"  Page {page}: {page_matches} LOTR matches found ({len(collected)} total)")
+                      if page_matches == 0 and page > 1:
+                          break
+                      time.sleep(1.5)
+
+                  except Exception as e:
+                      print(f"  Page {page}: error — {e}")
+                      break
+
+              all_matches[str(pid)] = collected
+              print(f"  → {name}: {len(collected)} LOTR matches total")
+              time.sleep(2)
+
+          # Save
+          with open('matches.json', 'w') as f:
+              json.dump(all_matches, f)
+
+          total = sum(len(v) for v in all_matches.values())
+          print(f"\nDone. {total} total LOTR match records saved.")
+          PYEOF
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add matches.json
+          git diff --staged --quiet || git commit -m "Update LOTR match history from aoe2insights"
+          git push
