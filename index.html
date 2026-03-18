@@ -2003,6 +2003,143 @@ window.confirmResetRatings = async function(){
   setSyncDot('ok');
 };
 
+// =====================================================================
+// BACKGROUND AUTO-POLL — runs every 45s regardless of Live tab
+// Detects new community matches from history and auto-records them
+// =====================================================================
+let bgPollTimer = null;
+let bgLastSeenGameId = null;   // last game_id we already processed
+let bgPollStartTime = null;    // when the app loaded — ignore matches before this
+
+async function bgPollMatches(){
+  const profiledPlayers = players.filter(p=>p.profileId);
+  if(profiledPlayers.length < 2) return;
+  const probe = profiledPlayers[0];
+
+  try {
+    const resp = await fetch(HISTORY_API(probe.profileId));
+    if(!resp.ok) return;
+    const data = await resp.json();
+    const matches = data.matchHistoryStats || [];
+    if(!matches.length) return;
+
+    const latest = matches[0];
+    if(!latest?.matchhistorymember?.length) return;
+
+    // Skip if already processed
+    const gameId = latest.match_id || latest.id;
+    if(bgLastSeenGameId && bgLastSeenGameId === gameId) return;
+
+    // Skip matches that finished before app loaded (avoid re-recording old games)
+    const matchEndTime = (latest.completiontime || latest.startgametime || 0) * 1000;
+    if(bgPollStartTime && matchEndTime < bgPollStartTime) return;
+
+    // Check if match is finished
+    const probeResult = latest.matchhistorymember.find(
+      m => Number(m.profile_id) === Number(probe.profileId)
+    );
+    if(!probeResult || probeResult.resulttype === 0) return; // in progress
+
+    // Check enough community players participated
+    const communityIds = new Set(profiledPlayers.map(p=>Number(p.profileId)));
+    const communityInMatch = latest.matchhistorymember.filter(
+      m => communityIds.has(Number(m.profile_id))
+    );
+    if(communityInMatch.length < 4) return; // not a community match
+
+    // Check if already recorded in history (by game_id)
+    const alreadyRecorded = history.some(h=>h.gameId===String(gameId));
+    if(alreadyRecorded) return;
+
+    bgLastSeenGameId = gameId;
+
+    // If Live tab is already actively watching this, let it handle it
+    if(liveActive && liveMatchData && !liveMatchData.autoRecorded) return;
+
+    // Build team assignments from API teamid
+    const profileMap = {};
+    profiledPlayers.forEach(p=>{ profileMap[Number(p.profileId)]=p; });
+
+    // Group by teamid
+    const teamGroups = {};
+    latest.matchhistorymember.forEach(m=>{
+      const p = profileMap[Number(m.profile_id)];
+      if(!p) return;
+      const tid = String(m.teamid ?? m.team ?? 0);
+      if(!teamGroups[tid]) teamGroups[tid]=[];
+      teamGroups[tid].push({player:p, member:m});
+    });
+
+    const teams = Object.values(teamGroups);
+    if(teams.length < 2) return;
+
+    // Which team won?
+    const probeWon = probeResult.resulttype === 1;
+    const probeTeamId = String(probeResult.teamid ?? probeResult.team ?? 0);
+    let winTeam = teams.find(t=>t[0] && String(t[0].member.teamid ?? t[0].member.team ?? 0)===probeTeamId) || teams[0];
+    let loseTeam = teams.find(t=>t!==winTeam) || teams[1];
+    if(!probeWon){ [winTeam, loseTeam] = [loseTeam, winTeam]; }
+
+    const buildAssign = (team) => team.map(({player, member})=>{
+      const civId = AOE2_CIV_ID_MAP[Number(member.civilization_id)] || null;
+      return { player, civId, civName: civId?CIVS.find(c=>c.id===civId)?.name||civId:null };
+    });
+
+    const evilAssign = buildAssign(winTeam);   // winners = evil by convention
+    const goodAssign = buildAssign(loseTeam);  // losers = good
+    const winner = 'evil';
+
+    // Build a temporary liveMatchData so doRecordLiveResult can use it
+    const prevLiveMatchData = liveMatchData;
+    liveMatchData = { evilPlayers: evilAssign, goodPlayers: goodAssign, startTime: Date.now(), watchPlayers: profiledPlayers, autoRecorded: false, _bgGameId: gameId };
+
+    // Apply Elo + civ updates + save to history (include gameId to prevent duplicates)
+    const date = new Date().toLocaleDateString('en-CA');
+    const winA = evilAssign, loseA = goodAssign;
+
+    applyEloUpdates(winA, loseA);
+
+    for(const a of winA){
+      const p=players.find(pl=>pl.id===a.player.id);
+      if(!p) continue;
+      p.civPct=p.civPct||{};
+      if(a.civId) p.civPct[a.civId]=Math.min(100,(p.civPct[a.civId]??75)+2);
+      p.wins=(p.wins||0)+1;
+      await savePlayer(p);
+    }
+    for(const a of loseA){
+      const p=players.find(pl=>pl.id===a.player.id);
+      if(!p) continue;
+      p.civPct=p.civPct||{};
+      if(a.civId) p.civPct[a.civId]=Math.max(40,(p.civPct[a.civId]??75)-1);
+      p.losses=(p.losses||0)+1;
+      await savePlayer(p);
+    }
+
+    const evilTotal = evilAssign.reduce((s,a)=>s+(a.civId?effectiveElo(a.player,a.civId,false):a.player.elo),0);
+    const goodTotal = goodAssign.reduce((s,a)=>s+(a.civId?effectiveElo(a.player,a.civId,false):a.player.elo),0);
+
+    await addDoc(collection(db,'history'),{
+      date, winner:'evil', evilTotal, goodTotal, gap:Math.abs(evilTotal-goodTotal),
+      timestamp:Date.now(), source:'auto', gameId:String(gameId),
+      evilAssign:evilAssign.map(a=>({name:a.player.name,civName:a.civName||'?',effElo:a.civId?effectiveElo(a.player,a.civId,false):a.player.elo})),
+      goodAssign:goodAssign.map(a=>({name:a.player.name,civName:a.civName||'?',effElo:a.civId?effectiveElo(a.player,a.civId,false):a.player.elo})),
+    });
+
+    liveMatchData = prevLiveMatchData;
+    showToast('⚔ Match auto-recorded!');
+    setSyncDot('ok');
+  } catch(e){ /* silent */ }
+}
+
+function startPolling(){
+  bgPollStartTime = Date.now();
+  if(bgPollTimer) clearInterval(bgPollTimer);
+  bgPollTimer = setInterval(bgPollMatches, 45000);
+  // Don't poll immediately on load — wait for Firebase to finish loading players first
+  setTimeout(bgPollMatches, 8000);
+}
+
 initFirebase();
 startPolling();
 </script>
