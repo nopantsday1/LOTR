@@ -341,6 +341,16 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
       </div>
     </div>
     <div class="card mt2">
+      <div class="card-title">CALIBRATE FROM MATCH HISTORY</div>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:.75rem">Fetches the last 12 months of matches for all players with a profile ID. Finds games where 5+ community members played together and computes calibrated Elo + civ proficiency. Resets all ratings before applying.</p>
+      <div id="calibrateStatus" style="display:none;margin-bottom:.75rem">
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:.4rem" id="calibrateLabel">Starting...</div>
+        <div style="background:var(--surface3);border-radius:4px;overflow:hidden;height:5px"><div id="calibrateBar" style="height:100%;background:var(--gold);transition:width .3s;width:0%"></div></div>
+        <div style="font-size:12px;color:var(--text-dim);margin-top:.4rem;font-style:italic;max-height:80px;overflow-y:auto" id="calibrateLog"></div>
+      </div>
+      <button class="btn btn-sm" id="calibrateBtn" onclick="startCalibration()">⚙ CALIBRATE RATINGS</button>
+    </div>
+    <div class="card mt2">
       <div class="card-title">EDIT PLAYER RATINGS</div>
       <div id="adminPlayerList"></div>
     </div>
@@ -2004,6 +2014,175 @@ window.pollForResultNow=function(){ pollForResult(); };
 
 
 window.resetRatings = function(){ openModal('modalResetRatings'); };
+
+// =====================================================================
+// CALIBRATION FROM MATCH HISTORY
+// =====================================================================
+const CAL_HISTORY_API = (id, start=0) =>
+  `https://api.allorigins.win/raw?url=${encodeURIComponent('https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=['+id+']&start_index='+start)}`;
+const CAL_12_MONTHS = Date.now() - 365*24*60*60*1000;
+
+function calLog(msg, color=''){
+  const el=document.getElementById('calibrateLog');
+  if(!el) return;
+  const line=document.createElement('div');
+  line.style.color=color||'var(--text-muted)';
+  line.textContent=msg;
+  el.appendChild(line);
+  el.scrollTop=el.scrollHeight;
+}
+function calProgress(pct, label){
+  const bar=document.getElementById('calibrateBar');
+  const lbl=document.getElementById('calibrateLabel');
+  if(bar) bar.style.width=pct+'%';
+  if(lbl&&label) lbl.textContent=label;
+}
+
+window.startCalibration = async function(){
+  const profiled = players.filter(p=>p.profileId);
+  if(profiled.length<2){ showToast('Need at least 2 players with profile IDs','error'); return; }
+
+  document.getElementById('calibrateStatus').style.display='block';
+  document.getElementById('calibrateBtn').disabled=true;
+  document.getElementById('calibrateLog').innerHTML='';
+
+  const communityIds = new Set(profiled.map(p=>Number(p.profileId)));
+
+  // Step 1: fetch match history per player
+  const allMatchesByPlayer={};
+  for(let i=0;i<profiled.length;i++){
+    const p=profiled[i];
+    calProgress(Math.round((i/profiled.length)*45), `Fetching matches for ${p.name}...`);
+    try {
+      let allMatches=[], start=0, keepGoing=true;
+      while(keepGoing && allMatches.length<500){
+        const resp=await fetch(CAL_HISTORY_API(p.profileId,start));
+        if(!resp.ok){ keepGoing=false; break; }
+        const data=await resp.json();
+        const page=data.matchHistoryStats||[];
+        if(!page.length){ keepGoing=false; break; }
+        const recent=page.filter(m=>((m.completiontime||m.startgametime)||0)*1000>=CAL_12_MONTHS);
+        allMatches=allMatches.concat(recent);
+        if(recent.length<page.length) keepGoing=false;
+        start+=page.length;
+        if(page.length<10) keepGoing=false;
+        await new Promise(r=>setTimeout(r,400));
+      }
+      allMatchesByPlayer[p.profileId]=allMatches;
+      calLog(`${p.name}: ${allMatches.length} matches found`,'#4CAF50');
+    } catch(e){
+      calLog(`${p.name}: failed — ${e.message}`,'#e08080');
+      allMatchesByPlayer[p.profileId]=[];
+    }
+    await new Promise(r=>setTimeout(r,800));
+  }
+
+  // Step 2: find community matches (5+ members)
+  calProgress(50,'Finding community matches...');
+  const matchPlayerMap={};
+  for(const [pid,matches] of Object.entries(allMatchesByPlayer)){
+    for(const m of matches){
+      const mid=m.match_id||m.id; if(!mid) continue;
+      if(!matchPlayerMap[mid]) matchPlayerMap[mid]=[];
+      const members=m.matchhistorymember||[];
+      const pd=members.find(pl=>Number(pl.profile_id)===Number(pid));
+      if(pd){
+        matchPlayerMap[mid].push({
+          profileId:Number(pid),
+          won:pd.resulttype===1,
+          civId:Number(pd.civilization_id||-1),
+          team:pd.teamid??0,
+        });
+      }
+    }
+  }
+
+  const communityMatches=[];
+  for(const [mid,entries] of Object.entries(matchPlayerMap)){
+    const comm=entries.filter(e=>communityIds.has(e.profileId));
+    if(comm.length>=5) communityMatches.push({mid,entries:comm});
+  }
+  calLog(`Found ${communityMatches.length} community matches (5+ members)`,communityMatches.length>0?'#C9A84C':'#e08080');
+  if(!communityMatches.length){
+    calLog('Not enough data — try adding more players with profile IDs','#e08080');
+    calProgress(100,'Done — no community matches found');
+    document.getElementById('calibrateBtn').disabled=false;
+    return;
+  }
+
+  // Step 3: simulate Elo from scratch starting at 1200
+  calProgress(60,'Computing calibrated ratings...');
+  const calResults={};
+  profiled.forEach(p=>{
+    calResults[p.profileId]={elo:1200,wins:0,losses:0,civWins:{},civGames:{}};
+    ALL_CIV_IDS_CAL.forEach(cid=>{ calResults[p.profileId].civWins[cid]=0; calResults[p.profileId].civGames[cid]=0; });
+  });
+
+  for(const {entries} of communityMatches){
+    const winners=entries.filter(e=>e.won);
+    const losers=entries.filter(e=>!e.won);
+    if(!winners.length||!losers.length) continue;
+
+    const avgWin=winners.reduce((s,e)=>s+(calResults[e.profileId]?.elo||1200),0)/winners.length;
+    const avgLose=losers.reduce((s,e)=>s+(calResults[e.profileId]?.elo||1200),0)/losers.length;
+
+    for(const e of winners){
+      const r=calResults[e.profileId]; if(!r) continue;
+      const K=(r.wins+r.losses)<10?64:32;
+      const exp=1/(1+Math.pow(10,(avgLose-r.elo)/400));
+      r.elo=Math.max(100,Math.round(r.elo+K*(1-exp)));
+      r.wins++;
+      const civ=AOE2_CIV_ID_MAP[e.civId];
+      if(civ){ r.civWins[civ.id]=(r.civWins[civ.id]||0)+1; r.civGames[civ.id]=(r.civGames[civ.id]||0)+1; }
+    }
+    for(const e of losers){
+      const r=calResults[e.profileId]; if(!r) continue;
+      const K=(r.wins+r.losses)<10?64:32;
+      const exp=1/(1+Math.pow(10,(avgWin-r.elo)/400));
+      r.elo=Math.max(100,Math.round(r.elo+K*(0-exp)));
+      r.losses++;
+      const civ=AOE2_CIV_ID_MAP[e.civId];
+      if(civ){ r.civGames[civ.id]=(r.civGames[civ.id]||0)+1; }
+    }
+  }
+
+  // Step 4: compute civ proficiency %
+  calProgress(85,'Computing civ proficiency...');
+  const ALL_CIV_IDS_LOCAL = CIVS.map(c=>c.id);
+
+  // Step 5: apply to players in Firebase
+  calProgress(90,'Saving to Firebase...');
+  setSyncDot('loading');
+
+  for(const p of profiled){
+    const r=calResults[p.profileId]; if(!r) continue;
+    const civPct={};
+    ALL_CIV_IDS_LOCAL.forEach(cid=>{
+      const games=r.civGames[cid]||0;
+      const wins=r.civWins[cid]||0;
+      if(!games){ civPct[cid]=60; return; }
+      const winRate=wins/games;
+      const confidence=Math.min(1,games/10);
+      civPct[cid]=Math.round(60*(1-confidence)+(40+winRate*55)*confidence);
+    });
+    p.elo=r.elo;
+    p.wins=r.wins;
+    p.losses=r.losses;
+    p.civPct=civPct;
+    await savePlayer(p);
+    calLog(`${p.name} → Elo: ${r.elo} (${r.wins}W/${r.losses}L)`,'#C9A84C');
+  }
+
+  calProgress(100,'Calibration complete ✓');
+  calLog('All players updated!','#4CAF50');
+  renderAdminPlayerList();
+  document.getElementById('calibrateBtn').disabled=false;
+  setSyncDot('ok');
+  showToast('Calibration complete!');
+};
+
+// Expose civ IDs for calibration
+const ALL_CIV_IDS_CAL = Object.values(AOE2_CIV_ID_MAP).map(c=>c.id);
 
 window.confirmResetRatings = async function(){
   closeModal('modalResetRatings');
