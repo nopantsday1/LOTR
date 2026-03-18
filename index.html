@@ -348,7 +348,10 @@ hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
         <div style="background:var(--surface3);border-radius:4px;overflow:hidden;height:5px"><div id="calibrateBar" style="height:100%;background:var(--gold);transition:width .3s;width:0%"></div></div>
         <div style="font-size:12px;color:var(--text-dim);margin-top:.4rem;font-style:italic;max-height:80px;overflow-y:auto" id="calibrateLog"></div>
       </div>
-      <button class="btn btn-sm" id="calibrateBtn" onclick="startCalibration()">⚙ CALIBRATE RATINGS</button>
+      <div class="flex" style="gap:8px">
+        <button class="btn btn-sm" id="calibrateBtn" onclick="startCalibration()">⚙ CALIBRATE RATINGS</button>
+        <button class="btn-danger" id="cancelCalibrateBtn" onclick="cancelCalibration()" style="display:none">✕ CANCEL</button>
+      </div>
     </div>
     <div class="card mt2">
       <div class="card-title">EDIT PLAYER RATINGS</div>
@@ -2037,12 +2040,24 @@ function calProgress(pct, label){
   if(lbl&&label) lbl.textContent=label;
 }
 
+let calibrationCancelled = false;
+
+window.cancelCalibration = function(){
+  calibrationCancelled = true;
+  document.getElementById('cancelCalibrateBtn').style.display='none';
+  document.getElementById('calibrateBtn').disabled=false;
+  document.getElementById('calibrateLabel').textContent='Cancelled.';
+  calLog('Calibration cancelled.','#e08080');
+};
+
 window.startCalibration = async function(){
+  calibrationCancelled = false;
   const profiled = players.filter(p=>p.profileId);
   if(profiled.length<2){ showToast('Need at least 2 players with profile IDs','error'); return; }
 
   document.getElementById('calibrateStatus').style.display='block';
   document.getElementById('calibrateBtn').disabled=true;
+  document.getElementById('cancelCalibrateBtn').style.display='block';
   document.getElementById('calibrateLog').innerHTML='';
 
   const communityIds = new Set(profiled.map(p=>Number(p.profileId)));
@@ -2061,11 +2076,13 @@ window.startCalibration = async function(){
       calLog(`${p.name}: ${matches.length} matches loaded`, matches.length>0?'#4CAF50':'#e08080');
     });
     calProgress(45, 'Match data loaded');
+    if(calibrationCancelled) return;
   } catch(e){
     calLog('Failed to load matches.json: '+e.message,'#e08080');
     calLog('→ Go to your GitHub repo → Actions → "Fetch Player Match History" → Run workflow','#C9A84C');
     calProgress(100,'Error');
     document.getElementById('calibrateBtn').disabled=false;
+    document.getElementById('cancelCalibrateBtn').style.display='none';
     return;
   }
 
@@ -2099,6 +2116,7 @@ window.startCalibration = async function(){
     calLog('Not enough data — try adding more players with profile IDs','#e08080');
     calProgress(100,'Done — no community matches found');
     document.getElementById('calibrateBtn').disabled=false;
+    document.getElementById('cancelCalibrateBtn').style.display='none';
     return;
   }
 
@@ -2111,6 +2129,7 @@ window.startCalibration = async function(){
   });
 
   for(const {entries} of communityMatches){
+    if(calibrationCancelled) return;
     const winners=entries.filter(e=>e.won);
     const losers=entries.filter(e=>!e.won);
     if(!winners.length||!losers.length) continue;
@@ -2147,6 +2166,7 @@ window.startCalibration = async function(){
   setSyncDot('loading');
 
   for(const p of profiled){
+    if(calibrationCancelled) return;
     const r=calResults[p.profileId]; if(!r) continue;
     const civPct={};
     ALL_CIV_IDS_LOCAL.forEach(cid=>{
@@ -2169,6 +2189,7 @@ window.startCalibration = async function(){
   calLog('All players updated!','#4CAF50');
   renderAdminPlayerList();
   document.getElementById('calibrateBtn').disabled=false;
+  document.getElementById('cancelCalibrateBtn').style.display='none';
   setSyncDot('ok');
   showToast('Calibration complete!');
 };
