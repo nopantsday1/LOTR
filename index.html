@@ -984,35 +984,36 @@ window.recordResult=async function(winner){
   const winA=winner==='evil'?r.evilAssign:r.goodAssign;
   const loseA=winner==='evil'?r.goodAssign:r.evilAssign;
 
-  // Apply Elo updates first (needs current elo before wins increment)
-  applyEloUpdates(winA, loseA);
+  // Calculate team averages BEFORE any changes
+  const avgWinElo  = winA.reduce((s,a)=>s+a.player.elo,0)  / winA.length;
+  const avgLoseElo = loseA.reduce((s,a)=>s+a.player.elo,0) / loseA.length;
 
-  // Update winners: +2% civ, +1 win
   for(const a of winA){
     try {
-      const p=players.find(pl=>String(pl.id)===String(a.player.id));
-      if(!p) continue;
-      p.civPct=p.civPct||{};
-      p.civPct[a.civId]=Math.min(100,(p.civPct[a.civId]??75)+2);
-      p.wins=(p.wins||0)+1;
+      const p = a.player;
+      const games = (p.wins||0)+(p.losses||0);
+      p.elo = calcElo(p.elo, avgLoseElo, true, games);
+      p.civPct = p.civPct||{};
+      p.civPct[a.civId] = Math.min(100,(p.civPct[a.civId]??60)+2);
+      p.wins = (p.wins||0)+1;
       await savePlayer(p);
     } catch(e){ console.error('[RECORD] winner save failed:', a.player.name, e.message); }
   }
-  // Update losers: -1% civ, +1 loss
   for(const a of loseA){
     try {
-      const p=players.find(pl=>String(pl.id)===String(a.player.id));
-      if(!p) continue;
-      p.civPct=p.civPct||{};
-      p.civPct[a.civId]=Math.max(40,(p.civPct[a.civId]??75)-1);
-      p.losses=(p.losses||0)+1;
+      const p = a.player;
+      const games = (p.wins||0)+(p.losses||0);
+      p.elo = calcElo(p.elo, avgWinElo, false, games);
+      p.civPct = p.civPct||{};
+      p.civPct[a.civId] = Math.max(40,(p.civPct[a.civId]??60)-1);
+      p.losses = (p.losses||0)+1;
       await savePlayer(p);
     } catch(e){ console.error('[RECORD] loser save failed:', a.player.name, e.message); }
   }
 
   await addDoc(collection(db,'history'),{
-    date,winner,
-    evilTotal:r.evilTotal,goodTotal:r.goodTotal,gap:r.gap,
+    date, winner,
+    evilTotal:r.evilTotal, goodTotal:r.goodTotal, gap:r.gap,
     timestamp:Date.now(),
     evilAssign:r.evilAssign.map(a=>({name:a.player.name,civName:a.civName,effElo:a.effElo})),
     goodAssign:r.goodAssign.map(a=>({name:a.player.name,civName:a.civName,effElo:a.effElo})),
@@ -1305,66 +1306,68 @@ window.openAddMatchModal=function(){
 window.saveAddMatch=async function(){
   const winner=document.getElementById('addMatchWinner').value;
   const date=document.getElementById('addMatchDate').value;
-  const evilAssign=[],goodAssign=[];
-  const evilPlayerObjs=[],goodPlayerObjs=[];
 
-  // Use proper for loops so we can return early correctly
+  // Build player+civ assignments directly using player object references
+  const evilA=[], goodA=[];
   for(const side of ['evil','good']){
-    const arr=side==='evil'?evilAssign:goodAssign;
-    const pObjs=side==='evil'?evilPlayerObjs:goodPlayerObjs;
+    const arr = side==='evil'?evilA:goodA;
     for(let i=0;i<4;i++){
       const pid=document.getElementById(`addMatch_${side}_p${i}`).value;
       const cid=document.getElementById(`addMatch_${side}_c${i}`).value;
       if(!pid||!cid){ showToast('Fill in all 8 players and civs','error'); return; }
       const p=players.find(pl=>String(pl.id)===String(pid));
       if(!p){ showToast(`Player not found: ${pid}`,'error'); return; }
-      arr.push({name:p.name, civName:CIVS.find(c=>c.id===cid)?.name||cid, effElo:effectiveElo(p,cid,false), civId:cid});
-      pObjs.push({player:p, civId:cid});
+      arr.push({ player:p, civId:cid, civName:CIVS.find(c=>c.id===cid)?.name||cid });
     }
   }
 
-  const winA = winner==='evil'?evilPlayerObjs:goodPlayerObjs;
-  const loseA = winner==='evil'?goodPlayerObjs:evilPlayerObjs;
+  const winA  = winner==='evil'?evilA:goodA;
+  const loseA = winner==='evil'?goodA:evilA;
 
   setSyncDot('loading');
 
-  // Apply Elo updates (uses current elo before wins increment)
-  applyEloUpdates(winA, loseA);
+  // Calculate team average Elos BEFORE any changes
+  const avgWinElo  = winA.reduce((s,a)=>s+a.player.elo,0)  / winA.length;
+  const avgLoseElo = loseA.reduce((s,a)=>s+a.player.elo,0) / loseA.length;
 
-  // Update civ proficiency and W/L, then save each player independently
-  // Each player is saved in a separate try/catch so one failure never blocks the rest
+  // Update every winner
   for(const a of winA){
     try {
-      const p=players.find(pl=>String(pl.id)===String(a.player.id));
-      if(!p){ console.warn('[SAVE] winner not found:', a.player.name); continue; }
-      p.civPct=p.civPct||{};
-      p.civPct[a.civId]=Math.min(100,(p.civPct[a.civId]??75)+2);
-      p.wins=(p.wins||0)+1;
+      const p = a.player;
+      const games = (p.wins||0)+(p.losses||0);
+      p.elo = calcElo(p.elo, avgLoseElo, true, games);
+      p.civPct = p.civPct||{};
+      p.civPct[a.civId] = Math.min(100,(p.civPct[a.civId]??60)+2);
+      p.wins = (p.wins||0)+1;
       await savePlayer(p);
-    } catch(e){ console.error('[SAVE] winner save failed:', a.player.name, e.message); }
+    } catch(e){ console.error('[MANUAL] winner save failed:', a.player.name, e.message); }
   }
+
+  // Update every loser
   for(const a of loseA){
     try {
-      const p=players.find(pl=>String(pl.id)===String(a.player.id));
-      if(!p){ console.warn('[SAVE] loser not found:', a.player.name); continue; }
-      p.civPct=p.civPct||{};
-      p.civPct[a.civId]=Math.max(40,(p.civPct[a.civId]??75)-1);
-      p.losses=(p.losses||0)+1;
+      const p = a.player;
+      const games = (p.wins||0)+(p.losses||0);
+      p.elo = calcElo(p.elo, avgWinElo, false, games);
+      p.civPct = p.civPct||{};
+      p.civPct[a.civId] = Math.max(40,(p.civPct[a.civId]??60)-1);
+      p.losses = (p.losses||0)+1;
       await savePlayer(p);
-    } catch(e){ console.error('[SAVE] loser save failed:', a.player.name, e.message); }
+    } catch(e){ console.error('[MANUAL] loser save failed:', a.player.name, e.message); }
   }
 
-  const evilTotal=evilAssign.reduce((s,a)=>s+a.effElo,0);
-  const goodTotal=goodAssign.reduce((s,a)=>s+a.effElo,0);
+  // Save history entry with effective Elo snapshots
+  const evilTotal = evilA.reduce((s,a)=>s+effectiveElo(a.player,a.civId,false),0);
+  const goodTotal = goodA.reduce((s,a)=>s+effectiveElo(a.player,a.civId,false),0);
 
   await addDoc(collection(db,'history'),{
-    date,winner,evilTotal,goodTotal,gap:Math.abs(evilTotal-goodTotal),
-    timestamp:Date.now(),source:'manual',
-    evilAssign:evilAssign.map(({name,civName,effElo})=>({name,civName,effElo})),
-    goodAssign:goodAssign.map(({name,civName,effElo})=>({name,civName,effElo})),
+    date, winner, evilTotal, goodTotal, gap:Math.abs(evilTotal-goodTotal),
+    timestamp:Date.now(), source:'manual',
+    evilAssign: evilA.map(a=>({name:a.player.name, civName:a.civName, effElo:effectiveElo(a.player,a.civId,false)})),
+    goodAssign: goodA.map(a=>({name:a.player.name, civName:a.civName, effElo:effectiveElo(a.player,a.civId,false)})),
   });
   closeModal('modalAddMatch');
-  showToast('Match added — ratings updated');
+  showToast('Match added — all 8 players updated');
   setSyncDot('ok');
 };
 
@@ -1662,24 +1665,32 @@ async function bgPollMatches(){
     const winA = buildAssign(winTeam);
     const loseA = buildAssign(loseTeam);
 
-    applyEloUpdates(winA, loseA);
+    // Compute avg Elos before any updates
+    const avgWinElo  = winA.reduce((s,a)=>s+a.player.elo,0)  / (winA.length||1);
+    const avgLoseElo = loseA.reduce((s,a)=>s+a.player.elo,0) / (loseA.length||1);
 
     for(const a of winA){
       try {
-        const p = players.find(pl=>String(pl.id)===String(a.player.id)); if(!p) continue;
+        const p = a.player; // direct reference — already the right object
+        const games = (p.wins||0)+(p.losses||0);
+        p.elo = calcElo(p.elo, avgLoseElo, true, games);
         p.civPct = p.civPct||{};
         if(a.civId) p.civPct[a.civId] = Math.min(100,(p.civPct[a.civId]??75)+2);
         p.wins = (p.wins||0)+1;
         await savePlayer(p);
+        console.log('[AUTO] winner saved:', p.name, 'elo:', p.elo, 'wins:', p.wins);
       } catch(e){ console.error('[AUTO] winner save failed:', a.player.name, e.message); }
     }
     for(const a of loseA){
       try {
-        const p = players.find(pl=>String(pl.id)===String(a.player.id)); if(!p) continue;
+        const p = a.player;
+        const games = (p.wins||0)+(p.losses||0);
+        p.elo = calcElo(p.elo, avgWinElo, false, games);
         p.civPct = p.civPct||{};
         if(a.civId) p.civPct[a.civId] = Math.max(40,(p.civPct[a.civId]??75)-1);
         p.losses = (p.losses||0)+1;
         await savePlayer(p);
+        console.log('[AUTO] loser saved:', p.name, 'elo:', p.elo, 'losses:', p.losses);
       } catch(e){ console.error('[AUTO] loser save failed:', a.player.name, e.message); }
     }
 
