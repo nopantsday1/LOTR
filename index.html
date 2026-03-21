@@ -444,18 +444,21 @@ const FB = {
 };
 
 const CIVS = [
-  {id:'p1', name:'P1 Dol Guldur',  side:'evil', race:4 },
-  {id:'p2', name:'P2 Dol Guldur',  side:'evil', race:38},
-  {id:'p3', name:"P3 Azog's Host", side:'evil', race:17},
-  {id:'p4', name:'P4 Goblin',      side:'evil', race:25},
-  {id:'p5', name:'P5 Blue Mts',    side:'good', race:12},
-  {id:'p6', name:'P6 Northmen',    side:'good', race:32},
-  {id:'p7', name:'P7 Elves',       side:'good', race:9 },
-  {id:'p8', name:'P8 Iron Hills',  side:'good', race:22},
+  {id:'p1', name:'P1 Dol Guldur',  side:'evil', teamid:5 },
+  {id:'p2', name:'P2 Dol Guldur',  side:'evil', teamid:6 },
+  {id:'p3', name:"P3 Azog's Host", side:'evil', teamid:7 },
+  {id:'p4', name:'P4 Goblin',      side:'evil', teamid:8 },
+  {id:'p5', name:'P5 Blue Mts',    side:'good', teamid:9 },
+  {id:'p6', name:'P6 Northmen',    side:'good', teamid:10},
+  {id:'p7', name:'P7 Elves',       side:'good', teamid:11},
+  {id:'p8', name:'P8 Iron Hills',  side:'good', teamid:12},
 ];
 const EVIL_CIVS = CIVS.filter(c=>c.side==='evil');
 const GOOD_CIVS = CIVS.filter(c=>c.side==='good');
-const RACE_MAP  = Object.fromEntries(CIVS.map(c=>[c.race, c.id]));
+// Map teamid → scenario civ (teamid 5-8=evil, 9-12=good)
+const TEAMID_MAP = Object.fromEntries(CIVS.map(c=>[c.teamid, c.id]));
+// Keep RACE_MAP as empty — civilization_id from API is player's personal AoE2 civ, not scenario civ
+const RACE_MAP = {};
 const DEFAULT_ELO = 1200;
 const LOTR_KW = ['hobbit','lotr','lord of the ring','bfme','the shire','middle'];
 const DEFAULT_PASS = 'admin123';
@@ -780,28 +783,39 @@ async function autoRecord(){
       members.forEach(m=>{ const t=String(m.teamid??0); (groups[t]=groups[t]||[]).push(m); });
       const tids=Object.keys(groups); if(tids.length<2) continue;
 
-      const tally={};
-      comm.forEach(m=>{ const t=String(m.teamid??0); tally[t]=(tally[t]||0)+(m.resulttype===1?1:0); });
-      const winTid=Object.entries(tally).sort((a,b)=>b[1]-a[1])[0][0];
-      const loseTid=tids.find(t=>t!==winTid)||tids[1];
+      // teamids 5-8=evil, 9-12=good — count wins per side
+      let evilWins=0, goodWins=0;
+      members.forEach(m=>{
+        const tid=Number(m.teamid??0);
+        if(m.resulttype===1){ if(tid>=5&&tid<=8) evilWins++; else goodWins++; }
+      });
+      const winner=evilWins>=goodWins?'evil':'good';
+      // Group by evil (5-8) vs good (9-12)
+      const evilMembers=members.filter(m=>{const t=Number(m.teamid??0);return t>=5&&t<=8;});
+      const goodMembers=members.filter(m=>{const t=Number(m.teamid??0);return t>=9&&t<=12;});
 
       const buildA=tid=>groups[tid].map(m=>{
         const p=profMap[Number(m.profile_id)]||null;
-        const cid=RACE_MAP[Number(m.race_id??m.civilization_id??-1)]||null;
+        // Use teamid to determine scenario civ (P1-P8)
+        const cid=TEAMID_MAP[Number(m.teamid)]||null;
         const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
-        // effElo: use specific civ elo if known, overall if community, DEFAULT if stranger
         const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
-        // name: use player name if community, else "Player XXXX" for display
         const name=p?p.name:`Player ${m.profile_id}`;
         return {player:p,civId:cid,civName,effElo,isCommunity:!!p,name};
       });
 
-      const winA=buildA(winTid), loseA=buildA(loseTid);
-      const winEvilC=winA.filter(a=>a.civId&&CIVS.find(c=>c.id===a.civId)?.side==='evil').length;
-      const winGoodC=winA.filter(a=>a.civId&&CIVS.find(c=>c.id===a.civId)?.side==='good').length;
-      let winner;
-      if(winEvilC>0||winGoodC>0) winner=winEvilC>=winGoodC?'evil':'good';
-      else winner=Number(winTid)===0?'evil':'good';
+      // Build assignments from evil/good members (by teamid 5-8/9-12)
+      const buildSide=mems=>mems.map(m=>{
+        const p=profMap[Number(m.profile_id)]||null;
+        const cid=TEAMID_MAP[Number(m.teamid)]||null;
+        const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
+        const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
+        const name=p?p.name:`Player ${m.profile_id}`;
+        return {player:p,civId:cid,civName,effElo,isCommunity:!!p,name};
+      });
+      const evilA=buildSide(evilMembers), goodA=buildSide(goodMembers);
+      const winA=winner==='evil'?evilA:goodA;
+      const loseA=winner==='evil'?goodA:evilA;
 
       const commWin=winA.filter(a=>a.isCommunity&&a.player);
       const commLose=loseA.filter(a=>a.isCommunity&&a.player);
@@ -1041,26 +1055,27 @@ window.runImport=async function(){
       members.forEach(m=>{ const t=String(m.teamid??0); (groups[t]=groups[t]||[]).push(m); });
       if(Object.keys(groups).length<2){skip++;continue;}
 
-      const tally={};
-      comm.forEach(m=>{ const t=String(m.teamid??0); tally[t]=(tally[t]||0)+(m.resulttype===1?1:0); });
-      const winTid=Object.entries(tally).sort((a,b)=>b[1]-a[1])[0][0];
-      const loseTid=Object.keys(groups).find(t=>t!==winTid);
+      // teamids 5-8=evil, 9-12=good
+      let evilWinsI=0, goodWinsI=0;
+      members.forEach(m=>{
+        const tid=Number(m.teamid??0);
+        if(m.resulttype===1){ if(tid>=5&&tid<=8) evilWinsI++; else goodWinsI++; }
+      });
+      const winner=evilWinsI>=goodWinsI?'evil':'good';
 
-      const mkA=tid=>(groups[tid]||[]).map(m=>{
+      const buildSideI=mems=>mems.map(m=>{
         const p=profMap[Number(m.profile_id)]||null;
-        const cid=RACE_MAP[Number(m.race_id??m.civilization_id??-1)]||null;
+        const cid=TEAMID_MAP[Number(m.teamid)]||null;
         const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
         const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
         const name=p?p.name:`Player ${m.profile_id}`;
         return {player:p,civId:cid,civName,effElo,isCommunity:!!p,name};
       });
-
-      const winA=mkA(winTid), loseA=mkA(loseTid);
-      const winEvilC=winA.filter(a=>a.civId&&CIVS.find(c=>c.id===a.civId)?.side==='evil').length;
-      const winGoodC=winA.filter(a=>a.civId&&CIVS.find(c=>c.id===a.civId)?.side==='good').length;
-      let winner;
-      if(winEvilC>0||winGoodC>0) winner=winEvilC>=winGoodC?'evil':'good';
-      else winner=Number(winTid)===0?'evil':'good';
+      const evilMembersI=members.filter(m=>{const t=Number(m.teamid??0);return t>=5&&t<=8;});
+      const goodMembersI=members.filter(m=>{const t=Number(m.teamid??0);return t>=9&&t<=12;});
+      const evilAI=buildSideI(evilMembersI), goodAI=buildSideI(goodMembersI);
+      const winA=winner==='evil'?evilAI:goodAI;
+      const loseA=winner==='evil'?goodAI:evilAI;
 
       const commWin=winA.filter(a=>a.isCommunity&&a.player);
       const commLose=loseA.filter(a=>a.isCommunity&&a.player);
