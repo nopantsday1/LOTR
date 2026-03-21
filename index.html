@@ -199,10 +199,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
   </div>
 
   <div id="result" style="display:none">
-    <div class="sb" style="margin-bottom:.5rem">
-      <div id="gapBadge"></div>
-      <button class="btn-p" onclick="openModal('mRecord')">✓ Record Result</button>
-    </div>
+    <div style="margin-bottom:.5rem"><div id="gapBadge"></div></div>
     <div class="teams">
       <div class="tpanel evil" id="tEvil"></div>
       <div class="tpanel good" id="tGood"></div>
@@ -306,17 +303,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
   </div>
 </div>
 
-<div class="mo" id="mRecord">
-  <div class="modal">
-    <span class="mclose" onclick="closeModal('mRecord')">×</span>
-    <div class="mtitle">Record Result</div>
-    <p style="font-size:14px;color:var(--dim);margin-bottom:1rem">Which side won?</p>
-    <div class="row">
-      <button class="btn-e" onclick="recordResult('evil')">⚔ Evil Forces Won</button>
-      <button class="btn-g" onclick="recordResult('good')">✦ Free Peoples Won</button>
-    </div>
-  </div>
-</div>
+
 
 <div class="mo" id="mAddPlayer">
   <div class="modal">
@@ -345,27 +332,6 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
       <button class="btn-del" onclick="deletePlayer()">Delete Player</button>
       <button class="btn-p" onclick="savePlayer()">Save</button>
     </div>
-  </div>
-</div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
-      <div>
-        <div class="ct" style="color:var(--evil)">⚔ Evil Team</div>
-        <div id="amEvil"></div>
-      </div>
-      <div>
-        <div class="ct" style="color:var(--good)">✦ Good Team</div>
-        <div id="amGood"></div>
-      </div>
-    </div>
-    <label>Winner</label>
-    <select id="amWinner" style="margin-bottom:.75rem">
-      <option value="evil">⚔ Evil Forces</option>
-      <option value="good">✦ Free Peoples</option>
-    </select>
-    <label>Date</label>
-    <input type="text" id="amDate" placeholder="YYYY-MM-DD" style="margin-bottom:1rem">
-    
   </div>
 </div>
 
@@ -722,8 +688,16 @@ function renderHist(){
   if(!history.length){el.innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">No matches yet.</p>';return;}
   el.innerHTML=history.map(h=>{
     const w=h.winner||'evil';
-    const eP=(h.evilAssign||[]).map(a=>`${a.name}${a.civName?` <span style="font-size:12px;color:var(--muted)">— ${a.civName}</span>`:''}`).join('<br>');
-    const gP=(h.goodAssign||[]).map(a=>`${a.name}${a.civName?` <span style="font-size:12px;color:var(--muted)">— ${a.civName}</span>`:''}`).join('<br>');
+    const fmtPlayer=a=>{
+      const nameHtml = a.name||'?';
+      const civHtml  = a.civName?` <span style="font-size:12px;color:var(--muted)">— ${a.civName}</span>`:'';
+      // Show "Add?" hint for non-community players (those with a numeric-looking name means unknown)
+      const isUnknown = !a.isCommunity && a.profileId;
+      const addHint  = isUnknown?` <span style="font-size:11px;color:var(--gold-d);cursor:pointer" title="Profile ID: ${a.profileId} — add this player to track their stats" onclick="promptAddPlayer('${a.name}','${a.profileId}')">＋ Add?</span>`:'';
+      return nameHtml+civHtml+addHint;
+    };
+    const eP=(h.evilAssign||[]).map(fmtPlayer).join('<br>');
+    const gP=(h.goodAssign||[]).map(fmtPlayer).join('<br>');
     return `<div class="hi">
       <div class="hi-top">
         <span class="hbadge ${w}">${w==='evil'?'⚔ Evil Win':'✦ Good Win'}</span>
@@ -738,6 +712,13 @@ function renderHist(){
     </div>`;
   }).join('');
 }
+
+window.promptAddPlayer=function(name, profileId){
+  if(!adminUnlocked){toast('Unlock admin first to add players','err');return;}
+  document.getElementById('apName').value=name||'';
+  document.getElementById('apPid').value=profileId||'';
+  openModal('mAddPlayer');
+};
 
 window.delHist=async function(id){
   if(!adminUnlocked){toast('Admin required','err');return;}
@@ -810,8 +791,10 @@ async function autoRecord(){
         const cid=TEAMID_MAP[Number(m.teamid)]||null;
         const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
         const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
-        const name=p?p.name:`Player ${m.profile_id}`;
-        return {player:p,civId:cid,civName,effElo,isCommunity:!!p,name};
+        // Use stored name from matches.json, fallback to profile ID
+        const name=p?p.name:(m.name||`Player ${m.profile_id}`);
+        const isCommunity=p?true:(m.is_community||false);
+        return {player:p,civId:cid,civName,effElo,isCommunity,name,profileId:m.profile_id};
       });
       const evilA=buildSide(evilMembers), goodA=buildSide(goodMembers);
       const winA=winner==='evil'?evilA:goodA;
@@ -839,8 +822,8 @@ async function autoRecord(){
       await addDoc(collection(db,'history'),{
         date,winner,evilTotal:winner==='evil'?et:gt,goodTotal:winner==='evil'?gt:et,
         gap:Math.abs(et-gt),timestamp:ts||Date.now(),source:'auto',gameId:gid,
-        evilAssign:(winner==='evil'?winA:loseA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo})),
-        goodAssign:(winner==='evil'?loseA:winA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo})),
+        evilAssign:(winner==='evil'?winA:loseA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
+        goodAssign:(winner==='evil'?loseA:winA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
       });
       known.add(gid); added++;
       console.log('[AUTO]',gid,winner);
@@ -1067,8 +1050,9 @@ window.runImport=async function(){
         const cid=TEAMID_MAP[Number(m.teamid)]||null;
         const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
         const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
-        const name=p?p.name:`Player ${m.profile_id}`;
-        return {player:p,civId:cid,civName,effElo,isCommunity:!!p,name};
+        const name=p?p.name:(m.name||`Player ${m.profile_id}`);
+        const isCommunity=p?true:(m.is_community||false);
+        return {player:p,civId:cid,civName,effElo,isCommunity,name,profileId:m.profile_id};
       });
       const evilMembersI=members.filter(m=>{const t=Number(m.teamid??0);return t>=5&&t<=8;});
       const goodMembersI=members.filter(m=>{const t=Number(m.teamid??0);return t>=9&&t<=12;});
@@ -1096,8 +1080,8 @@ window.runImport=async function(){
         date,winner,
         evilTotal:winner==='evil'?et:gt,goodTotal:winner==='evil'?gt:et,
         gap:Math.abs(et-gt),timestamp:ts||Date.now(),source:'auto',gameId:gid,
-        evilAssign:(winner==='evil'?winA:loseA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo})),
-        goodAssign:(winner==='evil'?loseA:winA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo})),
+        evilAssign:(winner==='evil'?winA:loseA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
+        goodAssign:(winner==='evil'?loseA:winA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
       });
       done++;
       const names=[...commWin,...commLose].map(a=>a.player.name).join(', ');
