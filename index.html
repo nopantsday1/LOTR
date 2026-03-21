@@ -797,13 +797,15 @@ async function autoRecord(){
       // Slot 0-3 = Evil (P1-P4), Slot 4-7 = Good (P5-P8)
       // colorId is the most reliable field — it's the actual in-game color/slot assignment
       const lobbySlots = liveLobbyMatch?._slots || [];
+      // colorId → scenario position based on actual in-game colors:
+      // Red=1→P1, Orange=7→P2, Grey=6→P3, Purple=5→P4
+      // Blue=0→P5, Teal=4→P6, Green=2→P7, Yellow=3→P8
+      const COLOR_TO_CIV={'1':'p1','7':'p2','6':'p3','5':'p4','0':'p5','4':'p6','2':'p7','3':'p8'};
       const lobbyByCiv = {}; // profileId → civId from lobby
       if(lobbySlots.length>0){
         lobbySlots.forEach(s=>{
           if(!s.profileId) return;
-          // colorId 0-3=Evil P1-P4, colorId 4-7=Good P5-P8
-          const civOrder=['p1','p2','p3','p4','p5','p6','p7','p8'];
-          const cid=civOrder[s.colorId];
+          const cid=COLOR_TO_CIV[String(s.colorId)];
           if(cid) lobbyByCiv[String(s.profileId)]=cid;
         });
         console.log('[autoRecord] Using lobby slot data for civ assignment:', lobbyByCiv);
