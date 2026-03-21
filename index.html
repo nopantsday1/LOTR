@@ -1485,22 +1485,24 @@ window.resetRatings = function(){ openModal('modalResetRatings'); };
 
 window.repairHistory = async function(){
   setSyncDot('loading');
-  // Find history entries with fewer than 4 players total (evilAssign + goodAssign)
+  // Delete ALL auto-recorded matches that have fewer than 8 players total
+  // (manual matches may legitimately have fewer, so only target source:'auto')
   const toDelete = history.filter(h => {
     const total = (h.evilAssign||[]).length + (h.goodAssign||[]).length;
-    return total < 4;
+    return total < 8 && (h.source === 'auto' || !h.source);
   });
   if(!toDelete.length){
-    showToast('No incomplete matches found');
+    showToast('No incomplete auto-recorded matches found');
     setSyncDot('ok');
     return;
   }
-  // Delete them from Firestore
   for(const h of toDelete){
     try { await deleteDoc(doc(db,'history',String(h.id))); } catch(e){}
   }
-  showToast(`Removed ${toDelete.length} incomplete match${toDelete.length>1?'es':''}. Click CHECK NOW on the Live tab to re-record them.`);
+  showToast(`Removed ${toDelete.length} incomplete match${toDelete.length>1?'es':''}. Running re-scan now...`);
   setSyncDot('ok');
+  // Immediately re-scan so matches.json re-records them with full teams
+  setTimeout(bgPollNow, 1000);
 };
 
 window.confirmResetRatings = async function(){
