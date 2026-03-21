@@ -791,32 +791,60 @@ async function autoRecord(){
         if(m.resulttype===1){ if(tid>=5&&tid<=8) evilWins++; else goodWins++; }
       });
       const winner=evilWins>=goodWins?'evil':'good';
+
+      // Build a profileId → civId map from lobby slot data if we have it
+      // colorId in AoE2 custom scenarios = player slot position (0-indexed)
+      // Slot 0-3 = Evil (P1-P4), Slot 4-7 = Good (P5-P8)
+      // colorId is the most reliable field — it's the actual in-game color/slot assignment
+      const lobbySlots = liveLobbyMatch?._slots || [];
+      const lobbyByCiv = {}; // profileId → civId from lobby
+      if(lobbySlots.length>0){
+        lobbySlots.forEach(s=>{
+          if(!s.profileId) return;
+          // colorId 0-3=Evil P1-P4, colorId 4-7=Good P5-P8
+          const civOrder=['p1','p2','p3','p4','p5','p6','p7','p8'];
+          const cid=civOrder[s.colorId];
+          if(cid) lobbyByCiv[String(s.profileId)]=cid;
+        });
+        console.log('[autoRecord] Using lobby slot data for civ assignment:', lobbyByCiv);
+      }
+
       // Group by evil (5-8) vs good (9-12)
       const evilMembers=members.filter(m=>{const t=Number(m.teamid??0);return t>=5&&t<=8;}).sort((a,b)=>Number(a.teamid)-Number(b.teamid));
       const goodMembers=members.filter(m=>{const t=Number(m.teamid??0);return t>=9&&t<=12;}).sort((a,b)=>Number(a.teamid)-Number(b.teamid));
 
       const buildA=tid=>groups[tid].map(m=>{
         const p=profMap[Number(m.profile_id)]||null;
-        // Use teamid to determine scenario civ (P1-P8)
-        const cid=TEAMID_MAP[Number(m.teamid)]||null;
+        const cid=m.civ_position||lobbyByCiv[String(m.profile_id)]||null;
         const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
         const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
         const name=p?p.name:`Player ${m.profile_id}`;
         return {player:p,civId:cid,civName,effElo,isCommunity:!!p,name};
       });
 
-      // Build assignments from evil/good members (by teamid 5-8/9-12)
+      // Build assignments from evil/good members
       const buildSide=mems=>mems.map(m=>{
         const p=profMap[Number(m.profile_id)]||null;
-        const cid=TEAMID_MAP[Number(m.teamid)]||null;
+        // Priority: 1) civ_position from matches.json (scraper lobby colorId data)
+        //           2) lobbyByCiv from live lobby slotinfo decoded in browser
+        const cid=m.civ_position||lobbyByCiv[String(m.profile_id)]||null;
         const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
         const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
-        // Use stored name from matches.json, fallback to profile ID
         const name=p?p.name:(m.name||`Player ${m.profile_id}`);
         const isCommunity=p?true:(m.is_community||false);
         return {player:p,civId:cid,civName,effElo,isCommunity,name,profileId:m.profile_id};
       });
-      const evilA=buildSide(evilMembers), goodA=buildSide(goodMembers);
+
+      // Sort each side by civ position (p1→p8) when civ data is available
+      const civSortOrder=['p1','p2','p3','p4','p5','p6','p7','p8'];
+      const sortByCivPos=arr=>{
+        const hasCiv=arr.some(a=>a.civId);
+        if(!hasCiv) return arr;
+        return [...arr].sort((a,b)=>civSortOrder.indexOf(a.civId)-civSortOrder.indexOf(b.civId));
+      };
+
+      const evilRaw=buildSide(evilMembers), goodRaw=buildSide(goodMembers);
+      const evilA=sortByCivPos(evilRaw), goodA=sortByCivPos(goodRaw);
       const winA=winner==='evil'?evilA:goodA;
       const loseA=winner==='evil'?goodA:evilA;
 
@@ -1100,16 +1128,26 @@ window.runImport=async function(){
 
       const buildSideI=mems=>mems.map(m=>{
         const p=profMap[Number(m.profile_id)]||null;
-        const cid=TEAMID_MAP[Number(m.teamid)]||null;
+        // civ_position from matches.json (set by scraper from lobby colorId) is most reliable
+        const cid=m.civ_position||null;
         const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
         const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
         const name=p?p.name:(m.name||`Player ${m.profile_id}`);
         const isCommunity=p?true:(m.is_community||false);
-        return {player:p,civId:cid,civName,effElo,isCommunity,name,profileId:m.profile_id};
+        return {player:p,civId:cid,civName,effElo,isCommunity,name,profileId:m.profile_id,_civPos:cid};
       });
+
+      // Sort by civ_position (p1→p8) so Evil shows P1-P4 and Good shows P5-P8 in order
+      const civOrder=['p1','p2','p3','p4','p5','p6','p7','p8'];
+      const sortByCiv=arr=>[...arr].sort((a,b)=>civOrder.indexOf(a._civPos)-civOrder.indexOf(b._civPos));
+
+      // Fall back to teamid sort if no civ data available
       const evilMembersI=members.filter(m=>{const t=Number(m.teamid??0);return t>=5&&t<=8;}).sort((a,b)=>Number(a.teamid)-Number(b.teamid));
       const goodMembersI=members.filter(m=>{const t=Number(m.teamid??0);return t>=9&&t<=12;}).sort((a,b)=>Number(a.teamid)-Number(b.teamid));
-      const evilAI=buildSideI(evilMembersI), goodAI=buildSideI(goodMembersI);
+      const evilRawI=buildSideI(evilMembersI), goodRawI=buildSideI(goodMembersI);
+      const hasCivData=evilRawI.some(a=>a._civPos)||goodRawI.some(a=>a._civPos);
+      const evilAI=hasCivData?sortByCiv(evilRawI):evilRawI;
+      const goodAI=hasCivData?sortByCiv(goodRawI):goodRawI;
       const winA=winner==='evil'?evilAI:goodAI;
       const loseA=winner==='evil'?goodAI:evilAI;
 
@@ -1175,7 +1213,7 @@ let liveKnownGameId = null;
 let liveLobbyMatch = null;    // raw lobby match object
 let liveTeams = null;         // {evil:[player,...], good:[player,...]}
 
-// Decode slotinfo (base64+zlib) → array of profile IDs
+// Decode slotinfo (base64+zlib) → full slot objects with profileId, civilizationId, colorId, teamId, slotIndex
 async function decodeSlotinfo(b64){
   if(!b64) return [];
   try{
@@ -1196,9 +1234,20 @@ async function decodeSlotinfo(b64){
     const text=new TextDecoder().decode(out);
     const start=text.indexOf('['); if(start===-1) return [];
     const slots=JSON.parse(text.slice(start));
-    return slots.map(s=>Number(s?.profileInfo?.id||s?.profileid||0)).filter(Boolean);
+    // Return full slot objects — civilizationId and colorId tell us exactly who played what
+    return slots.map((s,i)=>({
+      slotIndex:      i,
+      profileId:      Number(s?.profileInfo?.id||s?.profileid||0),
+      civilizationId: Number(s?.civilizationId??s?.civilization_id??-1),
+      colorId:        Number(s?.colorId??s?.color_id??i),
+      teamId:         Number(s?.teamId??s?.team_id??-1),
+      slotType:       s?.slotType??s?.slot_type??0,  // 0=open,1=human,2=AI,3=closed
+    }));
   }catch(e){ return []; }
 }
+
+// Extract profile IDs only (for backward compat)
+function slotProfileIds(slots){ return slots.map(s=>s.profileId).filter(Boolean); }
 
 function setLiveState(s){
   liveState=s;
@@ -1237,11 +1286,12 @@ async function pollLobby(){
       const allIds=new Set();
       allIds.add(Number(match.host_profile_id));
       (match.matchmembers||[]).forEach(m=>allIds.add(Number(m.profile_id)));
-      const slotIds=await decodeSlotinfo(match.slotinfo);
-      slotIds.forEach(id=>allIds.add(id));
+      const slots=await decodeSlotinfo(match.slotinfo);
+      slotProfileIds(slots).forEach(id=>allIds.add(id));
 
       const found=[...allIds].filter(id=>commIds.has(id));
       if(found.length>=2){
+        match._slots=slots; // store full slot data for civ assignment
         activateLobby(match, found.map(id=>profMap[id]).filter(Boolean));
         return;
       }
