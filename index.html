@@ -241,6 +241,14 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
 <!-- ══ LEADERBOARD ══ -->
 <div class="page" id="page-leaderboard">
   <div class="ph"><h1>Leaderboard</h1><p>Ranked by overall Elo (average of all 8 civ Elos).</p></div>
+
+  <div class="card" style="margin-bottom:1rem">
+    <div class="ct">Community Win Rates</div>
+    <div id="winRateStats" style="display:flex;gap:2rem;align-items:center;flex-wrap:wrap">
+      <p style="color:var(--dim);font-size:14px">Loading…</p>
+    </div>
+  </div>
+
   <div class="card" style="padding:0"><div id="lbList"></div></div>
 </div>
 
@@ -488,6 +496,7 @@ async function init(){
   onSnapshot(query(collection(db,'history'),orderBy('timestamp','desc'),limit(100)),snap=>{
     history=[]; snap.forEach(d=>history.push({id:d.id,...d.data()}));
     renderHist();
+    renderWinRate();
   });
   setTimeout(autoRecord,3000);
   setInterval(autoRecord,5*60*1000);
@@ -881,8 +890,37 @@ window.sortP=function(k){
 // ─────────────────────────────────────────
 // LEADERBOARD
 // ─────────────────────────────────────────
+function renderWinRate(){
+  const el=document.getElementById('winRateStats'); if(!el) return;
+  if(!history.length){ el.innerHTML='<p style="color:var(--dim);font-size:14px">No matches recorded yet.</p>'; return; }
+  const total=history.length;
+  const evilWins=history.filter(h=>h.winner==='evil').length;
+  const goodWins=history.filter(h=>h.winner==='good').length;
+  const evilPct=Math.round(evilWins/total*100);
+  const goodPct=100-evilPct;
+  const barW=Math.max(2,evilPct); // min 2% so bar always shows
+
+  el.innerHTML=`
+    <div style="flex:1;min-width:220px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+        <span style="font-family:'Cinzel',serif;font-size:11px;color:var(--evil)">⚔ Evil Forces</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--evil)">${evilWins}W · ${evilPct}%</span>
+      </div>
+      <div style="height:8px;border-radius:4px;background:var(--bg3);overflow:hidden;position:relative">
+        <div style="position:absolute;left:0;top:0;height:100%;width:${barW}%;background:var(--evil);border-radius:4px;transition:width .6s ease"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px">
+        <span style="font-family:'Cinzel',serif;font-size:11px;color:var(--good)">✦ Free Peoples</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--good)">${goodWins}W · ${goodPct}%</span>
+      </div>
+    </div>
+    <div style="color:var(--dim);font-size:13px;white-space:nowrap">${total} game${total!==1?'s':''} recorded</div>
+  `;
+}
+
 function renderLB(){
   const el=document.getElementById('lbList'); if(!el) return;
+  renderWinRate();
   const sorted=[...players].sort((a,b)=>overallElo(b)-overallElo(a));
   el.innerHTML=sorted.map((p,i)=>{
     const ov=overallElo(p);
@@ -1303,107 +1341,4 @@ function startTimer(){
     const mm=String(Math.floor(s/60)).padStart(2,'0');
     const ss=String(s%60).padStart(2,'0');
     const el=document.getElementById('liveTimer');
-    if(el) el.textContent=`${mm}:${ss}`;
-  },1000);
-}
-
-// Check matches.json for a game started recently that isn't yet in history
-async function checkRecentInProgress(){
-  try{
-    const resp=await fetch('matches.json?_='+Date.now(),{signal:AbortSignal.timeout(5000)});
-    if(!resp.ok) return;
-    const data=await resp.json();
-    const matches=(data.matches||[]);
-    const now=Date.now()/1000;
-    const knownIds=new Set(history.map(h=>h.gameId).filter(Boolean));
-    const profMap=Object.fromEntries(players.filter(p=>p.profileId).map(p=>[Number(p.profileId),p]));
-    const commIds=new Set(players.filter(p=>p.profileId).map(p=>Number(p.profileId)));
-
-    for(const match of matches){
-      const gid=String(match.match_id||match.id);
-      if(knownIds.has(gid)) continue; // already recorded
-      const start=match.startgametime||match.completiontime||0;
-      if(now-start>3*3600) continue; // more than 3 hours ago
-      // Check if this match has community members
-      const members=match.matchhistorymember||[];
-      const commCount=members.filter(m=>commIds.has(Number(m.profile_id))).length;
-      if(commCount<4) continue;
-
-      // Found a recent unrecorded game — show as in-progress
-      const evilM=members.filter(m=>{ const t=Number(m.teamid); return t>=5&&t<=8; });
-      const goodM=members.filter(m=>{ const t=Number(m.teamid); return t>=9&&t<=12; });
-      liveTeams={
-        evil:evilM.map(m=>profMap[Number(m.profile_id)]).filter(Boolean),
-        good:goodM.map(m=>profMap[Number(m.profile_id)]).filter(Boolean),
-      };
-      liveGameStart=start*1000;
-      setLiveState('inprogress');
-      renderInProgress();
-      startTimer();
-      if(liveResultInterval) clearInterval(liveResultInterval);
-      liveResultInterval=setInterval(pollForResult, RESULT_INTERVAL_MS);
-      return;
-    }
-  }catch(e){}
-}
-
-async function pollForResult(){
-  // Check matches.json for a new match — simpler and more reliable than live API
-  try{
-    const resp=await fetch('matches.json?_='+Date.now(),{signal:AbortSignal.timeout(8000)});
-    if(!resp.ok) return;
-    const data=await resp.json();
-    const matches=(data.matches||[]).sort((a,b)=>(b.completiontime||0)-(a.completiontime||0));
-    const known=new Set(history.map(h=>h.gameId).filter(Boolean));
-
-    for(const match of matches.slice(0,5)){
-      const gid=String(match.match_id||match.id);
-      if(gid===liveKnownGameId) return; // already processing
-      if(known.has(gid)) continue;       // already recorded
-
-      const desc=(match.description||'').toLowerCase();
-      const mapn=(match.mapname||'').toLowerCase();
-      if(!LOTR_KW.some(kw=>desc.includes(kw)||mapn.includes(kw))) continue;
-
-      const members=match.matchhistorymember||match.matchhistoryreportresults||[];
-      const profPlayers=players.filter(p=>p.profileId);
-      const commIds=new Set(profPlayers.map(p=>Number(p.profileId)));
-      const comm=members.filter(m=>commIds.has(Number(m.profile_id)));
-      if(comm.length<4) continue;
-      if(!comm.some(m=>m.resulttype!==0)) continue;
-
-      liveKnownGameId=gid;
-      if(liveResultInterval){ clearInterval(liveResultInterval); liveResultInterval=null; }
-      if(liveTimerInterval){  clearInterval(liveTimerInterval);  liveTimerInterval=null; }
-
-      const ps=document.getElementById('progressStatus');
-      if(ps) ps.textContent='Result detected — recording…';
-
-      // Let autoRecord handle the actual recording
-      await autoRecord();
-
-      // Reset to idle after a short display delay
-      setTimeout(()=>{ liveTeams=null; liveLobbyMatch=null; liveKnownGameId=null; setLiveState('idle'); }, 4000);
-      toast('Match recorded automatically!');
-      return;
-    }
-
-    // Update status
-    const ps=document.getElementById('progressStatus');
-    if(ps) ps.textContent=`Checking every 45s · last: ${new Date().toLocaleTimeString()}`;
-  }catch(e){}
-}
-
-window.livePollNow=function(){ pollLobby(); };
-
-// Start polling on page load
-setInterval(pollLobby, LIVE_INTERVAL_MS);
-setTimeout(pollLobby, 5000); // first check after 5s
-
-// ─────────────────────────────────────────
-// START
-// ─────────────────────────────────────────
-init();
-</script>
-</body>
-</html>
+    if(el) el.textContent=`${mm}:${
