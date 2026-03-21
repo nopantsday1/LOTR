@@ -540,9 +540,12 @@ async function savePl(p){
 window.go=function(name){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('page-'+name).classList.add('on');
-  const tabs=['balance','history','players','leaderboard','admin'];
-  const i=tabs.indexOf(name); if(i>=0) document.querySelectorAll('.tab')[i].classList.add('active');
+  const page=document.getElementById('page-'+name);
+  if(page) page.classList.add('on');
+  // Find the tab whose onclick contains the page name
+  document.querySelectorAll('.tab').forEach(t=>{
+    if(t.getAttribute('onclick')===`go('${name}')`) t.classList.add('active');
+  });
   if(name==='admin') renderAdminList();
 };
 
@@ -611,7 +614,7 @@ function doBalance(random=false){
 }
 
 window.runBalance=function(){swapSrc=null;const r=doBalance(false);if(r){lastBal=r;renderResult(r);}};
-window.runRandom =function(){swapSrc=null;const r=doBalance(true); if(r){lastBal=r;renderResult(r);}};
+window.runRandom=function(){swapSrc=null;const r=doBalance(true); if(r){lastBal=r;renderResult(r);}};
 
 function renderResult(r){
   document.getElementById('result').style.display='block';
@@ -737,28 +740,6 @@ window.delHist=async function(id){
   if(!adminUnlocked){toast('Admin required','err');return;}
   await deleteDoc(doc(db,'history',String(id)));
 };
-
-
-    CIVS.forEach(c=>{
-      p.civElo[c.id]=calcElo(civElo(p,c.id),avgLose,true,g);
-    });
-    p.wins=(p.wins||0)+1; await savePl(p);
-  }
-  for(const a of loseA){
-    const p=a.player, g=(p.wins||0)+(p.losses||0);
-    p.civElo=p.civElo||{};
-    CIVS.forEach(c=>{
-      p.civElo[c.id]=calcElo(civElo(p,c.id),avgWin,false,g);
-    });
-    p.losses=(p.losses||0)+1; await savePl(p);
-  }
-  const et=eA.reduce((s,a)=>s+a.effElo,0), gt=gA.reduce((s,a)=>s+a.effElo,0);
-  await addDoc(collection(db,'history'),{
-    date,winner,evilTotal:et,goodTotal:gt,gap:Math.abs(et-gt),
-    timestamp:Date.now(),source:'manual',
-    evilAssign:eA.map(a=>({name:a.player.name,civName:'',effElo:a.effElo})),
-    goodAssign:gA.map(a=>({name:a.player.name,civName:'',effElo:a.effElo})),
-  });
 
 
 // ─────────────────────────────────────────
