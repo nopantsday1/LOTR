@@ -1533,35 +1533,48 @@ function updatePollStatus(msg){
   if(dot) dot.className = 'live-tab-dot';
 }
 
-// Fetch matches for each player individually, then merge by match_id
-// so each match has ALL community members in matchhistorymember
+// Fetch all matches for one player, return their pages merged
+async function fetchPlayerHistory(player, cutoff){
+  const matches = {};
+  let start = 0;
+  while(true){
+    let data = null;
+    try {
+      const resp = await fetch(HISTORY_API(player.profileId, start), {signal: AbortSignal.timeout(10000)});
+      if(resp.ok){ const d = await resp.json(); if((d.matchHistoryStats||[]).length) data = d; }
+    } catch(e){}
+    if(!data) break;
+    const page = data.matchHistoryStats || [];
+    if(!page.length) break;
+    let hitCutoff = false;
+    for(const m of page){
+      const t = ((m.completiontime || m.startgametime) || 0) * 1000;
+      if(t < cutoff){ hitCutoff = true; break; }
+      const mid = String(m.match_id || m.id);
+      matches[mid] = m;
+    }
+    if(hitCutoff || page.length < 10) break;
+    start += page.length;
+    await new Promise(r => setTimeout(r, 150));
+  }
+  return matches;
+}
+
+// Fetch all players in parallel batches of 4, then merge matches by match_id
 async function fetchAllRecentMatches(profiledPlayers){
   const cutoff = Date.now() - THREE_MONTHS_MS;
-  // matchId -> merged match object with all members combined
-  const matchMap = {};
+  const matchMap = {}; // mid -> merged match with all community members
+  let done = 0;
 
-  for(const player of profiledPlayers){
-    let start = 0;
-    let keepGoing = true;
-    while(keepGoing){
-      let data = null;
-      try {
-        const resp = await fetch(HISTORY_API(player.profileId, start), {signal: AbortSignal.timeout(10000)});
-        if(resp.ok){ const d = await resp.json(); if((d.matchHistoryStats||[]).length) data = d; }
-      } catch(e){}
+  // Process in batches of 4 concurrent fetches
+  const BATCH = 4;
+  for(let i = 0; i < profiledPlayers.length; i += BATCH){
+    const batch = profiledPlayers.slice(i, i + BATCH);
+    const results = await Promise.all(batch.map(p => fetchPlayerHistory(p, cutoff)));
 
-      if(!data) break;
-
-      const page = data.matchHistoryStats || [];
-      if(!page.length) break;
-
-      for(const m of page){
-        const t = ((m.completiontime || m.startgametime) || 0) * 1000;
-        if(t < cutoff){ keepGoing = false; break; }
-
-        const mid = String(m.match_id || m.id);
+    for(const playerMatches of results){
+      for(const [mid, m] of Object.entries(playerMatches)){
         if(!matchMap[mid]){
-          // Store match metadata, start with empty members array
           matchMap[mid] = {
             match_id: mid,
             completiontime: m.completiontime,
@@ -1569,20 +1582,17 @@ async function fetchAllRecentMatches(profiledPlayers){
             matchhistorymember: [],
           };
         }
-        // Merge this player's member entry into the combined match
-        const members = m.matchhistorymember || [];
-        for(const mem of members){
+        for(const mem of (m.matchhistorymember || [])){
           const alreadyHave = matchMap[mid].matchhistorymember.some(
             x => String(x.profile_id) === String(mem.profile_id)
           );
           if(!alreadyHave) matchMap[mid].matchhistorymember.push(mem);
         }
       }
-
-      if(!keepGoing || page.length < 10) break;
-      start += page.length;
-      await new Promise(r => setTimeout(r, 200));
     }
+
+    done += batch.length;
+    updatePollStatus(`scanning history... ${done}/${profiledPlayers.length} players`);
   }
 
   return Object.values(matchMap);
@@ -1606,7 +1616,7 @@ async function bgPollMatches(){
   const profiledPlayers = players.filter(p=>p.profileId);
   if(profiledPlayers.length < 2){ updatePollStatus('not enough players with profile IDs'); return; }
 
-  updatePollStatus('scanning last 3 months of matches...');
+  updatePollStatus(`scanning ${profiledPlayers.length} players — 3 months of history...`);
   const matches = await fetchAllRecentMatches(profiledPlayers);
 
   if(!matches.length){ updatePollStatus('fetch failed — will retry in 45s'); return; }
