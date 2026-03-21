@@ -792,7 +792,7 @@ async function autoRecord(){
       const buildA=tid=>groups[tid].map(m=>{
         const p=profMap[Number(m.profile_id)]||null;
         // Use teamid to determine scenario civ (P1-P8)
-        const cid=RACE_MAP[Number(m.race_id)]||null;
+        const cid=TEAMID_MAP[Number(m.teamid)]||null;
         const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
         const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
         const name=p?p.name:`Player ${m.profile_id}`;
@@ -802,7 +802,7 @@ async function autoRecord(){
       // Build assignments from evil/good members (by teamid 5-8/9-12)
       const buildSide=mems=>mems.map(m=>{
         const p=profMap[Number(m.profile_id)]||null;
-        const cid=RACE_MAP[Number(m.race_id)]||null;
+        const cid=TEAMID_MAP[Number(m.teamid)]||null;
         const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
         const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
         // Use stored name from matches.json, fallback to profile ID
@@ -1092,7 +1092,7 @@ window.runImport=async function(){
 
       const buildSideI=mems=>mems.map(m=>{
         const p=profMap[Number(m.profile_id)]||null;
-        const cid=RACE_MAP[Number(m.race_id)]||null;
+        const cid=TEAMID_MAP[Number(m.teamid)]||null;
         const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
         const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
         const name=p?p.name:(m.name||`Player ${m.profile_id}`);
