@@ -698,16 +698,28 @@ function renderHist(){
   if(!history.length){el.innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">No matches yet.</p>';return;}
   el.innerHTML=history.map(h=>{
     const w=h.winner||'evil';
-    const fmtPlayer=a=>{
+    const fmtPlayer=(a,side)=>{
       const nameHtml = a.name||'?';
-      // Show civ — now correctly derived from race_id via RACE_MAP
-      const civHtml  = a.civName?` <span style="font-size:12px;color:var(--muted)">— ${a.civName}</span>`:'';
+      // If civName is missing (old records), derive it from profileId→teamid via match members
+      let civName = a.civName||'';
+      if(!civName && a.profileId){
+        // Look up this player in the match members to find their teamid
+        const allMembers=[...(h.evilAssign||[]),...(h.goodAssign||[])];
+        // Use position index within their side to guess civ (P1-P4 evil, P5-P8 good)
+        const sideArr=side==='evil'?(h.evilAssign||[]):(h.goodAssign||[]);
+        const idx=sideArr.indexOf(a);
+        if(idx>=0){
+          const civs=side==='evil'?['P1 Dol Guldur','P2 Dol Guldur',"P3 Azog's Host",'P4 Goblin']:['P5 Blue Mts','P6 Northmen','P7 Elves','P8 Iron Hills'];
+          civName=civs[idx]||'';
+        }
+      }
+      const civHtml = civName?` <span style="font-size:12px;color:var(--muted)">— ${civName}</span>`:'';
       const isUnknown = !a.isCommunity && a.profileId;
       const addHint  = isUnknown?` <button onclick="promptAddPlayer('${a.name}','${a.profileId}')" style="font-size:10px;font-family:'Cinzel',serif;letter-spacing:.08em;background:var(--gold-d);border:1px solid var(--gold);color:var(--gold);padding:2px 7px;border-radius:2px;cursor:pointer;margin-left:4px" title="Add ${a.name} to your community">＋ Add ${a.name}</button>`:'';
       return nameHtml+civHtml+addHint;
     };
-    const eP=(h.evilAssign||[]).map(fmtPlayer).join('<br>');
-    const gP=(h.goodAssign||[]).map(fmtPlayer).join('<br>');
+    const eP=(h.evilAssign||[]).map(a=>fmtPlayer(a,'evil')).join('<br>');
+    const gP=(h.goodAssign||[]).map(a=>fmtPlayer(a,'good')).join('<br>');
     return `<div class="hi">
       <div class="hi-top">
         <span class="hbadge ${w}">${w==='evil'?'⚔ Evil Win':'✦ Good Win'}</span>
@@ -817,7 +829,7 @@ async function autoRecord(){
 
       const buildA=tid=>groups[tid].map(m=>{
         const p=profMap[Number(m.profile_id)]||null;
-        const cid=m.civ_position||lobbyByCiv[String(m.profile_id)]||null;
+        const cid=m.civ_position||lobbyByCiv[String(m.profile_id)]||TEAMID_MAP[Number(m.teamid)]||null;
         const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
         const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
         const name=p?p.name:`Player ${m.profile_id}`;
@@ -829,7 +841,8 @@ async function autoRecord(){
         const p=profMap[Number(m.profile_id)]||null;
         // Priority: 1) civ_position from matches.json (scraper lobby colorId data)
         //           2) lobbyByCiv from live lobby slotinfo decoded in browser
-        const cid=m.civ_position||lobbyByCiv[String(m.profile_id)]||null;
+        //           3) TEAMID_MAP from teamid — unreliable for player↔civ but gives side info
+        const cid=m.civ_position||lobbyByCiv[String(m.profile_id)]||TEAMID_MAP[Number(m.teamid)]||null;
         const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
         const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
         const name=p?p.name:(m.name||`Player ${m.profile_id}`);
@@ -1131,7 +1144,7 @@ window.runImport=async function(){
       const buildSideI=mems=>mems.map(m=>{
         const p=profMap[Number(m.profile_id)]||null;
         // civ_position from matches.json (set by scraper from lobby colorId) is most reliable
-        const cid=m.civ_position||null;
+        const cid=m.civ_position||TEAMID_MAP[Number(m.teamid)]||null;
         const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
         const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
         const name=p?p.name:(m.name||`Player ${m.profile_id}`);
