@@ -1525,6 +1525,7 @@ const HISTORY_API = (profileId, start=0) =>
   `https://api.allorigins.win/raw?url=${encodeURIComponent('https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=['+profileId+']&start_index='+start)}`;
 
 let bgPollTimer = null;
+let bgPollRunning = false;
 
 function updatePollStatus(msg){
   const el = document.getElementById('pollStatus');
@@ -1613,6 +1614,9 @@ function renderMissingProfiles(){
 }
 
 async function bgPollMatches(){
+  if(bgPollRunning){ return; } // prevent overlapping scans
+  bgPollRunning = true;
+  try {
   const profiledPlayers = players.filter(p=>p.profileId);
   if(profiledPlayers.length < 2){ updatePollStatus('not enough players with profile IDs'); return; }
 
@@ -1743,6 +1747,9 @@ async function bgPollMatches(){
     setSyncDot('ok');
   } else {
     updatePollStatus('no new games found');
+  }
+  } finally {
+    bgPollRunning = false;
   }
 }
 
