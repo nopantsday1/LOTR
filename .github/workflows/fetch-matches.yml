@@ -1,0 +1,38 @@
+name: Fetch LOTR Match History
+
+on:
+  schedule:
+    - cron: '0 */3 * * *'
+  workflow_dispatch:
+    inputs:
+      force_rescan:
+        description: 'Force rescan (ignore cache)'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4 lxml --break-system-packages
+
+      - name: Run scraper
+        env:
+          FORCE_RESCAN: ${{ github.event.inputs.force_rescan == 'true' && '1' || '0' }}
+        run: python3 scrape_matches.py
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add matches.json
+          git diff --staged --quiet || git commit -m "Update LOTR match history [$(date -u '+%Y-%m-%d %H:%M')]"
+          git push
