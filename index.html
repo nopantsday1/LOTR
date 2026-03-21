@@ -792,8 +792,8 @@ async function autoRecord(){
       });
       const winner=evilWins>=goodWins?'evil':'good';
       // Group by evil (5-8) vs good (9-12)
-      const evilMembers=members.filter(m=>{const t=Number(m.teamid??0);return t>=5&&t<=8;});
-      const goodMembers=members.filter(m=>{const t=Number(m.teamid??0);return t>=9&&t<=12;});
+      const evilMembers=members.filter(m=>{const t=Number(m.teamid??0);return t>=5&&t<=8;}).sort((a,b)=>Number(a.teamid)-Number(b.teamid));
+      const goodMembers=members.filter(m=>{const t=Number(m.teamid??0);return t>=9&&t<=12;}).sort((a,b)=>Number(a.teamid)-Number(b.teamid));
 
       const buildA=tid=>groups[tid].map(m=>{
         const p=profMap[Number(m.profile_id)]||null;
@@ -1107,8 +1107,8 @@ window.runImport=async function(){
         const isCommunity=p?true:(m.is_community||false);
         return {player:p,civId:cid,civName,effElo,isCommunity,name,profileId:m.profile_id};
       });
-      const evilMembersI=members.filter(m=>{const t=Number(m.teamid??0);return t>=5&&t<=8;});
-      const goodMembersI=members.filter(m=>{const t=Number(m.teamid??0);return t>=9&&t<=12;});
+      const evilMembersI=members.filter(m=>{const t=Number(m.teamid??0);return t>=5&&t<=8;}).sort((a,b)=>Number(a.teamid)-Number(b.teamid));
+      const goodMembersI=members.filter(m=>{const t=Number(m.teamid??0);return t>=9&&t<=12;}).sort((a,b)=>Number(a.teamid)-Number(b.teamid));
       const evilAI=buildSideI(evilMembersI), goodAI=buildSideI(goodMembersI);
       const winA=winner==='evil'?evilAI:goodAI;
       const loseA=winner==='evil'?goodAI:evilAI;
