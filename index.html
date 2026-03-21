@@ -1483,6 +1483,26 @@ window.resetAll=function(){ openModal('modalResetConfirm'); };
 // ---- RESET RATINGS ----
 window.resetRatings = function(){ openModal('modalResetRatings'); };
 
+window.repairHistory = async function(){
+  setSyncDot('loading');
+  // Find history entries with fewer than 4 players total (evilAssign + goodAssign)
+  const toDelete = history.filter(h => {
+    const total = (h.evilAssign||[]).length + (h.goodAssign||[]).length;
+    return total < 4;
+  });
+  if(!toDelete.length){
+    showToast('No incomplete matches found');
+    setSyncDot('ok');
+    return;
+  }
+  // Delete them from Firestore
+  for(const h of toDelete){
+    try { await deleteDoc(doc(db,'history',String(h.id))); } catch(e){}
+  }
+  showToast(`Removed ${toDelete.length} incomplete match${toDelete.length>1?'es':''}. Click CHECK NOW on the Live tab to re-record them.`);
+  setSyncDot('ok');
+};
+
 window.confirmResetRatings = async function(){
   setSyncDot('loading');
   closeModal('modalResetRatings');
@@ -1625,10 +1645,11 @@ async function bgPollMatches(){
     // Skip already recorded
     if(history.some(h => h.gameId === gameId)) continue;
 
-    // Filter: must be a LOTR/Hobbit scenario by mapname or description
-    const mapname = (match.mapname || '').toLowerCase();
+    // Filter: LOTR/Hobbit scenario — check description (mapname is always 'my map' for custom games)
+    const mapname     = (match.mapname     || '').toLowerCase();
+    const description = (match.description || '').toLowerCase();
     const LOTR_KEYWORDS = ['hobbit','lotr','lord of the ring','bfme','the shire','middle'];
-    if(!LOTR_KEYWORDS.some(kw => mapname.includes(kw))) continue;
+    if(!LOTR_KEYWORDS.some(kw => mapname.includes(kw) || description.includes(kw))) continue;
 
     // Need 4+ community players
     const communityInMatch = members.filter(m => communityIds.has(Number(m.profile_id)));
@@ -1637,12 +1658,12 @@ async function bgPollMatches(){
     // Must be finished
     if(!communityInMatch.find(m => m.resulttype !== 0)) continue;
 
-    // Build teams from community members only
+    // Build teams from ALL members — community players get real objects, others get placeholders
     const teamGroups = {};
     members.forEach(m=>{
-      const p = profileMap[Number(m.profile_id)]; if(!p) return;
       const tid = String(m.teamid ?? m.team ?? 0);
       if(!teamGroups[tid]) teamGroups[tid] = [];
+      const p = profileMap[Number(m.profile_id)] || null;
       teamGroups[tid].push({player:p, member:m});
     });
     const teams = Object.values(teamGroups);
@@ -1662,40 +1683,51 @@ async function bgPollMatches(){
     let loseTeam = teams.find(t => t !== winTeam) || teams[1];
 
     const buildAssign = team => team.map(({player, member}) => {
-      const civId = AOE2_CIV_ID_MAP[Number(member.civilization_id ?? member.race_id)] || null;
-      return { player, civId, civName: civId ? CIVS.find(c=>c.id===civId)?.name||civId : null };
+      const rawCiv = Number(member.civilization_id ?? member.race_id ?? -1);
+      const civId = rawCiv > 0 ? (AOE2_CIV_ID_MAP[rawCiv] || null) : null;
+      if(rawCiv > 0 && !civId) console.log('[CIV] unmapped race_id:', rawCiv);
+      // For non-community players, create a minimal placeholder
+      const p = player || {name: `Player ${member.profile_id}`, elo: 1200, id: null};
+      return { player: p, isCommunity: !!player, civId, civName: civId ? CIVS.find(c=>c.id===civId)?.name||civId : null };
     });
 
     const winA = buildAssign(winTeam);
     const loseA = buildAssign(loseTeam);
 
-    // Determine evil/good label from civ sides
-    // If winning team has more evil civs → winner='evil', else 'good'
+    // Determine evil/good: use civ sides if available, else teamid
+    // teamid=0=evil, teamid=1=good in AoE2 4v4 custom games
     const winEvilCount = winA.filter(a=>a.civId&&CIVS.find(c=>c.id===a.civId)?.side==='evil').length;
     const winGoodCount = winA.filter(a=>a.civId&&CIVS.find(c=>c.id===a.civId)?.side==='good').length;
-    // Fallback: use teamid — teamid 0 tends to be evil in your scenario
-    const winTeamId = winTeam[0]?.member?.teamid ?? 0;
-    let winner = 'evil';
-    if(winGoodCount > winEvilCount) winner = 'good';
-    else if(winEvilCount === 0 && winGoodCount === 0) winner = winTeamId === 1 ? 'good' : 'evil';
+    const winTeamId = winTeam[0]?.member?.teamid ?? winTeam[0]?.member?.team ?? 0;
+    let winner;
+    if(winEvilCount > 0 || winGoodCount > 0){
+      winner = winEvilCount >= winGoodCount ? 'evil' : 'good';
+    } else {
+      // No civ data (custom game race_id=-1): use teamid
+      winner = winTeamId === 0 ? 'evil' : 'good';
+    }
+    console.log('[WINNER] winTeamId:', winTeamId, 'winEvilCount:', winEvilCount, 'winGoodCount:', winGoodCount, '→', winner);
 
-    // Compute avg Elos before any updates
-    const avgWinElo  = winA.reduce((s,a)=>s+a.player.elo,0)  / (winA.length||1);
-    const avgLoseElo = loseA.reduce((s,a)=>s+a.player.elo,0) / (loseA.length||1);
+    // Compute avg Elos from community players only (non-community have placeholder 1200)
+    const commWinA  = winA.filter(a=>a.isCommunity);
+    const commLoseA = loseA.filter(a=>a.isCommunity);
+    const avgWinElo  = commWinA.length  ? commWinA.reduce((s,a)=>s+a.player.elo,0)  / commWinA.length  : 1200;
+    const avgLoseElo = commLoseA.length ? commLoseA.reduce((s,a)=>s+a.player.elo,0) / commLoseA.length : 1200;
 
     for(const a of winA){
+      if(!a.isCommunity) continue; // skip non-community players for rating updates
       try {
-        const p = a.player; // direct reference — already the right object
+        const p = a.player;
         const games = (p.wins||0)+(p.losses||0);
         p.elo = calcElo(p.elo, avgLoseElo, true, games);
         p.civPct = p.civPct||{};
         if(a.civId) p.civPct[a.civId] = Math.min(100,(p.civPct[a.civId]??75)+2);
         p.wins = (p.wins||0)+1;
         await savePlayer(p);
-        console.log('[AUTO] winner saved:', p.name, 'elo:', p.elo, 'wins:', p.wins);
       } catch(e){ console.error('[AUTO] winner save failed:', a.player.name, e.message); }
     }
     for(const a of loseA){
+      if(!a.isCommunity) continue; // skip non-community players for rating updates
       try {
         const p = a.player;
         const games = (p.wins||0)+(p.losses||0);
@@ -1704,7 +1736,6 @@ async function bgPollMatches(){
         if(a.civId) p.civPct[a.civId] = Math.max(40,(p.civPct[a.civId]??75)-1);
         p.losses = (p.losses||0)+1;
         await savePlayer(p);
-        console.log('[AUTO] loser saved:', p.name, 'elo:', p.elo, 'losses:', p.losses);
       } catch(e){ console.error('[AUTO] loser save failed:', a.player.name, e.message); }
     }
 
@@ -1717,8 +1748,8 @@ async function bgPollMatches(){
     await addDoc(collection(db,'history'),{
       date, winner, evilTotal, goodTotal, gap:Math.abs(evilTotal-goodTotal),
       timestamp: matchTs || Date.now(), source:'auto', gameId,
-      evilAssign: winA.map(a=>({name:a.player.name, civName:a.civName||'?', effElo:a.civId?effectiveElo(a.player,a.civId,false):a.player.elo})),
-      goodAssign: loseA.map(a=>({name:a.player.name, civName:a.civName||'?', effElo:a.civId?effectiveElo(a.player,a.civId,false):a.player.elo})),
+      evilAssign: winA.map(a=>({name:a.player.name, civName:a.civName||'?', effElo:a.isCommunity&&a.civId?effectiveElo(a.player,a.civId,false):a.player.elo})),
+      goodAssign: loseA.map(a=>({name:a.player.name, civName:a.civName||'?', effElo:a.isCommunity&&a.civId?effectiveElo(a.player,a.civId,false):a.player.elo})),
     });
 
     newGames++;
