@@ -1517,12 +1517,9 @@ window.showToast=showToast;
 // =====================================================================
 const THREE_MONTHS_MS = 90 * 24 * 60 * 60 * 1000;
 
-// Pass all community profile IDs at once so matchhistorymember contains all players
-// start_index allows pagination through older matches
-const HISTORY_API = (ids, start=0) => {
-  const idList = Array.isArray(ids) ? ids.join(',') : ids;
-  return `https://api.allorigins.win/raw?url=${encodeURIComponent('https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=['+idList+']&start_index='+start)}`;
-};
+// History API — one player at a time, paginated via start_index
+const HISTORY_API = (profileId, start=0) =>
+  `https://api.allorigins.win/raw?url=${encodeURIComponent('https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=['+profileId+']&start_index='+start)}`;
 
 let bgPollTimer = null;
 
@@ -1533,50 +1530,59 @@ function updatePollStatus(msg){
   if(dot) dot.className = 'live-tab-dot';
 }
 
-// Fetch all matches going back up to 3 months, paginating through history
+// Fetch matches for each player individually, then merge by match_id
+// so each match has ALL community members in matchhistorymember
 async function fetchAllRecentMatches(profiledPlayers){
-  const allIds = profiledPlayers.map(p=>p.profileId);
   const cutoff = Date.now() - THREE_MONTHS_MS;
-  const allMatches = [];
-  let start = 0;
+  // matchId -> merged match object with all members combined
+  const matchMap = {};
 
-  while(true){
-    let data = null;
-    // Try bulk call first
-    try {
-      const resp = await fetch(HISTORY_API(allIds, start), {signal: AbortSignal.timeout(10000)});
-      if(resp.ok){ const d = await resp.json(); if((d.matchHistoryStats||[]).length) data = d; }
-    } catch(e){}
+  for(const player of profiledPlayers){
+    let start = 0;
+    let keepGoing = true;
+    while(keepGoing){
+      let data = null;
+      try {
+        const resp = await fetch(HISTORY_API(player.profileId, start), {signal: AbortSignal.timeout(10000)});
+        if(resp.ok){ const d = await resp.json(); if((d.matchHistoryStats||[]).length) data = d; }
+      } catch(e){}
 
-    // Fallback: try one player at a time
-    if(!data){
-      for(const p of profiledPlayers){
-        try {
-          const resp = await fetch(HISTORY_API(p.profileId, start), {signal: AbortSignal.timeout(8000)});
-          if(resp.ok){ const d = await resp.json(); if((d.matchHistoryStats||[]).length){ data = d; break; } }
-        } catch(e){}
+      if(!data) break;
+
+      const page = data.matchHistoryStats || [];
+      if(!page.length) break;
+
+      for(const m of page){
+        const t = ((m.completiontime || m.startgametime) || 0) * 1000;
+        if(t < cutoff){ keepGoing = false; break; }
+
+        const mid = String(m.match_id || m.id);
+        if(!matchMap[mid]){
+          // Store match metadata, start with empty members array
+          matchMap[mid] = {
+            match_id: mid,
+            completiontime: m.completiontime,
+            startgametime: m.startgametime,
+            matchhistorymember: [],
+          };
+        }
+        // Merge this player's member entry into the combined match
+        const members = m.matchhistorymember || [];
+        for(const mem of members){
+          const alreadyHave = matchMap[mid].matchhistorymember.some(
+            x => String(x.profile_id) === String(mem.profile_id)
+          );
+          if(!alreadyHave) matchMap[mid].matchhistorymember.push(mem);
+        }
       }
+
+      if(!keepGoing || page.length < 10) break;
+      start += page.length;
+      await new Promise(r => setTimeout(r, 200));
     }
-
-    if(!data) break;
-
-    const page = data.matchHistoryStats || [];
-    if(!page.length) break;
-
-    // Check if oldest match on this page is within 3 months
-    let hitCutoff = false;
-    for(const m of page){
-      const t = ((m.completiontime || m.startgametime) || 0) * 1000;
-      if(t < cutoff){ hitCutoff = true; break; }
-      allMatches.push(m);
-    }
-
-    if(hitCutoff || page.length < 10) break;
-    start += page.length;
-    await new Promise(r => setTimeout(r, 300)); // small delay between pages
   }
 
-  return allMatches;
+  return Object.values(matchMap);
 }
 
 function renderMissingProfiles(){
