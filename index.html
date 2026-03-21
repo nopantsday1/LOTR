@@ -1481,7 +1481,11 @@ window.showToast=showToast;
 // =====================================================================
 // AUTO-RECORD — polls match history every 45s
 // =====================================================================
-const HISTORY_API = id => `https://api.allorigins.win/raw?url=${encodeURIComponent('https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=['+id+']')}`;
+// Pass all community profile IDs at once so matchhistorymember contains all players
+const HISTORY_API = ids => {
+  const idList = Array.isArray(ids) ? ids.join(',') : ids;
+  return `https://api.allorigins.win/raw?url=${encodeURIComponent('https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=['+idList+']')}`;
+};
 
 let bgPollTimer = null;
 let bgLastSeenGameId = null;
@@ -1511,16 +1515,28 @@ async function bgPollMatches(){
   const profiledPlayers = players.filter(p=>p.profileId);
   if(profiledPlayers.length < 2){ updatePollStatus('not enough players with profile IDs'); return; }
 
-  // Try each profiled player until one succeeds
-  let data = null, usedProbe = null;
-  for(const probe of profiledPlayers){
-    try {
-      const resp = await fetch(HISTORY_API(probe.profileId), {signal: AbortSignal.timeout(8000)});
-      if(resp.ok){
-        const d = await resp.json();
-        if((d.matchHistoryStats||[]).length){ data = d; usedProbe = probe; break; }
-      }
-    } catch(e){}
+  // Fetch history for ALL profiled players at once — returns all their entries for the same match
+  const allIds = profiledPlayers.map(p=>p.profileId);
+  let data = null;
+  try {
+    const resp = await fetch(HISTORY_API(allIds), {signal: AbortSignal.timeout(10000)});
+    if(resp.ok){
+      const d = await resp.json();
+      if((d.matchHistoryStats||[]).length) data = d;
+    }
+  } catch(e){}
+
+  // Fallback: try players one at a time if bulk call fails
+  if(!data){
+    for(const probe of profiledPlayers){
+      try {
+        const resp = await fetch(HISTORY_API(probe.profileId), {signal: AbortSignal.timeout(8000)});
+        if(resp.ok){
+          const d = await resp.json();
+          if((d.matchHistoryStats||[]).length){ data = d; break; }
+        }
+      } catch(e){}
+    }
   }
 
   if(!data){ updatePollStatus('fetch failed — will retry in 45s'); return; }
@@ -1534,14 +1550,14 @@ async function bgPollMatches(){
   // Skip if already processed this game
   if(bgLastSeenGameId === String(gameId)){ updatePollStatus('no new games'); return; }
 
-  // Check match is finished
-  const probeResult = latest.matchhistorymember.find(m => Number(m.profile_id) === Number(usedProbe.profileId));
-  if(!probeResult || probeResult.resulttype === 0){ updatePollStatus('latest match still in progress'); return; }
-
-  // Check enough community players
+  // Check enough community players in match
   const communityIds = new Set(profiledPlayers.map(p=>Number(p.profileId)));
   const communityInMatch = latest.matchhistorymember.filter(m => communityIds.has(Number(m.profile_id)));
   if(communityInMatch.length < 4){ updatePollStatus(`latest game only had ${communityInMatch.length} community members — skipping`); return; }
+
+  // Check match is finished (any community member with a result)
+  const anyResult = communityInMatch.find(m => m.resulttype !== 0);
+  if(!anyResult){ updatePollStatus('latest match still in progress'); return; }
 
   // Already recorded?
   if(history.some(h => h.gameId === String(gameId))){ bgLastSeenGameId = String(gameId); updatePollStatus('no new games'); return; }
@@ -1562,11 +1578,19 @@ async function bgPollMatches(){
   const teams = Object.values(teamGroups);
   if(teams.length < 2){ updatePollStatus('could not determine teams'); return; }
 
-  const probeWon = probeResult.resulttype === 1;
-  const probeTeamId = String(probeResult.teamid ?? probeResult.team ?? 0);
-  let winTeam = teams.find(t => t[0] && String(t[0].member.teamid ?? t[0].member.team ?? 0) === probeTeamId) || teams[0];
+  // Determine winner by majority resulttype across community members on each team
+  const winnerTeamId = (() => {
+    const teamWins = {};
+    for(const m of communityInMatch){
+      const tid = String(m.teamid ?? m.team ?? 0);
+      if(!teamWins[tid]) teamWins[tid] = {wins:0, losses:0};
+      if(m.resulttype === 1) teamWins[tid].wins++;
+      else if(m.resulttype === 2) teamWins[tid].losses++;
+    }
+    return Object.entries(teamWins).sort((a,b)=>b[1].wins-a[1].wins)[0]?.[0];
+  })();
+  let winTeam = teams.find(t => t[0] && String(t[0].member.teamid ?? t[0].member.team ?? 0) === winnerTeamId) || teams[0];
   let loseTeam = teams.find(t => t !== winTeam) || teams[1];
-  if(!probeWon){ [winTeam, loseTeam] = [loseTeam, winTeam]; }
 
   const buildAssign = team => team.map(({player, member}) => {
     const civId = AOE2_CIV_ID_MAP[Number(member.civilization_id)] || null;
