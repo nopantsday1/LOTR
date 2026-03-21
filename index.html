@@ -693,7 +693,7 @@ function renderHist(){
       const civHtml  = a.civName?` <span style="font-size:12px;color:var(--muted)">— ${a.civName}</span>`:'';
       // Show "Add?" hint for non-community players (those with a numeric-looking name means unknown)
       const isUnknown = !a.isCommunity && a.profileId;
-      const addHint  = isUnknown?` <span style="font-size:11px;color:var(--gold-d);cursor:pointer" title="Profile ID: ${a.profileId} — add this player to track their stats" onclick="promptAddPlayer('${a.name}','${a.profileId}')">＋ Add?</span>`:'';
+      const addHint  = isUnknown?` <button onclick="promptAddPlayer('${a.name}','${a.profileId}')" style="font-size:10px;font-family:'Cinzel',serif;letter-spacing:.08em;background:var(--gold-d);border:1px solid var(--gold);color:var(--gold);padding:2px 7px;border-radius:2px;cursor:pointer;margin-left:4px" title="Add ${a.name} to your community">＋ Add ${a.name}</button>`:'';
       return nameHtml+civHtml+addHint;
     };
     const eP=(h.evilAssign||[]).map(fmtPlayer).join('<br>');
@@ -702,7 +702,7 @@ function renderHist(){
       <div class="hi-top">
         <span class="hbadge ${w}">${w==='evil'?'⚔ Evil Win':'✦ Good Win'}</span>
         ${h.source==='auto'?'<span class="hbadge auto">AUTO</span>':''}
-        <span class="hi-meta">${h.date||''} · Gap: ${h.gap||'?'}</span>
+        <span class="hi-meta">${h.date||''} · Gap: ${h.gap!=null?h.gap:'?'}</span>
         <button class="btn" style="font-size:9px;padding:3px 8px;margin-left:auto" onclick="delHist('${h.id}')">✕</button>
       </div>
       <div class="hi-teams">
@@ -714,7 +714,12 @@ function renderHist(){
 }
 
 window.promptAddPlayer=function(name, profileId){
-  if(!adminUnlocked){toast('Unlock admin first to add players','err');return;}
+  if(!adminUnlocked){
+    toast('Unlock Admin first to add players','err');
+    // Still open admin page so they can unlock
+    go('admin');
+    return;
+  }
   document.getElementById('apName').value=name||'';
   document.getElementById('apPid').value=profileId||'';
   openModal('mAddPlayer');
@@ -1169,21 +1174,21 @@ async function pollLobby(){
 
     const now=new Date().toLocaleTimeString();
     const st=document.getElementById('liveStatus');
-    if(st) st.textContent=`Last checked: ${now} · ${matches.length} open lobbies scanned`;
+    if(st) st.textContent=`Last checked: ${now} · ${matches.length} lobbies · ${matches.filter(m=>m.matchtype_id===0&&m.maxplayers===8).length} custom 8-player`;
 
     // Don't re-detect if game already started
     if(liveState==='inprogress') return;
 
     for(const match of matches){
-      const desc=(match.description||'').toLowerCase();
-      const mapn=(match.mapname||'').toLowerCase();
-      if(!LOTR_KW.some(kw=>desc.includes(kw)||mapn.includes(kw))) continue;
+      // Only 8-player custom games (matchtype_id=0, maxplayers=8)
+      // No keyword filter — rely on community member count instead
+      if(match.matchtype_id!==0) continue;
+      if(match.maxplayers!==8) continue;
 
       // Collect all player IDs: host + matchmembers + slotinfo
       const allIds=new Set();
       allIds.add(Number(match.host_profile_id));
       (match.matchmembers||[]).forEach(m=>allIds.add(Number(m.profile_id)));
-      // Async decode slotinfo for full 8-player list
       const slotIds=await decodeSlotinfo(match.slotinfo);
       slotIds.forEach(id=>allIds.add(id));
 
@@ -1194,12 +1199,14 @@ async function pollLobby(){
       }
     }
 
-    // No LOTR lobby found
+    // No community lobby found
     if(liveState==='lobby'){
       // Lobby disappeared → game started
       activateInProgress();
     } else {
-      setLiveState('idle');
+      // Check matches.json for a very recent game (started < 3 hours ago, not in history)
+      await checkRecentInProgress();
+      if(liveState==='idle') setLiveState('idle');
     }
   }catch(e){
     const st=document.getElementById('liveStatus');
@@ -1298,6 +1305,46 @@ function startTimer(){
     const el=document.getElementById('liveTimer');
     if(el) el.textContent=`${mm}:${ss}`;
   },1000);
+}
+
+// Check matches.json for a game started recently that isn't yet in history
+async function checkRecentInProgress(){
+  try{
+    const resp=await fetch('matches.json?_='+Date.now(),{signal:AbortSignal.timeout(5000)});
+    if(!resp.ok) return;
+    const data=await resp.json();
+    const matches=(data.matches||[]);
+    const now=Date.now()/1000;
+    const knownIds=new Set(history.map(h=>h.gameId).filter(Boolean));
+    const profMap=Object.fromEntries(players.filter(p=>p.profileId).map(p=>[Number(p.profileId),p]));
+    const commIds=new Set(players.filter(p=>p.profileId).map(p=>Number(p.profileId)));
+
+    for(const match of matches){
+      const gid=String(match.match_id||match.id);
+      if(knownIds.has(gid)) continue; // already recorded
+      const start=match.startgametime||match.completiontime||0;
+      if(now-start>3*3600) continue; // more than 3 hours ago
+      // Check if this match has community members
+      const members=match.matchhistorymember||[];
+      const commCount=members.filter(m=>commIds.has(Number(m.profile_id))).length;
+      if(commCount<4) continue;
+
+      // Found a recent unrecorded game — show as in-progress
+      const evilM=members.filter(m=>{ const t=Number(m.teamid); return t>=5&&t<=8; });
+      const goodM=members.filter(m=>{ const t=Number(m.teamid); return t>=9&&t<=12; });
+      liveTeams={
+        evil:evilM.map(m=>profMap[Number(m.profile_id)]).filter(Boolean),
+        good:goodM.map(m=>profMap[Number(m.profile_id)]).filter(Boolean),
+      };
+      liveGameStart=start*1000;
+      setLiveState('inprogress');
+      renderInProgress();
+      startTimer();
+      if(liveResultInterval) clearInterval(liveResultInterval);
+      liveResultInterval=setInterval(pollForResult, RESULT_INTERVAL_MS);
+      return;
+    }
+  }catch(e){}
 }
 
 async function pollForResult(){
