@@ -773,8 +773,8 @@ async function autoRecord(){
       if(known.has(gid)) continue;
       const members=match.matchhistorymember||match.matchhistoryreportresults||[];
       if(!members.length) continue;
-      const desc=(match.description||'').toLowerCase(), map=(match.mapname||'').toLowerCase();
-      if(!LOTR_KW.some(kw=>desc.includes(kw)||map.includes(kw))) continue;
+      // No description filter — rely on matchtype_id=0 + maxplayers=8 + 4+ community players
+      // (mapname is always "my map" for custom scenarios in the API)
       const comm=members.filter(m=>commIds.has(Number(m.profile_id)));
       if(comm.length<4) continue;
       if(!comm.some(m=>m.resulttype!==0)) continue;
@@ -1044,8 +1044,7 @@ window.runImport=async function(){
 
     for(const match of matches){
       const gid=String(match.match_id||match.id);
-      const desc=(match.description||'').toLowerCase(), map=(match.mapname||'').toLowerCase();
-      if(!LOTR_KW.some(kw=>desc.includes(kw)||map.includes(kw))){skip++;continue;}
+      // No description filter — rely on matchtype_id=0 + maxplayers=8 + 4+ community
       const members=match.matchhistorymember||match.matchhistoryreportresults||[];
       const comm=members.filter(m=>commIds.has(Number(m.profile_id)));
       if(comm.length<4){skip++;continue;}
@@ -1193,7 +1192,8 @@ async function pollLobby(){
 
     for(const match of matches){
       const desc=(match.description||'').toLowerCase();
-      if(!LOTR_KW.some(kw=>desc.includes(kw))) continue;
+      const mapn=(match.mapname||'').toLowerCase();
+      if(!LOTR_KW.some(kw=>desc.includes(kw)||mapn.includes(kw))) continue;
 
       // Collect all player IDs: host + matchmembers + slotinfo
       const allIds=new Set();
