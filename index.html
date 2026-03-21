@@ -445,6 +445,7 @@ let adminPass=DEFAULT_PASS, adminUnlocked=false;
 let selected=new Set(), lastBal=null, swapSrc=null;
 let pSortKey='elo', pSortDir=-1;
 let importing=false;
+let autoRecording=false;
 
 // ─────────────────────────────────────────
 // HELPERS
@@ -751,12 +752,17 @@ window.triggerCheck=async function(){
 };
 
 async function autoRecord(){
+  if(autoRecording) return;
+  autoRecording=true;
   try{
     const resp=await fetch('matches.json?_='+Date.now(),{signal:AbortSignal.timeout(8000)});
     if(!resp.ok) throw new Error('HTTP '+resp.status);
     const data=await resp.json();
     const matches=(data.matches||[]).sort((a,b)=>(a.completiontime||0)-(b.completiontime||0));
-    const known=new Set(history.map(h=>h.gameId).filter(Boolean));
+    // Fetch known gameIds fresh from Firestore to avoid duplicates from concurrent tabs
+    const knownSnap=await getDocs(query(collection(db,'history'),orderBy('timestamp','desc'),limit(200)));
+    const known=new Set();
+    knownSnap.forEach(d=>{ if(d.data().gameId) known.add(d.data().gameId); });
     const profPlayers=players.filter(p=>p.profileId);
     if(!profPlayers.length) return;
     const commIds=new Set(profPlayers.map(p=>Number(p.profileId)));
@@ -851,6 +857,8 @@ async function autoRecord(){
     const st=document.getElementById('checkStatus');
     if(st) st.textContent='Could not read matches.json — check GitHub Action';
     console.warn('[autoRecord]',e.message);
+  } finally{
+    autoRecording=false;
   }
 }
 
