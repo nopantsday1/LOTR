@@ -1443,6 +1443,40 @@ window.exportData=function(){
 
 window.resetAll=function(){ openModal('modalResetConfirm'); };
 
+// ---- RESET RATINGS ----
+window.resetRatings = function(){ openModal('modalResetRatings'); };
+
+window.confirmResetRatings = async function(){
+  setSyncDot('loading');
+  closeModal('modalResetRatings');
+
+  // Build default civPct: all civs at 60%
+  const defaultCivPct = {};
+  CIVS.forEach(c=>{ defaultCivPct[c.id] = 60; });
+
+  // Reset every player in Firestore
+  for(const p of players){
+    try {
+      p.elo = 1200;
+      p.wins = 0;
+      p.losses = 0;
+      p.civPct = {...defaultCivPct};
+      p.favCivs = p.favCivs || [];
+      p.avoidCivs = p.avoidCivs || [];
+      await savePlayer(p);
+    } catch(e){ console.error('[RESET] failed for', p.name, e.message); }
+  }
+
+  // Clear all match history
+  try {
+    const hSnap = await getDocs(collection(db,'history'));
+    for(const d of hSnap.docs) await deleteDoc(d.ref);
+  } catch(e){ console.error('[RESET] history clear failed', e.message); }
+
+  showToast('Ratings reset to 1200 — history cleared');
+  setSyncDot('ok');
+};
+
 window.confirmReset=async function(){
   setSyncDot('loading');
   const pSnap=await getDocs(collection(db,'players'));
@@ -1481,20 +1515,68 @@ window.showToast=showToast;
 // =====================================================================
 // AUTO-RECORD — polls match history every 45s
 // =====================================================================
+const THREE_MONTHS_MS = 90 * 24 * 60 * 60 * 1000;
+
 // Pass all community profile IDs at once so matchhistorymember contains all players
-const HISTORY_API = ids => {
+// start_index allows pagination through older matches
+const HISTORY_API = (ids, start=0) => {
   const idList = Array.isArray(ids) ? ids.join(',') : ids;
-  return `https://api.allorigins.win/raw?url=${encodeURIComponent('https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=['+idList+']')}`;
+  return `https://api.allorigins.win/raw?url=${encodeURIComponent('https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=['+idList+']&start_index='+start)}`;
 };
 
 let bgPollTimer = null;
-let bgLastSeenGameId = null;
 
 function updatePollStatus(msg){
   const el = document.getElementById('pollStatus');
   if(el) el.textContent = `Last checked: ${new Date().toLocaleTimeString()} — ${msg}`;
   const dot = document.getElementById('liveDashDot');
   if(dot) dot.className = 'live-tab-dot';
+}
+
+// Fetch all matches going back up to 3 months, paginating through history
+async function fetchAllRecentMatches(profiledPlayers){
+  const allIds = profiledPlayers.map(p=>p.profileId);
+  const cutoff = Date.now() - THREE_MONTHS_MS;
+  const allMatches = [];
+  let start = 0;
+
+  while(true){
+    let data = null;
+    // Try bulk call first
+    try {
+      const resp = await fetch(HISTORY_API(allIds, start), {signal: AbortSignal.timeout(10000)});
+      if(resp.ok){ const d = await resp.json(); if((d.matchHistoryStats||[]).length) data = d; }
+    } catch(e){}
+
+    // Fallback: try one player at a time
+    if(!data){
+      for(const p of profiledPlayers){
+        try {
+          const resp = await fetch(HISTORY_API(p.profileId, start), {signal: AbortSignal.timeout(8000)});
+          if(resp.ok){ const d = await resp.json(); if((d.matchHistoryStats||[]).length){ data = d; break; } }
+        } catch(e){}
+      }
+    }
+
+    if(!data) break;
+
+    const page = data.matchHistoryStats || [];
+    if(!page.length) break;
+
+    // Check if oldest match on this page is within 3 months
+    let hitCutoff = false;
+    for(const m of page){
+      const t = ((m.completiontime || m.startgametime) || 0) * 1000;
+      if(t < cutoff){ hitCutoff = true; break; }
+      allMatches.push(m);
+    }
+
+    if(hitCutoff || page.length < 10) break;
+    start += page.length;
+    await new Promise(r => setTimeout(r, 300)); // small delay between pages
+  }
+
+  return allMatches;
 }
 
 function renderMissingProfiles(){
@@ -1515,143 +1597,126 @@ async function bgPollMatches(){
   const profiledPlayers = players.filter(p=>p.profileId);
   if(profiledPlayers.length < 2){ updatePollStatus('not enough players with profile IDs'); return; }
 
-  // Fetch history for ALL profiled players at once — returns all their entries for the same match
-  const allIds = profiledPlayers.map(p=>p.profileId);
-  let data = null;
-  try {
-    const resp = await fetch(HISTORY_API(allIds), {signal: AbortSignal.timeout(10000)});
-    if(resp.ok){
-      const d = await resp.json();
-      if((d.matchHistoryStats||[]).length) data = d;
-    }
-  } catch(e){}
+  updatePollStatus('scanning last 3 months of matches...');
+  const matches = await fetchAllRecentMatches(profiledPlayers);
 
-  // Fallback: try players one at a time if bulk call fails
-  if(!data){
-    for(const probe of profiledPlayers){
-      try {
-        const resp = await fetch(HISTORY_API(probe.profileId), {signal: AbortSignal.timeout(8000)});
-        if(resp.ok){
-          const d = await resp.json();
-          if((d.matchHistoryStats||[]).length){ data = d; break; }
-        }
-      } catch(e){}
-    }
-  }
+  if(!matches.length){ updatePollStatus('fetch failed — will retry in 45s'); return; }
 
-  if(!data){ updatePollStatus('fetch failed — will retry in 45s'); return; }
-
-  const matches = data.matchHistoryStats || [];
-  const latest = matches[0];
-  if(!latest?.matchhistorymember?.length){ updatePollStatus('no recent matches found'); return; }
-
-  const gameId = latest.match_id || latest.id;
-
-  // Skip if already processed this game
-  if(bgLastSeenGameId === String(gameId)){ updatePollStatus('no new games'); return; }
-
-  // Check enough community players in match
   const communityIds = new Set(profiledPlayers.map(p=>Number(p.profileId)));
-  const communityInMatch = latest.matchhistorymember.filter(m => communityIds.has(Number(m.profile_id)));
-  if(communityInMatch.length < 4){ updatePollStatus(`latest game only had ${communityInMatch.length} community members — skipping`); return; }
-
-  // Check match is finished (any community member with a result)
-  const anyResult = communityInMatch.find(m => m.resulttype !== 0);
-  if(!anyResult){ updatePollStatus('latest match still in progress'); return; }
-
-  // Already recorded?
-  if(history.some(h => h.gameId === String(gameId))){ bgLastSeenGameId = String(gameId); updatePollStatus('no new games'); return; }
-
-  bgLastSeenGameId = String(gameId);
-  updatePollStatus('new game detected! recording...');
-
-  // Build teams from teamid grouping
   const profileMap = {};
   profiledPlayers.forEach(p=>{ profileMap[Number(p.profileId)] = p; });
-  const teamGroups = {};
-  latest.matchhistorymember.forEach(m=>{
-    const p = profileMap[Number(m.profile_id)]; if(!p) return;
-    const tid = String(m.teamid ?? m.team ?? 0);
-    if(!teamGroups[tid]) teamGroups[tid] = [];
-    teamGroups[tid].push({player:p, member:m});
-  });
-  const teams = Object.values(teamGroups);
-  if(teams.length < 2){ updatePollStatus('could not determine teams'); return; }
 
-  // Determine winner by majority resulttype across community members on each team
-  const winnerTeamId = (() => {
-    const teamWins = {};
-    for(const m of communityInMatch){
+  let newGames = 0;
+
+  // Process oldest-first so Elo builds chronologically
+  for(const match of [...matches].reverse()){
+    if(!match?.matchhistorymember?.length) continue;
+
+    const gameId = String(match.match_id || match.id);
+
+    // Skip already recorded
+    if(history.some(h => h.gameId === gameId)) continue;
+
+    // Need 4+ community players
+    const communityInMatch = match.matchhistorymember.filter(m => communityIds.has(Number(m.profile_id)));
+    if(communityInMatch.length < 4) continue;
+
+    // Must be finished
+    if(!communityInMatch.find(m => m.resulttype !== 0)) continue;
+
+    // Build teams from community members only
+    const teamGroups = {};
+    match.matchhistorymember.forEach(m=>{
+      const p = profileMap[Number(m.profile_id)]; if(!p) return;
       const tid = String(m.teamid ?? m.team ?? 0);
-      if(!teamWins[tid]) teamWins[tid] = {wins:0, losses:0};
-      if(m.resulttype === 1) teamWins[tid].wins++;
-      else if(m.resulttype === 2) teamWins[tid].losses++;
+      if(!teamGroups[tid]) teamGroups[tid] = [];
+      teamGroups[tid].push({player:p, member:m});
+    });
+    const teams = Object.values(teamGroups);
+    if(teams.length < 2) continue;
+
+    // Determine winning team by majority resulttype
+    const winnerTeamId = (() => {
+      const tally = {};
+      for(const m of communityInMatch){
+        const tid = String(m.teamid ?? m.team ?? 0);
+        if(!tally[tid]) tally[tid] = 0;
+        if(m.resulttype === 1) tally[tid]++;
+      }
+      return Object.entries(tally).sort((a,b)=>b[1]-a[1])[0]?.[0];
+    })();
+    let winTeam = teams.find(t => t[0] && String(t[0].member.teamid ?? t[0].member.team ?? 0) === winnerTeamId) || teams[0];
+    let loseTeam = teams.find(t => t !== winTeam) || teams[1];
+
+    const buildAssign = team => team.map(({player, member}) => {
+      const civId = AOE2_CIV_ID_MAP[Number(member.civilization_id)] || null;
+      return { player, civId, civName: civId ? CIVS.find(c=>c.id===civId)?.name||civId : null };
+    });
+
+    const winA = buildAssign(winTeam);
+    const loseA = buildAssign(loseTeam);
+
+    applyEloUpdates(winA, loseA);
+
+    for(const a of winA){
+      try {
+        const p = players.find(pl=>String(pl.id)===String(a.player.id)); if(!p) continue;
+        p.civPct = p.civPct||{};
+        if(a.civId) p.civPct[a.civId] = Math.min(100,(p.civPct[a.civId]??75)+2);
+        p.wins = (p.wins||0)+1;
+        await savePlayer(p);
+      } catch(e){ console.error('[AUTO] winner save failed:', a.player.name, e.message); }
     }
-    return Object.entries(teamWins).sort((a,b)=>b[1].wins-a[1].wins)[0]?.[0];
-  })();
-  let winTeam = teams.find(t => t[0] && String(t[0].member.teamid ?? t[0].member.team ?? 0) === winnerTeamId) || teams[0];
-  let loseTeam = teams.find(t => t !== winTeam) || teams[1];
+    for(const a of loseA){
+      try {
+        const p = players.find(pl=>String(pl.id)===String(a.player.id)); if(!p) continue;
+        p.civPct = p.civPct||{};
+        if(a.civId) p.civPct[a.civId] = Math.max(40,(p.civPct[a.civId]??75)-1);
+        p.losses = (p.losses||0)+1;
+        await savePlayer(p);
+      } catch(e){ console.error('[AUTO] loser save failed:', a.player.name, e.message); }
+    }
 
-  const buildAssign = team => team.map(({player, member}) => {
-    const civId = AOE2_CIV_ID_MAP[Number(member.civilization_id)] || null;
-    return { player, civId, civName: civId ? CIVS.find(c=>c.id===civId)?.name||civId : null };
-  });
+    // Use the match's actual date, not today
+    const matchTs = (match.completiontime || match.startgametime || 0) * 1000;
+    const date = matchTs ? new Date(matchTs).toLocaleDateString('en-CA') : new Date().toLocaleDateString('en-CA');
+    const evilTotal = winA.reduce((s,a)=>s+(a.civId?effectiveElo(a.player,a.civId,false):a.player.elo),0);
+    const goodTotal = loseA.reduce((s,a)=>s+(a.civId?effectiveElo(a.player,a.civId,false):a.player.elo),0);
 
-  const winA = buildAssign(winTeam);
-  const loseA = buildAssign(loseTeam);
+    await addDoc(collection(db,'history'),{
+      date, winner:'evil', evilTotal, goodTotal, gap:Math.abs(evilTotal-goodTotal),
+      timestamp: matchTs || Date.now(), source:'auto', gameId,
+      evilAssign: winA.map(a=>({name:a.player.name, civName:a.civName||'?', effElo:a.civId?effectiveElo(a.player,a.civId,false):a.player.elo})),
+      goodAssign: loseA.map(a=>({name:a.player.name, civName:a.civName||'?', effElo:a.civId?effectiveElo(a.player,a.civId,false):a.player.elo})),
+    });
 
-  applyEloUpdates(winA, loseA);
+    newGames++;
 
-  for(const a of winA){
-    try {
-      const p = players.find(pl=>String(pl.id)===String(a.player.id)); if(!p) continue;
-      p.civPct = p.civPct||{};
-      if(a.civId) p.civPct[a.civId] = Math.min(100,(p.civPct[a.civId]??75)+2);
-      p.wins = (p.wins||0)+1;
-      await savePlayer(p);
-    } catch(e){ console.error('[AUTO] winner save failed:', a.player.name, e.message); }
-  }
-  for(const a of loseA){
-    try {
-      const p = players.find(pl=>String(pl.id)===String(a.player.id)); if(!p) continue;
-      p.civPct = p.civPct||{};
-      if(a.civId) p.civPct[a.civId] = Math.max(40,(p.civPct[a.civId]??75)-1);
-      p.losses = (p.losses||0)+1;
-      await savePlayer(p);
-    } catch(e){ console.error('[AUTO] loser save failed:', a.player.name, e.message); }
-  }
-
-  const date = new Date().toLocaleDateString('en-CA');
-  const evilTotal = winA.reduce((s,a)=>s+(a.civId?effectiveElo(a.player,a.civId,false):a.player.elo),0);
-  const goodTotal = loseA.reduce((s,a)=>s+(a.civId?effectiveElo(a.player,a.civId,false):a.player.elo),0);
-
-  await addDoc(collection(db,'history'),{
-    date, winner:'evil', evilTotal, goodTotal, gap:Math.abs(evilTotal-goodTotal),
-    timestamp:Date.now(), source:'auto', gameId:String(gameId),
-    evilAssign: winA.map(a=>({name:a.player.name, civName:a.civName||'?', effElo:a.civId?effectiveElo(a.player,a.civId,false):a.player.elo})),
-    goodAssign: loseA.map(a=>({name:a.player.name, civName:a.civName||'?', effElo:a.civId?effectiveElo(a.player,a.civId,false):a.player.elo})),
-  });
-
-  // Show last recorded game on the tab
-  const card = document.getElementById('lastAutoRecord');
-  const cardContent = document.getElementById('lastAutoRecordContent');
-  if(card && cardContent){
-    card.style.display='block';
-    cardContent.innerHTML = `
-      <div style="font-size:13px;color:var(--text-muted);margin-bottom:.5rem">${date}</div>
-      <div class="flex-between" style="margin-bottom:.25rem">
-        <span style="color:#e08080">⚔ Winners: ${winA.map(a=>a.player.name).join(', ')}</span>
-      </div>
-      <div class="flex-between">
-        <span style="color:#80b4d4">✦ Losers: ${loseA.map(a=>a.player.name).join(', ')}</span>
-      </div>`;
+    // Update the Live tab card with the latest recorded game
+    const card = document.getElementById('lastAutoRecord');
+    const cardContent = document.getElementById('lastAutoRecordContent');
+    if(card && cardContent){
+      card.style.display='block';
+      cardContent.innerHTML = `
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:.5rem">${date}</div>
+        <div style="margin-bottom:.25rem">
+          <span style="color:#e08080">⚔ Winners: ${winA.map(a=>a.player.name).join(', ')}</span>
+        </div>
+        <div>
+          <span style="color:#80b4d4">✦ Losers: ${loseA.map(a=>a.player.name).join(', ')}</span>
+        </div>`;
+    }
   }
 
-  const dot = document.getElementById('liveDashDot');
-  if(dot) dot.className = 'live-tab-dot active';
-  updatePollStatus('game recorded ✓');
-  showToast('⚔ Match auto-recorded!');
-  setSyncDot('ok');
+  if(newGames > 0){
+    const dot = document.getElementById('liveDashDot');
+    if(dot) dot.className = 'live-tab-dot active';
+    updatePollStatus(`${newGames} new game${newGames>1?'s':''} recorded ✓`);
+    showToast(`⚔ ${newGames} match${newGames>1?'es':''} auto-recorded!`);
+    setSyncDot('ok');
+  } else {
+    updatePollStatus('no new games found');
+  }
 }
 
 window.bgPollNow = function(){ bgPollMatches(); };
