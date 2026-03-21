@@ -1516,14 +1516,9 @@ window.showToast=showToast;
 
 
 // =====================================================================
-// AUTO-RECORD — polls match history every 45s
+// AUTO-RECORD — reads matches.json written by GitHub Action (fetch-matches.yml)
+// No CORS issues — the Action scrapes aoe2insights server-side every 3h
 // =====================================================================
-const THREE_MONTHS_MS = 90 * 24 * 60 * 60 * 1000;
-
-// History API — one player at a time, paginated via start_index
-const HISTORY_API = (profileId, start=0) =>
-  `https://api.allorigins.win/raw?url=${encodeURIComponent('https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=['+profileId+']&start_index='+start)}`;
-
 let bgPollTimer = null;
 let bgPollRunning = false;
 
@@ -1534,69 +1529,15 @@ function updatePollStatus(msg){
   if(dot) dot.className = 'live-tab-dot';
 }
 
-// Fetch all matches for one player, return their pages merged
-async function fetchPlayerHistory(player, cutoff){
-  const matches = {};
-  let start = 0;
-  while(true){
-    let data = null;
-    try {
-      const resp = await fetch(HISTORY_API(player.profileId, start), {signal: AbortSignal.timeout(10000)});
-      if(resp.ok){ const d = await resp.json(); if((d.matchHistoryStats||[]).length) data = d; }
-    } catch(e){}
-    if(!data) break;
-    const page = data.matchHistoryStats || [];
-    if(!page.length) break;
-    let hitCutoff = false;
-    for(const m of page){
-      const t = ((m.completiontime || m.startgametime) || 0) * 1000;
-      if(t < cutoff){ hitCutoff = true; break; }
-      const mid = String(m.match_id || m.id);
-      matches[mid] = m;
-    }
-    if(hitCutoff || page.length < 10) break;
-    start += page.length;
-    await new Promise(r => setTimeout(r, 150));
+async function fetchAllRecentMatches(){
+  try {
+    const resp = await fetch('matches.json?_='+Date.now(), {signal: AbortSignal.timeout(10000)});
+    if(!resp.ok) return [];
+    const data = await resp.json();
+    return data.matches || [];
+  } catch(e){
+    return [];
   }
-  return matches;
-}
-
-// Fetch all players in parallel batches of 4, then merge matches by match_id
-async function fetchAllRecentMatches(profiledPlayers){
-  const cutoff = Date.now() - THREE_MONTHS_MS;
-  const matchMap = {}; // mid -> merged match with all community members
-  let done = 0;
-
-  // Process in batches of 4 concurrent fetches
-  const BATCH = 4;
-  for(let i = 0; i < profiledPlayers.length; i += BATCH){
-    const batch = profiledPlayers.slice(i, i + BATCH);
-    const results = await Promise.all(batch.map(p => fetchPlayerHistory(p, cutoff)));
-
-    for(const playerMatches of results){
-      for(const [mid, m] of Object.entries(playerMatches)){
-        if(!matchMap[mid]){
-          matchMap[mid] = {
-            match_id: mid,
-            completiontime: m.completiontime,
-            startgametime: m.startgametime,
-            matchhistorymember: [],
-          };
-        }
-        for(const mem of (m.matchhistorymember || [])){
-          const alreadyHave = matchMap[mid].matchhistorymember.some(
-            x => String(x.profile_id) === String(mem.profile_id)
-          );
-          if(!alreadyHave) matchMap[mid].matchhistorymember.push(mem);
-        }
-      }
-    }
-
-    done += batch.length;
-    updatePollStatus(`scanning history... ${done}/${profiledPlayers.length} players`);
-  }
-
-  return Object.values(matchMap);
 }
 
 function renderMissingProfiles(){
@@ -1620,10 +1561,10 @@ async function bgPollMatches(){
   const profiledPlayers = players.filter(p=>p.profileId);
   if(profiledPlayers.length < 2){ updatePollStatus('not enough players with profile IDs'); return; }
 
-  updatePollStatus(`scanning ${profiledPlayers.length} players — 3 months of history...`);
-  const matches = await fetchAllRecentMatches(profiledPlayers);
+  updatePollStatus('loading matches.json...');
+  const matches = await fetchAllRecentMatches();
 
-  if(!matches.length){ updatePollStatus('fetch failed — will retry in 45s'); return; }
+  if(!matches.length){ updatePollStatus('matches.json not found — trigger the GitHub Action "Fetch LOTR Match History"'); return; }
 
   const communityIds = new Set(profiledPlayers.map(p=>Number(p.profileId)));
   const profileMap = {};
