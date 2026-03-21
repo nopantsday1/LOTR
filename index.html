@@ -1669,6 +1669,16 @@ async function bgPollMatches(){
     const winA = buildAssign(winTeam);
     const loseA = buildAssign(loseTeam);
 
+    // Determine evil/good label from civ sides
+    // If winning team has more evil civs → winner='evil', else 'good'
+    const winEvilCount = winA.filter(a=>a.civId&&CIVS.find(c=>c.id===a.civId)?.side==='evil').length;
+    const winGoodCount = winA.filter(a=>a.civId&&CIVS.find(c=>c.id===a.civId)?.side==='good').length;
+    // Fallback: use teamid — teamid 0 tends to be evil in your scenario
+    const winTeamId = winTeam[0]?.member?.teamid ?? 0;
+    let winner = 'evil';
+    if(winGoodCount > winEvilCount) winner = 'good';
+    else if(winEvilCount === 0 && winGoodCount === 0) winner = winTeamId === 1 ? 'good' : 'evil';
+
     // Compute avg Elos before any updates
     const avgWinElo  = winA.reduce((s,a)=>s+a.player.elo,0)  / (winA.length||1);
     const avgLoseElo = loseA.reduce((s,a)=>s+a.player.elo,0) / (loseA.length||1);
@@ -1705,7 +1715,7 @@ async function bgPollMatches(){
     const goodTotal = loseA.reduce((s,a)=>s+(a.civId?effectiveElo(a.player,a.civId,false):a.player.elo),0);
 
     await addDoc(collection(db,'history'),{
-      date, winner:'evil', evilTotal, goodTotal, gap:Math.abs(evilTotal-goodTotal),
+      date, winner, evilTotal, goodTotal, gap:Math.abs(evilTotal-goodTotal),
       timestamp: matchTs || Date.now(), source:'auto', gameId,
       evilAssign: winA.map(a=>({name:a.player.name, civName:a.civName||'?', effElo:a.civId?effectiveElo(a.player,a.civId,false):a.player.elo})),
       goodAssign: loseA.map(a=>({name:a.player.name, civName:a.civName||'?', effElo:a.civId?effectiveElo(a.player,a.civId,false):a.player.elo})),
