@@ -1532,11 +1532,16 @@ function updatePollStatus(msg){
 async function fetchAllRecentMatches(){
   try {
     const resp = await fetch('matches.json?_='+Date.now(), {signal: AbortSignal.timeout(10000)});
-    if(!resp.ok) return [];
+    if(!resp.ok){
+      updatePollStatus(`matches.json HTTP ${resp.status} — make sure the file is in your repo root`);
+      return null; // null = fetch error, distinct from empty
+    }
     const data = await resp.json();
-    return data.matches || [];
+    const matches = data.matches || [];
+    return matches; // may be empty array
   } catch(e){
-    return [];
+    updatePollStatus(`matches.json fetch error: ${e.message}`);
+    return null;
   }
 }
 
@@ -1564,7 +1569,11 @@ async function bgPollMatches(){
   updatePollStatus('loading matches.json...');
   const matches = await fetchAllRecentMatches();
 
-  if(!matches.length){ updatePollStatus('matches.json not found — trigger the GitHub Action "Fetch LOTR Match History"'); return; }
+  if(matches === null){ return; } // error already shown in fetchAllRecentMatches
+  if(matches.length === 0){
+    updatePollStatus('matches.json has 0 matches — aoe2insights may need player profiles updated (visit aoe2insights.com/user/PROFILE_ID and click Update for each player)');
+    return;
+  }
 
   const communityIds = new Set(profiledPlayers.map(p=>Number(p.profileId)));
   const profileMap = {};
