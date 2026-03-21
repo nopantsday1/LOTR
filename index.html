@@ -429,10 +429,10 @@ const CIVS = [
 ];
 const EVIL_CIVS = CIVS.filter(c=>c.side==='evil');
 const GOOD_CIVS = CIVS.filter(c=>c.side==='good');
-// Map teamid → scenario civ (teamid 5-8=evil, 9-12=good)
+// Map teamid → evil/good side (5-8=evil, 9-12=good)
 const TEAMID_MAP = Object.fromEntries(CIVS.map(c=>[c.teamid, c.id]));
-// Keep RACE_MAP as empty — civilization_id from API is player's personal AoE2 civ, not scenario civ
-const RACE_MAP = {};
+// Map race_id from matchhistoryreportresults → scenario civ (this IS the station)
+const RACE_MAP = {4:'p1',38:'p2',17:'p3',25:'p4',12:'p5',32:'p6',9:'p7',22:'p8'};
 const DEFAULT_ELO = 1200;
 const LOTR_KW = ['hobbit','lotr','lord of the ring','bfme','the shire','middle'];
 const DEFAULT_PASS = 'admin123';
@@ -699,8 +699,8 @@ function renderHist(){
     const w=h.winner||'evil';
     const fmtPlayer=a=>{
       const nameHtml = a.name||'?';
+      // Show civ — now correctly derived from race_id via RACE_MAP
       const civHtml  = a.civName?` <span style="font-size:12px;color:var(--muted)">— ${a.civName}</span>`:'';
-      // Show "Add?" hint for non-community players (those with a numeric-looking name means unknown)
       const isUnknown = !a.isCommunity && a.profileId;
       const addHint  = isUnknown?` <button onclick="promptAddPlayer('${a.name}','${a.profileId}')" style="font-size:10px;font-family:'Cinzel',serif;letter-spacing:.08em;background:var(--gold-d);border:1px solid var(--gold);color:var(--gold);padding:2px 7px;border-radius:2px;cursor:pointer;margin-left:4px" title="Add ${a.name} to your community">＋ Add ${a.name}</button>`:'';
       return nameHtml+civHtml+addHint;
@@ -792,7 +792,7 @@ async function autoRecord(){
       const buildA=tid=>groups[tid].map(m=>{
         const p=profMap[Number(m.profile_id)]||null;
         // Use teamid to determine scenario civ (P1-P8)
-        const cid=TEAMID_MAP[Number(m.teamid)]||null;
+        const cid=RACE_MAP[Number(m.race_id)]||null;
         const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
         const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
         const name=p?p.name:`Player ${m.profile_id}`;
@@ -802,7 +802,7 @@ async function autoRecord(){
       // Build assignments from evil/good members (by teamid 5-8/9-12)
       const buildSide=mems=>mems.map(m=>{
         const p=profMap[Number(m.profile_id)]||null;
-        const cid=TEAMID_MAP[Number(m.teamid)]||null;
+        const cid=RACE_MAP[Number(m.race_id)]||null;
         const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
         const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
         // Use stored name from matches.json, fallback to profile ID
@@ -1092,7 +1092,7 @@ window.runImport=async function(){
 
       const buildSideI=mems=>mems.map(m=>{
         const p=profMap[Number(m.profile_id)]||null;
-        const cid=TEAMID_MAP[Number(m.teamid)]||null;
+        const cid=RACE_MAP[Number(m.race_id)]||null;
         const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
         const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
         const name=p?p.name:(m.name||`Player ${m.profile_id}`);
