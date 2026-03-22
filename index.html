@@ -810,17 +810,16 @@ async function autoRecord(){
       // Slot 0-3 = Evil (P1-P4), Slot 4-7 = Good (P5-P8)
       // colorId is the most reliable field — it's the actual in-game color/slot assignment
       const lobbySlots = liveLobbyMatch?._slots || [];
-      // The number shown in-game next to each player IS their slot (1-8)
-      // API colorId is 0-indexed: colorId 0 = slot 1 = P1, colorId 1 = slot 2 = P2, etc.
-      const COLOR_TO_CIV={'0':'p1','1':'p2','2':'p3','3':'p4','4':'p5','5':'p6','6':'p7','7':'p8'};
-      const lobbyByCiv = {}; // profileId → civId from lobby
+      // Use position_label from ScenarioPlayerIndex (set by scraper metaData decode)
+      // This is the definitive position — p1 through p8
+      const lobbyByCiv = {};
       if(lobbySlots.length>0){
         lobbySlots.forEach(s=>{
           if(!s.profileId) return;
-          const cid=COLOR_TO_CIV[String(s.colorId)];
-          if(cid) lobbyByCiv[String(s.profileId)]=cid;
+          // position_label set by scraper via ScenarioPlayerIndex
+          if(s.position_label) lobbyByCiv[String(s.profileId)]=s.position_label;
         });
-        console.log('[autoRecord] Using lobby slot data for civ assignment:', lobbyByCiv);
+        console.log('[autoRecord] Using ScenarioPlayerIndex slot data:', lobbyByCiv);
       }
 
       // Group by evil (5-8) vs good (9-12)
@@ -1228,40 +1227,42 @@ let liveKnownGameId = null;
 let liveLobbyMatch = null;    // raw lobby match object
 let liveTeams = null;         // {evil:[player,...], good:[player,...]}
 
-// Decode slotinfo (base64+zlib) → full slot objects with profileId, civilizationId, colorId, teamId, slotIndex
+// Decode slotinfo (base64+zlib) → full slot objects with ScenarioPlayerIndex-based position
 async function decodeSlotinfo(b64){
   if(!b64) return [];
   try{
     const bin=atob(b64);
     const bytes=new Uint8Array(bin.length);
     for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
-    // zlib has 2-byte header — strip it, then deflate-raw
-    const deflated=bytes.slice(2);
-    const ds=new DecompressionStream('deflate-raw');
-    const writer=ds.writable.getWriter();
-    const reader=ds.readable.getReader();
-    writer.write(deflated); writer.close();
-    const chunks=[];
-    while(true){ const{done,value}=await reader.read(); if(done) break; chunks.push(value); }
-    const total=chunks.reduce((s,c)=>s+c.length,0);
-    const out=new Uint8Array(total); let off=0;
-    for(const c of chunks){out.set(c,off);off+=c.length;}
-    const text=new TextDecoder().decode(out);
-    const start=text.indexOf('['); if(start===-1) return [];
-    const slots=JSON.parse(text.slice(start));
-    // Return full slot objects — civilizationId and colorId tell us exactly who played what
+    let decompressed=null;
+    for(const wbits of [15, 47, -15]){ // zlib, gzip, raw deflate
+      try{
+        const ds=new DecompressionStream(wbits===47?'gzip':'deflate'+(wbits<0?'-raw':''));
+        const writer=ds.writable.getWriter();
+        const reader=ds.readable.getReader();
+        writer.write(bytes); writer.close();
+        const chunks=[];
+        while(true){ const{done,value}=await reader.read(); if(done) break; chunks.push(value); }
+        const total=chunks.reduce((s,c)=>s+c.length,0);
+        const out=new Uint8Array(total); let off=0;
+        for(const c of chunks){out.set(c,off);off+=c.length;}
+        decompressed=out; break;
+      }catch(e){ continue; }
+    }
+    if(!decompressed) return [];
+    const text=new TextDecoder().decode(decompressed);
+    const start=text.indexOf('['); const end=text.lastIndexOf(']');
+    if(start===-1||end===-1) return [];
+    const slots=JSON.parse(text.slice(start,end+1));
     return slots.map((s,i)=>({
-      slotIndex:      i,
-      profileId:      Number(s?.profileInfo?.id||s?.profileid||0),
-      civilizationId: Number(s?.civilizationId??s?.civilization_id??-1),
-      colorId:        Number(s?.colorId??s?.color_id??i),
-      teamId:         Number(s?.teamId??s?.team_id??-1),
-      slotType:       s?.slotType??s?.slot_type??0,  // 0=open,1=human,2=AI,3=closed
+      slot_index:   i,
+      profileId:    Number(s?.profileInfo?.id||s?.profileid||s?.profile_id||0),
+      position_label: null, // ScenarioPlayerIndex requires metaData decode — done server-side
+      raw: s,
     }));
   }catch(e){ return []; }
 }
 
-// Extract profile IDs only (for backward compat)
 function slotProfileIds(slots){ return slots.map(s=>s.profileId).filter(Boolean); }
 
 function setLiveState(s){
