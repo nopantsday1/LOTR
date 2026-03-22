@@ -786,6 +786,7 @@ async function autoRecord(){
       if(known.has(gid)) continue;
       const members=match.matchhistorymember||match.matchhistoryreportresults||[];
       if(!members.length) continue;
+      if(members.length<8) continue;  // dropped/incomplete matches have fewer than 8 players
       // No description filter — rely on matchtype_id=0 + maxplayers=8 + 4+ community players
       // (mapname is always "my map" for custom scenarios in the API)
       const comm=members.filter(m=>commIds.has(Number(m.profile_id)));
@@ -1131,6 +1132,7 @@ window.runImport=async function(){
       const gid=String(match.match_id||match.id);
       // No description filter — rely on matchtype_id=0 + maxplayers=8 + 4+ community
       const members=match.matchhistorymember||match.matchhistoryreportresults||[];
+      if(members.length<8){skip++;continue;}  // dropped/incomplete match
       const comm=members.filter(m=>commIds.has(Number(m.profile_id)));
       if(comm.length<4){skip++;continue;}
       if(!comm.some(m=>m.resulttype!==0)){skip++;continue;}
@@ -1433,96 +1435,4 @@ async function checkRecentInProgress(){
     const data=await resp.json();
     const matches=(data.matches||[]);
     const now=Date.now()/1000;
-    const knownIds=new Set(history.map(h=>h.gameId).filter(Boolean));
-    const profMap=Object.fromEntries(players.filter(p=>p.profileId).map(p=>[Number(p.profileId),p]));
-    const commIds=new Set(players.filter(p=>p.profileId).map(p=>Number(p.profileId)));
-
-    for(const match of matches){
-      const gid=String(match.match_id||match.id);
-      if(knownIds.has(gid)) continue; // already recorded
-      const start=match.startgametime||match.completiontime||0;
-      if(now-start>3*3600) continue; // more than 3 hours ago
-      // Check if this match has community members
-      const members=match.matchhistorymember||[];
-      const commCount=members.filter(m=>commIds.has(Number(m.profile_id))).length;
-      if(commCount<4) continue;
-
-      // Found a recent unrecorded game — show as in-progress
-      const evilM=members.filter(m=>{ const t=Number(m.teamid); return t>=5&&t<=8; });
-      const goodM=members.filter(m=>{ const t=Number(m.teamid); return t>=9&&t<=12; });
-      liveTeams={
-        evil:evilM.map(m=>profMap[Number(m.profile_id)]).filter(Boolean),
-        good:goodM.map(m=>profMap[Number(m.profile_id)]).filter(Boolean),
-      };
-      liveGameStart=start*1000;
-      setLiveState('inprogress');
-      renderInProgress();
-      startTimer();
-      if(liveResultInterval) clearInterval(liveResultInterval);
-      liveResultInterval=setInterval(pollForResult, RESULT_INTERVAL_MS);
-      return;
-    }
-  }catch(e){}
-}
-
-async function pollForResult(){
-  try{
-    const resp=await fetch('matches.json?_='+Date.now(),{signal:AbortSignal.timeout(8000)});
-    if(!resp.ok) return;
-    const data=await resp.json();
-    const matches=(data.matches||[]).sort((a,b)=>(b.completiontime||0)-(a.completiontime||0));
-    const known=new Set(history.map(h=>h.gameId).filter(Boolean));
-    const profPlayers=players.filter(p=>p.profileId);
-    const commIds=new Set(profPlayers.map(p=>Number(p.profileId)));
-
-    for(const match of matches.slice(0,15)){
-      const gid=String(match.match_id||match.id);
-      if(gid===liveKnownGameId) return; // already processing
-      if(known.has(gid)) continue;       // already recorded
-
-      const members=match.matchhistorymember||match.matchhistoryreportresults||[];
-      const comm=members.filter(m=>commIds.has(Number(m.profile_id)));
-      if(comm.length<4) continue;
-      if(!comm.some(m=>m.resulttype!==0)) continue;
-
-      liveKnownGameId=gid;
-      if(liveResultInterval){ clearInterval(liveResultInterval); liveResultInterval=null; }
-      if(liveTimerInterval){  clearInterval(liveTimerInterval);  liveTimerInterval=null; }
-
-      const ps=document.getElementById('progressStatus');
-      if(ps) ps.textContent='Result detected — recording…';
-
-      await autoRecord();
-
-      setTimeout(()=>{ liveTeams=null; liveLobbyMatch=null; liveKnownGameId=null; setLiveState('idle'); }, 4000);
-      toast('Match recorded automatically!');
-      return;
-    }
-
-    // Update status
-    const ps=document.getElementById('progressStatus');
-    if(ps) ps.textContent=`Checking every 45s · last: ${new Date().toLocaleTimeString()}`;
-  }catch(e){}
-}
-
-window.livePollNow=function(){ pollLobby(); };
-
-window.forceEndGame=function(){
-  if(liveResultInterval){ clearInterval(liveResultInterval); liveResultInterval=null; }
-  if(liveTimerInterval){  clearInterval(liveTimerInterval);  liveTimerInterval=null; }
-  liveTeams=null; liveLobbyMatch=null; liveKnownGameId=null;
-  setLiveState('idle');
-  toast('Live view reset');
-};
-
-// Start polling on page load
-setInterval(pollLobby, LIVE_INTERVAL_MS);
-setTimeout(pollLobby, 5000); // first check after 5s
-
-// ─────────────────────────────────────────
-// START
-// ─────────────────────────────────────────
-init();
-</script>
-</body>
-</html>
+    const knownIds=new Set(history.map(h=>h.
