@@ -1,0 +1,21 @@
+name: Rebuild matches
+
+on:
+  workflow_dispatch:  # manual trigger only
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run rebuild
+        run: python3 rebuild_matches.py
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add matches.json
+          git commit -m "Rebuild matches with correct positions" || echo "No changes"
+          git push
