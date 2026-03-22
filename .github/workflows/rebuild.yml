@@ -1,13 +1,18 @@
 name: Rebuild matches
 
 on:
-  workflow_dispatch:  # manual trigger only
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   rebuild:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run rebuild
         run: python3 rebuild_matches.py
