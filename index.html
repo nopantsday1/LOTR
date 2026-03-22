@@ -797,11 +797,22 @@ async function autoRecord(){
       members.forEach(m=>{ const t=String(m.teamid??0); (groups[t]=groups[t]||[]).push(m); });
       const tids=Object.keys(groups); if(tids.length<2) continue;
 
-      // teamids 5-8=evil, 9-12=good — count wins per side
+      // Use civ_position (p1-p4=evil, p5-p8=good) if available, else fall back to teamid
+      const EVIL_POS=new Set(['p1','p2','p3','p4']);
+      const GOOD_POS=new Set(['p5','p6','p7','p8']);
+      const hasCivPos=members.some(m=>m.civ_position);
+
+      const isEvil=m=> hasCivPos
+        ? EVIL_POS.has(m.civ_position)
+        : (Number(m.teamid??0)>=5&&Number(m.teamid??0)<=8);
+      const isGood=m=> hasCivPos
+        ? GOOD_POS.has(m.civ_position)
+        : (Number(m.teamid??0)>=9&&Number(m.teamid??0)<=12);
+
+      // Winner = whichever side has resulttype=1
       let evilWins=0, goodWins=0;
       members.forEach(m=>{
-        const tid=Number(m.teamid??0);
-        if(m.resulttype===1){ if(tid>=5&&tid<=8) evilWins++; else goodWins++; }
+        if(m.resulttype===1){ if(isEvil(m)) evilWins++; else if(isGood(m)) goodWins++; }
       });
       const winner=evilWins>=goodWins?'evil':'good';
 
@@ -822,9 +833,10 @@ async function autoRecord(){
         console.log('[autoRecord] Using ScenarioPlayerIndex slot data:', lobbyByCiv);
       }
 
-      // Group by evil (5-8) vs good (9-12)
-      const evilMembers=members.filter(m=>{const t=Number(m.teamid??0);return t>=5&&t<=8;}).sort((a,b)=>Number(a.teamid)-Number(b.teamid));
-      const goodMembers=members.filter(m=>{const t=Number(m.teamid??0);return t>=9&&t<=12;}).sort((a,b)=>Number(a.teamid)-Number(b.teamid));
+      // Split by civ_position (p1-p4=evil, p5-p8=good) when available, else teamid
+      const civSortOrder=['p1','p2','p3','p4','p5','p6','p7','p8'];
+      const evilMembers=members.filter(isEvil).sort((a,b)=>civSortOrder.indexOf(a.civ_position)-civSortOrder.indexOf(b.civ_position));
+      const goodMembers=members.filter(isGood).sort((a,b)=>civSortOrder.indexOf(a.civ_position)-civSortOrder.indexOf(b.civ_position));
 
       const buildA=tid=>groups[tid].map(m=>{
         const p=profMap[Number(m.profile_id)]||null;
@@ -835,13 +847,9 @@ async function autoRecord(){
         return {player:p,civId:cid,civName,effElo,isCommunity:!!p,name};
       });
 
-      // Build assignments from evil/good members
       const buildSide=mems=>mems.map(m=>{
         const p=profMap[Number(m.profile_id)]||null;
-        // Priority: 1) civ_position from matches.json (scraper lobby colorId data)
-        //           2) lobbyByCiv from live lobby slotinfo decoded in browser
-        //           3) TEAMID_MAP from teamid — unreliable for player↔civ but gives side info
-        const cid=m.civ_position||lobbyByCiv[String(m.profile_id)]||TEAMID_MAP[Number(m.teamid)]||null;
+        const cid=m.civ_position||lobbyByCiv[String(m.profile_id)]||null;
         const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
         const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
         const name=p?p.name:(m.name||`Player ${m.profile_id}`);
@@ -849,16 +857,8 @@ async function autoRecord(){
         return {player:p,civId:cid,civName,effElo,isCommunity,name,profileId:m.profile_id};
       });
 
-      // Sort each side by civ position (p1→p8) when civ data is available
-      const civSortOrder=['p1','p2','p3','p4','p5','p6','p7','p8'];
-      const sortByCivPos=arr=>{
-        const hasCiv=arr.some(a=>a.civId);
-        if(!hasCiv) return arr;
-        return [...arr].sort((a,b)=>civSortOrder.indexOf(a.civId)-civSortOrder.indexOf(b.civId));
-      };
-
-      const evilRaw=buildSide(evilMembers), goodRaw=buildSide(goodMembers);
-      const evilA=sortByCivPos(evilRaw), goodA=sortByCivPos(goodRaw);
+      // Members already sorted by civ_position above
+      const evilA=buildSide(evilMembers), goodA=buildSide(goodMembers);
       const winA=winner==='evil'?evilA:goodA;
       const loseA=winner==='evil'?goodA:evilA;
 
@@ -1070,15 +1070,23 @@ window.addPlayer=async function(){
 
 window.confirmReset=async function(){
   closeModal('mReset'); sync('spin');
-  const hSnap=await getDocs(collection(db,'history'));
-  const batch=writeBatch(db);
-  hSnap.forEach(d=>batch.delete(d.ref));
-  await batch.commit();
+  // Delete history in batches of 400 (Firestore writeBatch limit is 500)
+  let deleted=0;
+  while(true){
+    const hSnap=await getDocs(query(collection(db,'history'),limit(400)));
+    if(hSnap.empty) break;
+    const batch=writeBatch(db);
+    hSnap.forEach(d=>batch.delete(d.ref));
+    await batch.commit();
+    deleted+=hSnap.size;
+    toast(`Deleting... ${deleted} removed`);
+    if(hSnap.size<400) break;
+  }
   for(const p of players){
     p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=DEFAULT_ELO;}); p.wins=0; p.losses=0;
     await savePl(p);
   }
-  sync('ok'); toast('All ratings reset to 1200');
+  sync('ok'); toast(`Reset complete — ${deleted} matches deleted`);
 };
 
 // ─────────────────────────────────────────
@@ -1132,36 +1140,33 @@ window.runImport=async function(){
       members.forEach(m=>{ const t=String(m.teamid??0); (groups[t]=groups[t]||[]).push(m); });
       if(Object.keys(groups).length<2){skip++;continue;}
 
-      // teamids 5-8=evil, 9-12=good
+      // Use civ_position (p1-p4=evil, p5-p8=good) when available, else teamid
+      const EVIL_POS_I=new Set(['p1','p2','p3','p4']);
+      const GOOD_POS_I=new Set(['p5','p6','p7','p8']);
+      const hasCivPosI=members.some(m=>m.civ_position);
+      const isEvilI=m=>hasCivPosI?EVIL_POS_I.has(m.civ_position):(Number(m.teamid??0)>=5&&Number(m.teamid??0)<=8);
+      const isGoodI=m=>hasCivPosI?GOOD_POS_I.has(m.civ_position):(Number(m.teamid??0)>=9&&Number(m.teamid??0)<=12);
+
       let evilWinsI=0, goodWinsI=0;
       members.forEach(m=>{
-        const tid=Number(m.teamid??0);
-        if(m.resulttype===1){ if(tid>=5&&tid<=8) evilWinsI++; else goodWinsI++; }
+        if(m.resulttype===1){ if(isEvilI(m)) evilWinsI++; else if(isGoodI(m)) goodWinsI++; }
       });
       const winner=evilWinsI>=goodWinsI?'evil':'good';
 
+      const civOrder=['p1','p2','p3','p4','p5','p6','p7','p8'];
       const buildSideI=mems=>mems.map(m=>{
         const p=profMap[Number(m.profile_id)]||null;
-        // civ_position from matches.json (set by scraper from lobby colorId) is most reliable
-        const cid=m.civ_position||TEAMID_MAP[Number(m.teamid)]||null;
+        const cid=m.civ_position||null;
         const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
         const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
         const name=p?p.name:(m.name||`Player ${m.profile_id}`);
         const isCommunity=p?true:(m.is_community||false);
-        return {player:p,civId:cid,civName,effElo,isCommunity,name,profileId:m.profile_id,_civPos:cid};
+        return {player:p,civId:cid,civName,effElo,isCommunity,name,profileId:m.profile_id};
       });
 
-      // Sort by civ_position (p1→p8) so Evil shows P1-P4 and Good shows P5-P8 in order
-      const civOrder=['p1','p2','p3','p4','p5','p6','p7','p8'];
-      const sortByCiv=arr=>[...arr].sort((a,b)=>civOrder.indexOf(a._civPos)-civOrder.indexOf(b._civPos));
-
-      // Fall back to teamid sort if no civ data available
-      const evilMembersI=members.filter(m=>{const t=Number(m.teamid??0);return t>=5&&t<=8;}).sort((a,b)=>Number(a.teamid)-Number(b.teamid));
-      const goodMembersI=members.filter(m=>{const t=Number(m.teamid??0);return t>=9&&t<=12;}).sort((a,b)=>Number(a.teamid)-Number(b.teamid));
-      const evilRawI=buildSideI(evilMembersI), goodRawI=buildSideI(goodMembersI);
-      const hasCivData=evilRawI.some(a=>a._civPos)||goodRawI.some(a=>a._civPos);
-      const evilAI=hasCivData?sortByCiv(evilRawI):evilRawI;
-      const goodAI=hasCivData?sortByCiv(goodRawI):goodRawI;
+      const evilMembersI=members.filter(isEvilI).sort((a,b)=>civOrder.indexOf(a.civ_position)-civOrder.indexOf(b.civ_position));
+      const goodMembersI=members.filter(isGoodI).sort((a,b)=>civOrder.indexOf(a.civ_position)-civOrder.indexOf(b.civ_position));
+      const evilAI=buildSideI(evilMembersI), goodAI=buildSideI(goodMembersI);
       const winA=winner==='evil'?evilAI:goodAI;
       const loseA=winner==='evil'?goodAI:evilAI;
 
