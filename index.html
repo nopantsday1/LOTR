@@ -496,12 +496,13 @@ async function init(){
     renderGrid(); renderPTable(); renderLB(); sync('ok');
   });
   onSnapshot(query(collection(db,'history'),orderBy('timestamp','desc'),limit(100)),snap=>{
+    // limit(100) keeps read costs low — enough for deduplication in autoRecord
     history=[]; snap.forEach(d=>history.push({id:d.id,...d.data()}));
     renderHist();
     renderWinRate();
   });
-  setTimeout(autoRecord,3000);
-  setInterval(autoRecord,5*60*1000);
+  setTimeout(autoRecord, 30000);           // first run after 30s (let onSnapshot settle)
+  setInterval(autoRecord, 15*60*1000);     // then every 15 minutes
 }
 
 async function savePl(p){
@@ -772,10 +773,8 @@ async function autoRecord(){
     if(!resp.ok) throw new Error('HTTP '+resp.status);
     const data=await resp.json();
     const matches=(data.matches||[]).sort((a,b)=>(a.completiontime||0)-(b.completiontime||0));
-    // Fetch known gameIds fresh from Firestore to avoid duplicates from concurrent tabs
-    const knownSnap=await getDocs(query(collection(db,'history'),orderBy('timestamp','desc'),limit(200)));
-    const known=new Set();
-    knownSnap.forEach(d=>{ if(d.data().gameId) known.add(d.data().gameId); });
+    // Use local history cache kept live by onSnapshot — avoids a Firestore read every poll
+    const known=new Set(history.map(h=>h.gameId).filter(Boolean));
     const profPlayers=players.filter(p=>p.profileId);
     if(!profPlayers.length) return;
     const commIds=new Set(profPlayers.map(p=>Number(p.profileId)));
