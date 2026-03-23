@@ -712,6 +712,7 @@ async function applyResult(winA,loseA,winner,evilTotal,goodTotal,date,source,gam
     const curCivElo=civElo(p,a.civId);
     p.civElo[a.civId]=calcElo(curCivElo, avgLose, true, g);
     p.wins=(p.wins||0)+1;
+    if(a.civId){ p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1; }
     await savePl(p);
   }
   for(const a of loseA){
@@ -721,6 +722,7 @@ async function applyResult(winA,loseA,winner,evilTotal,goodTotal,date,source,gam
     const curCivElo=civElo(p,a.civId);
     p.civElo[a.civId]=calcElo(curCivElo, avgWin, false, g);
     p.losses=(p.losses||0)+1;
+    if(a.civId){ p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1; }
     await savePl(p);
   }
   const d=date||new Date().toLocaleDateString('en-CA');
@@ -933,6 +935,8 @@ async function autoRecord(){
         p.civElo=p.civElo||{};
         if(a.civId){
           p.civElo[a.civId]=calcElo(civElo(p,a.civId), won?avgLose:avgWin, won, g);
+          if(won){ p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1; }
+          else   { p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1; }
         }
         if(won) p.wins=(p.wins||0)+1; else p.losses=(p.losses||0)+1;
         await savePl(p);
@@ -993,12 +997,14 @@ function renderPTable(){
       const highlight=civF===c.id?';outline:1px solid var(--gold)':'';
       return `<div class="cvbar ${c.side}" style="height:${Math.max(2,h)}px${highlight}" title="${c.name}: ${e}"></div>`;
     }).join('');
+    const w=civF?(p.civWins?.[civF]||0):(p.wins||0);
+    const l=civF?(p.civLosses?.[civF]||0):(p.losses||0);
     return `<tr onclick="editPlayer('${p.id}')" style="cursor:${adminUnlocked?'pointer':'default'}">
       <td>${p.name}</td>
       <td><span class="mono">${civF?`<span style="color:var(--gold)">${civElo(p,civF)}</span> <span style="color:var(--muted);font-size:12px">(${ov})</span>`:ov}</span></td>
       <td><div class="civbars">${bars}</div></td>
-      <td style="color:var(--green)">${p.wins||0}</td>
-      <td style="color:var(--evil)">${p.losses||0}</td>
+      <td style="color:var(--green)">${w}</td>
+      <td style="color:var(--evil)">${l}</td>
       <td><span class="pid">${p.profileId||'—'}</span></td>
     </tr>`;
   }).join('');
@@ -1055,13 +1061,15 @@ function renderLB(){
     const ov=overallElo(p);
     const displayElo=civF?civElo(p,civF):ov;
     const subElo=civF?`<span style="font-size:11px;color:var(--muted);margin-left:4px">(${ov})</span>`:'';
-    const tot=(p.wins||0)+(p.losses||0);
-    const wr=tot?Math.round((p.wins||0)/tot*100)+'%':'—';
+    const w=civF?(p.civWins?.[civF]||0):(p.wins||0);
+    const l=civF?(p.civLosses?.[civF]||0):(p.losses||0);
+    const tot=w+l;
+    const wr=tot?Math.round(w/tot*100)+'%':'—';
     return `<div class="lbrow">
       <span class="lbrank">${i+1}</span>
       <span class="lbname">${p.name}</span>
       <span class="lbelo">${displayElo}${subElo}</span>
-      <span class="lbwl">${p.wins||0}W / ${p.losses||0}L</span>
+      <span class="lbwl">${w}W / ${l}L</span>
       <span class="lbwr">${wr}</span>
     </div>`;
   }).join('');
@@ -1167,7 +1175,7 @@ window.confirmReset=async function(){
     if(hSnap.size<400) break;
   }
   for(const p of players){
-    p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=DEFAULT_ELO;}); p.wins=0; p.losses=0;
+    p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=DEFAULT_ELO;}); p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
     await savePl(p);
   }
   sync('ok'); toast(`Reset complete — ${deleted} matches deleted`);
@@ -1201,7 +1209,7 @@ window.runImport=async function(){
 
     // Reset
     for(const p of players){
-      p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=DEFAULT_ELO;}); p.wins=0; p.losses=0;
+      p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=DEFAULT_ELO;}); p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
     }
     const hSnap=await getDocs(collection(db,'history'));
     const batch=writeBatch(db); hSnap.forEach(d=>batch.delete(d.ref)); await batch.commit();
@@ -1268,7 +1276,11 @@ window.runImport=async function(){
       for(const a of [...commWin,...commLose]){
         const p=a.player, won=commWin.includes(a), g=(p.wins||0)+(p.losses||0);
         p.civElo=p.civElo||{};
-        if(a.civId) p.civElo[a.civId]=calcElo(civElo(p,a.civId),won?avgLose:avgWin,won,g);
+        if(a.civId){
+          p.civElo[a.civId]=calcElo(civElo(p,a.civId),won?avgLose:avgWin,won,g);
+          if(won){ p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1; }
+          else   { p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1; }
+        }
         if(won) p.wins=(p.wins||0)+1; else p.losses=(p.losses||0)+1;
       }
 
@@ -1320,6 +1332,7 @@ let liveState = 'idle';       // 'idle' | 'lobby' | 'inprogress'
 let liveTimerInterval = null;
 let liveResultInterval = null;
 let liveGameStart = null;
+let liveLobbyStart = null;  // tracks when lobby was opened for accurate timer
 let liveKnownGameId = null;
 let liveLobbyMatch = null;    // raw lobby match object
 let liveTeams = null;         // {evil:[player,...], good:[player,...]}
@@ -1429,23 +1442,66 @@ function activateLobby(match, foundPlayers){
   liveLobbyMatch=match;
   setLiveState('lobby');
 
-  // Use lastBalance teams if available, otherwise split found players
-  let evil=[], good=[];
-  if(lastBal){
-    evil=lastBal.evilAssign.map(a=>a.player);
-    good=lastBal.goodAssign.map(a=>a.player);
+  // Build profileId → position_label map from slot data
+  const slots=match._slots||[];
+  const slotByPid={};
+  slots.forEach(s=>{ if(s.profileId) slotByPid[s.profileId]=s; });
+
+  // Split players into evil (p1-p4) and good (p5-p8) using slot position_label
+  const EVIL_POS=new Set(['p1','p2','p3','p4']);
+  const GOOD_POS=new Set(['p5','p6','p7','p8']);
+  const civSortOrder=['p1','p2','p3','p4','p5','p6','p7','p8'];
+
+  // If we have slot data, use it for correct side + civ assignment
+  if(slots.length>0 && foundPlayers.some(p=>slotByPid[p.id||Number(Object.keys(slotByPid).find(k=>profMap?.[k]?.id===p.id))])){
+    const evilSlots=slots.filter(s=>s.position_label&&EVIL_POS.has(s.position_label)).sort((a,b)=>civSortOrder.indexOf(a.position_label)-civSortOrder.indexOf(b.position_label));
+    const goodSlots=slots.filter(s=>s.position_label&&GOOD_POS.has(s.position_label)).sort((a,b)=>civSortOrder.indexOf(a.position_label)-civSortOrder.indexOf(b.position_label));
+    liveTeams={evil:evilSlots.map(s=>players.find(p=>p.id===String(s.profileId)||Number(p.profileId)===s.profileId)).filter(Boolean),
+               good:goodSlots.map(s=>players.find(p=>p.id===String(s.profileId)||Number(p.profileId)===s.profileId)).filter(Boolean)};
+  } else if(lastBal){
+    liveTeams={evil:lastBal.evilAssign.map(a=>a.player),good:lastBal.goodAssign.map(a=>a.player)};
   } else {
-    evil=foundPlayers.slice(0,4);
-    good=foundPlayers.slice(4);
+    liveTeams={evil:foundPlayers.slice(0,4),good:foundPlayers.slice(4)};
   }
-  liveTeams={evil,good};
 
   document.getElementById('lobbyName').textContent=match.description||'Community Lobby';
   document.getElementById('lobbyInfo').textContent=
     `${foundPlayers.length} community player${foundPlayers.length!==1?'s':''} in lobby · waiting for game to start`;
 
-  renderLobbySlots('lobbyEvil', evil, EVIL_CIVS);
-  renderLobbySlots('lobbyGood', good, GOOD_CIVS);
+  // Render with actual civ names from slot data
+  const renderLobbyWithCivs=(elId, slotList, fallbackTeam, fallbackCivs)=>{
+    const el=document.getElementById(elId); if(!el) return;
+    const rows=[];
+    if(slotList.length>0){
+      slotList.slice(0,4).forEach(s=>{
+        const p=players.find(pl=>Number(pl.profileId)===s.profileId);
+        const civName=CIVS.find(c=>c.id===s.position_label)?.name||s.position_label||'—';
+        rows.push(`<div class="arow" style="cursor:default">
+          <span class="aname">${p?p.name:`Player ${s.profileId}`}</span>
+          <span class="aciv">${civName}</span>
+          <span class="aelo">${p?overallElo(p):''}</span>
+        </div>`);
+      });
+    } else {
+      fallbackTeam.slice(0,4).forEach((p,i)=>{
+        rows.push(`<div class="arow" style="cursor:default">
+          <span class="aname">${p.name}</span>
+          <span class="aciv">${fallbackCivs[i]?.name||'—'}</span>
+          <span class="aelo">${overallElo(p)}</span>
+        </div>`);
+      });
+    }
+    for(let i=rows.length;i<4;i++) rows.push(`<div class="arow" style="cursor:default;opacity:.35"><span class="aname">Empty slot</span></div>`);
+    el.innerHTML=rows.join('');
+  };
+
+  const evilSlots=slots.filter(s=>s.position_label&&EVIL_POS.has(s.position_label)).sort((a,b)=>civSortOrder.indexOf(a.position_label)-civSortOrder.indexOf(b.position_label));
+  const goodSlots=slots.filter(s=>s.position_label&&GOOD_POS.has(s.position_label)).sort((a,b)=>civSortOrder.indexOf(a.position_label)-civSortOrder.indexOf(b.position_label));
+  renderLobbyWithCivs('lobbyEvil', evilSlots, liveTeams.evil, EVIL_CIVS);
+  renderLobbyWithCivs('lobbyGood', goodSlots, liveTeams.good, GOOD_CIVS);
+
+  // Store lobby start time so the timer is accurate when game begins
+  liveLobbyStart=match.startgametime?match.startgametime*1000:Date.now();
 }
 
 function renderLobbySlots(elId, team, civs){
@@ -1469,7 +1525,8 @@ function renderLobbySlots(elId, team, civs){
 
 function activateInProgress(){
   setLiveState('inprogress');
-  liveGameStart=Date.now();
+  // Use lobby start time if available so timer is accurate even if lobby detection was delayed
+  liveGameStart=liveLobbyStart||Date.now();
   liveKnownGameId=null;
 
   // Use teams from lobby if available, otherwise from lastBalance
@@ -1604,7 +1661,7 @@ window.livePollNow=function(){ pollLobby(); };
 window.forceEndGame=function(){
   if(liveResultInterval){ clearInterval(liveResultInterval); liveResultInterval=null; }
   if(liveTimerInterval){  clearInterval(liveTimerInterval);  liveTimerInterval=null; }
-  liveTeams=null; liveLobbyMatch=null; liveKnownGameId=null;
+  liveTeams=null; liveLobbyMatch=null; liveKnownGameId=null; liveLobbyStart=null;
   setLiveState('idle');
   toast('Live view reset');
 };
