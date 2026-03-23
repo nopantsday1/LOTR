@@ -1590,8 +1590,12 @@ async function checkRecentInProgress(){
     for(const match of matches){
       const gid=String(match.match_id||match.id);
       if(knownIds.has(gid)) continue; // already recorded
-      const start=match.startgametime||match.completiontime||0;
+      const start=match.startgametime||0;
+      const completion=match.completiontime||0;
       if(now-start>3*3600) continue; // more than 3 hours ago
+      // Only show as in-progress if the game hasn't completed yet
+      // (completiontime=0 or in the future means still running)
+      if(completion>0 && completion<=now) continue;
       // Check if this match has community members
       const members=match.matchhistorymember||[];
       const commCount=members.filter(m=>commIds.has(Number(m.profile_id))).length;
@@ -1604,7 +1608,9 @@ async function checkRecentInProgress(){
         evil:evilM.map(m=>profMap[Number(m.profile_id)]).filter(Boolean),
         good:goodM.map(m=>profMap[Number(m.profile_id)]).filter(Boolean),
       };
-      liveGameStart=start*1000;
+      // Use actual game start time for accurate timer
+      liveGameStart=start>0?start*1000:Date.now();
+      liveLobbyStart=liveGameStart;
       setLiveState('inprogress');
       renderInProgress();
       startTimer();
