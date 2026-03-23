@@ -226,7 +226,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
   <div class="card" style="padding:.75rem 1rem .5rem">
     <div class="row" style="margin-bottom:.75rem;gap:.5rem">
       <input type="text" id="playerSearch" placeholder="Search player…" style="max-width:220px" oninput="renderPTable()">
-      <select id="civFilter" onchange="renderPTable()" style="max-width:200px">
+      <select id="civFilter" onchange="pSortDir=-1;renderPTable()" style="max-width:200px">
         <option value="">All civs</option>
         <option value="p1">P1 Dol Guldur</option>
         <option value="p2">P2 Dol Guldur</option>
@@ -979,7 +979,7 @@ function renderPTable(){
   if(q) list=list.filter(p=>p.name.toLowerCase().includes(q));
   // Sort
   list.sort((a,b)=>{
-    if(civF) return pSortDir*(civElo(b,civF)-civElo(a,civF));
+    if(civF) return civElo(b,civF)-civElo(a,civF);  // always descending by civ elo
     if(pSortKey==='name') return pSortDir*a.name.localeCompare(b.name);
     const va=pSortKey==='elo'?overallElo(a):(a[pSortKey]||0);
     const vb=pSortKey==='elo'?overallElo(b):(b[pSortKey]||0);
