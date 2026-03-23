@@ -223,7 +223,21 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
 <!-- ══ PLAYERS ══ -->
 <div class="page" id="page-players">
   <div class="ph"><h1>Players</h1><p>Individual civ Elos shown as bars. Click a row to edit.</p></div>
-  <div class="card" style="padding:.5rem 0">
+  <div class="card" style="padding:.75rem 1rem .5rem">
+    <div class="row" style="margin-bottom:.75rem;gap:.5rem">
+      <input type="text" id="playerSearch" placeholder="Search player…" style="max-width:220px" oninput="renderPTable()">
+      <select id="civFilter" onchange="renderPTable()" style="max-width:200px">
+        <option value="">All civs</option>
+        <option value="p1">P1 Dol Guldur</option>
+        <option value="p2">P2 Dol Guldur</option>
+        <option value="p3">P3 Azog's Host</option>
+        <option value="p4">P4 Goblin</option>
+        <option value="p5">P5 Blue Mts</option>
+        <option value="p6">P6 Northmen</option>
+        <option value="p7">P7 Elves</option>
+        <option value="p8">P8 Iron Hills</option>
+      </select>
+    </div>
     <table class="ptable">
       <thead><tr>
         <th onclick="sortP('name')">Player</th>
@@ -246,6 +260,23 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
     <div class="ct">Community Win Rates</div>
     <div id="winRateStats" style="display:flex;gap:2rem;align-items:center;flex-wrap:wrap">
       <p style="color:var(--dim);font-size:14px">Loading…</p>
+    </div>
+  </div>
+
+  <div class="card" style="padding:.75rem 1rem .5rem;margin-bottom:.5rem">
+    <div class="row" style="gap:.5rem">
+      <input type="text" id="lbSearch" placeholder="Search player…" style="max-width:220px" oninput="renderLB()">
+      <select id="lbCivFilter" onchange="renderLB()" style="max-width:200px">
+        <option value="">Sort by Overall Elo</option>
+        <option value="p1">Sort by P1 Dol Guldur</option>
+        <option value="p2">Sort by P2 Dol Guldur</option>
+        <option value="p3">Sort by P3 Azog's Host</option>
+        <option value="p4">Sort by P4 Goblin</option>
+        <option value="p5">Sort by P5 Blue Mts</option>
+        <option value="p6">Sort by P6 Northmen</option>
+        <option value="p7">Sort by P7 Elves</option>
+        <option value="p8">Sort by P8 Iron Hills</option>
+      </select>
     </div>
   </div>
 
@@ -739,7 +770,7 @@ function renderHist(){
       <div class="hi-top">
         <span class="hbadge ${w}">${w==='evil'?'⚔ Evil Win':'✦ Good Win'}</span>
         ${h.source==='auto'?'<span class="hbadge auto">AUTO</span>':''}
-        <span class="hi-meta">${h.date||''} · Gap: ${h.gap!=null?h.gap:'?'}</span>
+        <span class="hi-meta">${h.date||''} · Gap: ${h.gap!=null?h.gap:'?'}${h.duration?` · ${Math.floor(h.duration/60)}m${String(h.duration%60).padStart(2,'0')}s`:''}</span>
         <button class="btn" style="font-size:9px;padding:3px 8px;margin-left:auto" onclick="delHist('${h.id}')">✕</button>
       </div>
       <div class="hi-teams">
@@ -800,6 +831,23 @@ async function autoRecord(){
       const members=match.matchhistorymember||match.matchhistoryreportresults||[];
       if(!members.length) continue;
       if(members.length<8) continue;  // dropped/incomplete matches have fewer than 8 players
+
+      // Skip very short games (under 10 min) — likely dropped/restored before real play
+      const durationSec=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
+      if(durationSec!==null && durationSec<600) continue;
+
+      // Skip duplicate lineups — same community players within 30 min of an existing game
+      const matchCommIds=new Set(members.filter(m=>commIds.has(Number(m.profile_id))).map(m=>String(m.profile_id)));
+      const matchStart=match.startgametime||match.completiontime||0;
+      const isDuplicate=history.some(h=>{
+        const hStart=h.timestamp?Math.floor(h.timestamp/1000):0;
+        if(Math.abs(matchStart-hStart)>1800) return false; // more than 30 min apart
+        const hPlayers=new Set([...(h.evilAssign||[]),...(h.goodAssign||[])].map(a=>String(a.profileId)).filter(Boolean));
+        if(hPlayers.size<4) return false;
+        const overlap=[...matchCommIds].filter(id=>hPlayers.has(id)).length;
+        return overlap>=matchCommIds.size*0.75; // 75%+ same players = duplicate
+      });
+      if(isDuplicate){ console.log('[autoRecord] Skipping duplicate lineup:', gid); continue; }
       // No description filter — rely on matchtype_id=0 + maxplayers=8 + 4+ community players
       // (mapname is always "my map" for custom scenarios in the API)
       const comm=members.filter(m=>commIds.has(Number(m.profile_id)));
@@ -892,11 +940,13 @@ async function autoRecord(){
 
       const ts=(match.completiontime||match.startgametime||0)*1000;
       const date=ts?new Date(ts).toLocaleDateString('en-CA'):new Date().toLocaleDateString('en-CA');
+      const durationSec=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
       const et=winA.reduce((s,a)=>s+a.effElo,0);
       const gt=loseA.reduce((s,a)=>s+a.effElo,0);
       await addDoc(collection(db,'history'),{
         date,winner,evilTotal:winner==='evil'?et:gt,goodTotal:winner==='evil'?gt:et,
         gap:Math.abs(et-gt),timestamp:ts||Date.now(),source:'auto',gameId:gid,
+        duration:durationSec,
         evilAssign:(winner==='evil'?winA:loseA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
         goodAssign:(winner==='evil'?loseA:winA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
       });
@@ -922,22 +972,30 @@ async function autoRecord(){
 // ─────────────────────────────────────────
 function renderPTable(){
   const tb=document.getElementById('ptbody'); if(!tb) return;
-  const sorted=[...players].sort((a,b)=>{
+  const q=(document.getElementById('playerSearch')?.value||'').toLowerCase();
+  const civF=document.getElementById('civFilter')?.value||'';
+  let list=[...players];
+  // Search filter
+  if(q) list=list.filter(p=>p.name.toLowerCase().includes(q));
+  // Sort
+  list.sort((a,b)=>{
+    if(civF) return pSortDir*(civElo(b,civF)-civElo(a,civF));
     if(pSortKey==='name') return pSortDir*a.name.localeCompare(b.name);
     const va=pSortKey==='elo'?overallElo(a):(a[pSortKey]||0);
     const vb=pSortKey==='elo'?overallElo(b):(b[pSortKey]||0);
     return pSortDir*(vb-va);
   });
-  tb.innerHTML=sorted.map(p=>{
+  tb.innerHTML=list.map(p=>{
     const ov=overallElo(p);
     const bars=CIVS.map(c=>{
       const e=civElo(p,c.id);
-      const h=Math.round((e/2400)*32); // scale: 1200=16px, 2400=32px, 100=1px
-      return `<div class="cvbar ${c.side}" style="height:${Math.max(2,h)}px" title="${c.name}: ${e}"></div>`;
+      const h=Math.round((e/2400)*32);
+      const highlight=civF===c.id?';outline:1px solid var(--gold)':'';
+      return `<div class="cvbar ${c.side}" style="height:${Math.max(2,h)}px${highlight}" title="${c.name}: ${e}"></div>`;
     }).join('');
-    return `<tr onclick="editPlayer('${p.id}')" style="cursor:pointer">
+    return `<tr onclick="editPlayer('${p.id}')" style="cursor:${adminUnlocked?'pointer':'default'}">
       <td>${p.name}</td>
-      <td><span class="mono">${ov}</span></td>
+      <td><span class="mono">${civF?`<span style="color:var(--gold)">${civElo(p,civF)}</span> <span style="color:var(--muted);font-size:12px">(${ov})</span>`:ov}</span></td>
       <td><div class="civbars">${bars}</div></td>
       <td style="color:var(--green)">${p.wins||0}</td>
       <td style="color:var(--evil)">${p.losses||0}</td>
@@ -986,15 +1044,21 @@ function renderWinRate(){
 function renderLB(){
   const el=document.getElementById('lbList'); if(!el) return;
   renderWinRate();
-  const sorted=[...players].sort((a,b)=>overallElo(b)-overallElo(a));
-  el.innerHTML=sorted.map((p,i)=>{
+  const q=(document.getElementById('lbSearch')?.value||'').toLowerCase();
+  const civF=document.getElementById('lbCivFilter')?.value||'';
+  let list=[...players];
+  if(q) list=list.filter(p=>p.name.toLowerCase().includes(q));
+  list.sort((a,b)=>civF?civElo(b,civF)-civElo(a,civF):overallElo(b)-overallElo(a));
+  el.innerHTML=list.map((p,i)=>{
     const ov=overallElo(p);
+    const displayElo=civF?civElo(p,civF):ov;
+    const subElo=civF?`<span style="font-size:11px;color:var(--muted);margin-left:4px">(${ov})</span>`:'';
     const tot=(p.wins||0)+(p.losses||0);
     const wr=tot?Math.round((p.wins||0)/tot*100)+'%':'—';
     return `<div class="lbrow">
       <span class="lbrank">${i+1}</span>
       <span class="lbname">${p.name}</span>
-      <span class="lbelo">${ov}</span>
+      <span class="lbelo">${displayElo}${subElo}</span>
       <span class="lbwl">${p.wins||0}W / ${p.losses||0}L</span>
       <span class="lbwr">${wr}</span>
     </div>`;
@@ -1005,6 +1069,7 @@ function renderLB(){
 // EDIT PLAYER
 // ─────────────────────────────────────────
 window.editPlayer=function(id){
+  if(!adminUnlocked){ toast('Admin required to edit players','err'); return; }
   const p=players.find(pl=>pl.id===id); if(!p) return;
   document.getElementById('epTitle').textContent=p.name;
   document.getElementById('epId').value=id;
@@ -1019,6 +1084,7 @@ window.editPlayer=function(id){
 };
 
 window.savePlayer=async function(){
+  if(!adminUnlocked){ toast('Admin required','err'); return; }
   const id=document.getElementById('epId').value;
   const p=players.find(pl=>pl.id===id); if(!p) return;
   p.name=document.getElementById('epName').value.trim();
@@ -1030,6 +1096,7 @@ window.savePlayer=async function(){
 };
 
 window.deletePlayer=async function(){
+  if(!adminUnlocked){ toast('Admin required','err'); return; }
   const id=document.getElementById('epId').value;
   if(!confirm('Delete this player?')) return;
   await deleteDoc(doc(db,'players',String(id)));
@@ -1045,12 +1112,14 @@ window.checkAdmin=function(){
     document.getElementById('adminGate').style.display='none';
     document.getElementById('adminPanel').style.display='block';
     renderAdminList();
+    renderPTable(); // update cursor style
   } else document.getElementById('adminErr').style.display='block';
 };
 window.lockAdmin=function(){
   adminUnlocked=false;
   document.getElementById('adminGate').style.display='block';
   document.getElementById('adminPanel').style.display='none';
+  renderPTable(); // update cursor style
   go('balance');
 };
 window.savePass=async function(){
@@ -1146,6 +1215,11 @@ window.runImport=async function(){
       // No description filter — rely on matchtype_id=0 + maxplayers=8 + 4+ community
       const members=match.matchhistorymember||match.matchhistoryreportresults||[];
       if(members.length<8){skip++;continue;}  // dropped/incomplete match
+
+      // Skip very short games (under 10 min)
+      const mDur=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
+      if(mDur!==null && mDur<600){skip++;continue;}
+
       const comm=members.filter(m=>commIds.has(Number(m.profile_id)));
       if(comm.length<4){skip++;continue;}
       if(!comm.some(m=>m.resulttype!==0)){skip++;continue;}
@@ -1198,12 +1272,14 @@ window.runImport=async function(){
 
       const ts=(match.completiontime||match.startgametime||0)*1000;
       const date=ts?new Date(ts).toLocaleDateString('en-CA'):'unknown';
+      const durationSec=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
       const et=winA.reduce((s,a)=>s+a.effElo,0);
       const gt=loseA.reduce((s,a)=>s+a.effElo,0);
       await addDoc(collection(db,'history'),{
         date,winner,
         evilTotal:winner==='evil'?et:gt,goodTotal:winner==='evil'?gt:et,
         gap:Math.abs(et-gt),timestamp:ts||Date.now(),source:'auto',gameId:gid,
+        duration:durationSec,
         evilAssign:(winner==='evil'?winA:loseA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
         goodAssign:(winner==='evil'?loseA:winA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
       });
