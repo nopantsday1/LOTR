@@ -833,8 +833,8 @@ async function autoRecord(){
       if(members.length<8) continue;  // dropped/incomplete matches have fewer than 8 players
 
       // Skip very short games (under 10 min) — likely dropped/restored before real play
-      const durationSec=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
-      if(durationSec!==null && durationSec<600) continue;
+      const durCheck=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
+      if(durCheck!==null && durCheck<600) continue;
 
       // Skip duplicate lineups — same community players within 30 min of an existing game
       const matchCommIds=new Set(members.filter(m=>commIds.has(Number(m.profile_id))).map(m=>String(m.profile_id)));
@@ -1272,14 +1272,14 @@ window.runImport=async function(){
 
       const ts=(match.completiontime||match.startgametime||0)*1000;
       const date=ts?new Date(ts).toLocaleDateString('en-CA'):'unknown';
-      const durationSec=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
+      const durationSecI=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
       const et=winA.reduce((s,a)=>s+a.effElo,0);
       const gt=loseA.reduce((s,a)=>s+a.effElo,0);
       await addDoc(collection(db,'history'),{
         date,winner,
         evilTotal:winner==='evil'?et:gt,goodTotal:winner==='evil'?gt:et,
         gap:Math.abs(et-gt),timestamp:ts||Date.now(),source:'auto',gameId:gid,
-        duration:durationSec,
+        duration:durationSecI,
         evilAssign:(winner==='evil'?winA:loseA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
         goodAssign:(winner==='evil'?loseA:winA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
       });
