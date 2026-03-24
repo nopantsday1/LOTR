@@ -204,6 +204,14 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
 .suggest-card:hover{border-color:var(--gold-d);}
 .suggest-card.selected{border-color:var(--gold);background:#1f1b12;}
 /* WIN ODDS */
+.bulk-row{display:flex;align-items:center;gap:.75rem;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--bg2);cursor:grab;user-select:none;transition:background .15s;}
+.bulk-row:hover{background:var(--bg3);}
+.bulk-row.dragging{opacity:.4;cursor:grabbing;}
+.bulk-row.drag-over{border-top:2px solid var(--gold);}
+.bulk-rank{font-family:'Cinzel',serif;font-size:10px;color:var(--muted);width:1.5rem;text-align:center;flex-shrink:0;}
+.bulk-name{flex:1;font-size:14px;}
+.bulk-elo{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--gold);width:50px;text-align:right;flex-shrink:0;}
+.drag-handle{color:var(--muted);font-size:16px;cursor:grab;flex-shrink:0;}
 .odds-bar{height:10px;border-radius:5px;overflow:hidden;background:var(--bg3);margin:.5rem 0;display:flex;}
 .odds-evil{background:var(--evil);transition:width .5s;}
 .odds-good{background:var(--good);transition:width .5s;}
@@ -394,6 +402,12 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
     <div class="ph sb"><h1>Admin Panel</h1><button class="btn" onclick="lockAdmin()">🔒 Lock</button></div>
 
     <div class="card">
+      <div class="ct">Bulk Elo Seeder</div>
+      <p style="font-size:14px;color:var(--dim);margin-bottom:1rem">Drag players to rank them by skill. Elos are auto-assigned from top to bottom across a range you set.</p>
+      <button class="btn-p" onclick="openModal('mBulkElo')">⇅ Open Bulk Seeder</button>
+    </div>
+
+    <div class="card">
       <div class="ct">Historical Import <span style="font-size:10px;color:var(--muted)">(one-time)</span></div>
       <p style="font-size:14px;color:var(--dim);margin-bottom:1rem">Reads all matches from <code style="font-size:12px;color:var(--gold)">matches.json</code>, resets ratings to 1200, then replays every game oldest→newest to compute accurate ratings.</p>
       <div class="row" style="margin-bottom:.75rem">
@@ -420,6 +434,25 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
         <input type="password" id="newPass" placeholder="New password" style="max-width:220px">
         <button class="btn" onclick="savePass()">Save</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ BULK ELO MODAL ══ -->
+<div class="mo" id="mBulkElo">
+  <div class="modal wide" style="max-width:560px">
+    <span class="mclose" onclick="closeModal('mBulkElo')">×</span>
+    <div class="mtitle">Bulk Elo Seeder</div>
+    <p style="font-size:13px;color:var(--dim);margin-bottom:1rem">Drag to rank players best→worst. Set the Elo range and apply.</p>
+    <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap">
+      <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Top Elo</label><input type="number" id="bulkEloTop" value="1400" min="1000" max="2000" style="width:90px"></div>
+      <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Bottom Elo</label><input type="number" id="bulkEloBottom" value="1050" min="500" max="1500" style="width:90px"></div>
+      <div style="flex:1;font-size:12px;color:var(--muted)" id="bulkEloPreview"></div>
+    </div>
+    <div id="bulkEloList" style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:3px"></div>
+    <div class="row" style="margin-top:1rem">
+      <button class="btn" onclick="closeModal('mBulkElo')">Cancel</button>
+      <button class="btn-p" onclick="applyBulkElo()">✓ Apply to All Players</button>
     </div>
   </div>
 </div>
@@ -2349,6 +2382,109 @@ window.openMatchDetail=function(id){
     ${adminUnlocked?`<div style="margin-top:.75rem;text-align:right"><button class="btn" onclick="closeModal('mMatchDetail');openMatchEditor('${h.id}')">✎ Edit Result</button></div>`:''}`;
 
   openModal('mMatchDetail');
+};
+
+// ─────────────────────────────────────────
+// BULK ELO SEEDER
+// ─────────────────────────────────────────
+let bulkOrder=[]; // array of player ids in ranked order
+let dragSrcIdx=null;
+
+window.openBulkElo=function(){
+  if(!adminUnlocked){toast('Admin required','err');return;}
+  openModal('mBulkElo');
+  // Init order sorted by current overall Elo descending
+  bulkOrder=[...players].sort((a,b)=>overallElo(b)-overallElo(a)).map(p=>p.id);
+  renderBulkList();
+  updateBulkPreview();
+};
+
+// Override the button onclick
+document.addEventListener('click',e=>{
+  if(e.target.closest('button')?.textContent.includes('Open Bulk Seeder')) openBulkElo();
+});
+
+function calcBulkElos(){
+  const top=Number(document.getElementById('bulkEloTop')?.value)||1400;
+  const bot=Number(document.getElementById('bulkEloBottom')?.value)||1050;
+  const n=bulkOrder.length;
+  return bulkOrder.map((_,i)=>n===1?top:Math.round(top-(top-bot)*(i/(n-1))));
+}
+
+function updateBulkPreview(){
+  const elos=calcBulkElos();
+  const el=document.getElementById('bulkEloPreview');
+  if(el) el.textContent=`Step: ${elos.length>1?Math.round((elos[0]-elos[elos.length-1])/(elos.length-1)):0} Elo between players`;
+  // Update elo previews on rows
+  document.querySelectorAll('.bulk-elo').forEach((el,i)=>{ el.textContent=elos[i]||''; });
+  document.querySelectorAll('.bulk-rank').forEach((el,i)=>{ el.textContent='#'+(i+1); });
+}
+
+function renderBulkList(){
+  const el=document.getElementById('bulkEloList'); if(!el) return;
+  const elos=calcBulkElos();
+  el.innerHTML=bulkOrder.map((id,i)=>{
+    const p=players.find(pl=>pl.id===id); if(!p) return '';
+    return `<div class="bulk-row" draggable="true" data-idx="${i}"
+      ondragstart="bulkDragStart(${i})"
+      ondragover="bulkDragOver(event,${i})"
+      ondragleave="bulkDragLeave(event)"
+      ondrop="bulkDrop(${i})"
+      ondragend="bulkDragEnd()">
+      <span class="drag-handle">⠿</span>
+      <span class="bulk-rank">#${i+1}</span>
+      <span class="bulk-name">${p.name}</span>
+      <span class="bulk-elo">${elos[i]}</span>
+    </div>`;
+  }).join('');
+  // Attach input listeners for live preview
+  ['bulkEloTop','bulkEloBottom'].forEach(id=>{
+    const inp=document.getElementById(id);
+    if(inp) inp.oninput=()=>{ renderBulkList(); updateBulkPreview(); };
+  });
+}
+
+window.bulkDragStart=function(idx){
+  dragSrcIdx=idx;
+  setTimeout(()=>document.querySelectorAll('.bulk-row')[idx]?.classList.add('dragging'),0);
+};
+window.bulkDragOver=function(e,idx){
+  e.preventDefault();
+  document.querySelectorAll('.bulk-row').forEach(r=>r.classList.remove('drag-over'));
+  document.querySelectorAll('.bulk-row')[idx]?.classList.add('drag-over');
+};
+window.bulkDragLeave=function(e){
+  e.currentTarget.classList.remove('drag-over');
+};
+window.bulkDrop=function(toIdx){
+  if(dragSrcIdx===null||dragSrcIdx===toIdx) return;
+  const moved=bulkOrder.splice(dragSrcIdx,1)[0];
+  bulkOrder.splice(toIdx,0,moved);
+  dragSrcIdx=null;
+  renderBulkList();
+  updateBulkPreview();
+};
+window.bulkDragEnd=function(){
+  document.querySelectorAll('.bulk-row').forEach(r=>{
+    r.classList.remove('dragging','drag-over');
+  });
+  dragSrcIdx=null;
+};
+
+window.applyBulkElo=async function(){
+  if(!adminUnlocked){toast('Admin required','err');return;}
+  const elos=calcBulkElos();
+  toast('Applying Elo ratings…');
+  for(let i=0;i<bulkOrder.length;i++){
+    const p=players.find(pl=>pl.id===bulkOrder[i]); if(!p) continue;
+    const elo=elos[i];
+    p.civElo=p.civElo||{};
+    CIVS.forEach(c=>{ p.civElo[c.id]=elo; });
+    await savePl(p);
+  }
+  closeModal('mBulkElo');
+  toast(`Applied Elo ratings to ${bulkOrder.length} players!`);
+  renderLB(); renderPTable();
 };
 
 // START
