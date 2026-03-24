@@ -735,7 +735,9 @@ async function applyResult(winA,loseA,winner,evilTotal,goodTotal,date,source,gam
     goodAssign:loseA.map(a=>({name:a.player?.name||`Player ${a.player?.id||'?'}`,civName:a.civName||'',effElo:a.effElo})),
   };
   if(gameId) entry.gameId=gameId;
-  await addDoc(collection(db,'history'),entry);
+  // Use gameId as document ID so concurrent writes are idempotent (no duplicates)
+  const docRef = gameId ? doc(db,'history',String(gameId)) : doc(collection(db,'history'));
+  await setDoc(docRef, entry);
 }
 
 // ─────────────────────────────────────────
@@ -947,7 +949,8 @@ async function autoRecord(){
       const durationSec=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
       const et=winA.reduce((s,a)=>s+a.effElo,0);
       const gt=loseA.reduce((s,a)=>s+a.effElo,0);
-      await addDoc(collection(db,'history'),{
+      // Use gameId as document ID — concurrent writes from multiple tabs just overwrite same doc
+      await setDoc(doc(db,'history',gid),{
         date,winner,evilTotal:winner==='evil'?et:gt,goodTotal:winner==='evil'?gt:et,
         gap:Math.abs(et-gt),timestamp:ts||Date.now(),source:'auto',gameId:gid,
         duration:durationSec,
@@ -1289,7 +1292,7 @@ window.runImport=async function(){
       const durationSecI=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
       const et=winA.reduce((s,a)=>s+a.effElo,0);
       const gt=loseA.reduce((s,a)=>s+a.effElo,0);
-      await addDoc(collection(db,'history'),{
+      await setDoc(doc(db,'history',gid),{
         date,winner,
         evilTotal:winner==='evil'?et:gt,goodTotal:winner==='evil'?gt:et,
         gap:Math.abs(et-gt),timestamp:ts||Date.now(),source:'auto',gameId:gid,
