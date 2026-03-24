@@ -639,8 +639,15 @@ const toast   = (m,t='ok') => {
   el.classList.add('on'); setTimeout(()=>el.classList.remove('on'),2800);
 };
 
-function calcElo(elo, oppAvg, won, games){
-  const K=games<20?128:games<40?64:32;
+function calcElo(elo, oppAvg, won, totalGames, civGames){
+  // K=200 for first 5 games on this specific civ (provisional)
+  // K=128 for first 20 total games (new player)
+  // K=64 for games 20-40
+  // K=32 after 40 games
+  const K = (civGames !== undefined && civGames < 5) ? 200
+           : totalGames < 20 ? 128
+           : totalGames < 40 ? 64
+           : 32;
   const E=1/(1+Math.pow(10,(oppAvg-elo)/400));
   return Math.max(100, Math.round(elo+K*((won?1:0)-E)));
 }
@@ -944,7 +951,8 @@ async function applyResult(winA,loseA,winner,evilTotal,goodTotal,date,source,gam
     const p=a.player, g=(p.wins||0)+(p.losses||0);
     p.civElo=p.civElo||{};
     const curCivElo=civElo(p,a.civId);
-    p.civElo[a.civId]=calcElo(curCivElo, avgLose, true, g);
+    const cgW=a.civId?((p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0)):undefined;
+    p.civElo[a.civId]=calcElo(curCivElo, avgLose, true, g, cgW);
     p.wins=(p.wins||0)+1;
     if(a.civId){ p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1; }
     await savePl(p);
@@ -954,7 +962,8 @@ async function applyResult(winA,loseA,winner,evilTotal,goodTotal,date,source,gam
     const p=a.player, g=(p.wins||0)+(p.losses||0);
     p.civElo=p.civElo||{};
     const curCivElo=civElo(p,a.civId);
-    p.civElo[a.civId]=calcElo(curCivElo, avgWin, false, g);
+    const cgL=a.civId?((p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0)):undefined;
+    p.civElo[a.civId]=calcElo(curCivElo, avgWin, false, g, cgL);
     p.losses=(p.losses||0)+1;
     if(a.civId){ p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1; }
     await savePl(p);
@@ -1171,7 +1180,8 @@ async function autoRecord(){
         const p=a.player, won=commWin.includes(a), g=(p.wins||0)+(p.losses||0);
         p.civElo=p.civElo||{};
         if(a.civId){
-          p.civElo[a.civId]=calcElo(civElo(p,a.civId), won?avgLose:avgWin, won, g);
+          const cg1=(p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0);
+          p.civElo[a.civId]=calcElo(civElo(p,a.civId), won?avgLose:avgWin, won, g, cg1);
           if(won){ p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1; }
           else   { p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1; }
         }
@@ -1571,7 +1581,8 @@ window.runImport=async function(){
         const p=a.player, won=commWin.includes(a), g=(p.wins||0)+(p.losses||0);
         p.civElo=p.civElo||{};
         if(a.civId){
-          p.civElo[a.civId]=calcElo(civElo(p,a.civId),won?avgLose:avgWin,won,g);
+          const cg2=(p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0);
+          p.civElo[a.civId]=calcElo(civElo(p,a.civId),won?avgLose:avgWin,won,g,cg2);
           if(won){ p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1; }
           else   { p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1; }
         }
@@ -2107,6 +2118,7 @@ function buildEloHistory(p,matches){
   const startElo=Math.round(CIVS.reduce((s,c)=>s+civElos[c.id],0)/CIVS.length);
   const pts=[{date:'Start',elo:startElo}];
   let gamesPlayed=0;
+  const civGamesPlayed={}; // track per-civ games for K=200 provisional
 
   for(const h of [...matches].reverse()){
     const oe=(h.evilAssign||[]).some(a=>a.name===p.name);
@@ -2116,10 +2128,12 @@ function buildEloHistory(p,matches){
     const civ=CIVS.find(c=>c.name===my.civName); if(!civ) continue;
     const opp=oe?h.goodAssign:h.evilAssign;
     const oppAvg=(opp||[]).reduce((s,a)=>s+(a.effElo||1200),0)/Math.max(1,(opp||[]).length);
-    const K=gamesPlayed<20?128:gamesPlayed<40?64:32;
+    const civG=civGamesPlayed[civ.id]||0;
+    const K=civG<5?200:gamesPlayed<20?128:gamesPlayed<40?64:32;
     const E=1/(1+Math.pow(10,(oppAvg-civElos[civ.id])/400));
     civElos[civ.id]=Math.max(100,Math.round(civElos[civ.id]+K*((won?1:0)-E)));
     gamesPlayed++;
+    civGamesPlayed[civ.id]=(civGamesPlayed[civ.id]||0)+1;
     pts.push({date:h.date||'',elo:Math.round(CIVS.reduce((s,c)=>s+civElos[c.id],0)/CIVS.length)});
   }
   return pts;
@@ -2374,7 +2388,7 @@ window.saveMatchEdit=async function(newWinner){
     p.wins=(p.wins||0)+1;
     if(a.civName){
       const civ=CIVS.find(c=>c.name===a.civName);
-      if(civ){p.civElo=p.civElo||{};p.civElo[civ.id]=calcElo(civElo(p,civ.id),avgLose,true,(p.wins||0)+(p.losses||0));}
+      if(civ){p.civElo=p.civElo||{};const cgE=(p.civWins?.[civ.id]||0)+(p.civLosses?.[civ.id]||0); p.civElo[civ.id]=calcElo(civElo(p,civ.id),avgLose,true,(p.wins||0)+(p.losses||0),cgE);}
     }
     await savePl(p);
   }
@@ -2383,7 +2397,7 @@ window.saveMatchEdit=async function(newWinner){
     p.losses=(p.losses||0)+1;
     if(a.civName){
       const civ=CIVS.find(c=>c.name===a.civName);
-      if(civ){p.civElo=p.civElo||{};p.civElo[civ.id]=calcElo(civElo(p,civ.id),avgWin,false,(p.wins||0)+(p.losses||0));}
+      if(civ){p.civElo=p.civElo||{};const cgF=(p.civWins?.[civ.id]||0)+(p.civLosses?.[civ.id]||0); p.civElo[civ.id]=calcElo(civElo(p,civ.id),avgWin,false,(p.wins||0)+(p.losses||0),cgF);}
     }
     await savePl(p);
   }
