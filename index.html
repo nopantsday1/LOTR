@@ -188,6 +188,25 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
 .back-btn{font-family:'Cinzel',serif;font-size:10px;letter-spacing:.1em;color:var(--dim);cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;margin-bottom:1.25rem;background:none;border:none;padding:0;}
 .back-btn:hover{color:var(--gold);}
 .elo-chart{width:100%;height:160px;}
+/* FAV/AVOID */
+.fav-avoid{display:flex;gap:4px;margin-left:auto;}
+.fa-btn{font-size:14px;cursor:pointer;opacity:.35;transition:opacity .15s,transform .15s;background:none;border:none;padding:0 2px;line-height:1;}
+.fa-btn:hover{opacity:.8;}
+.fa-btn.active{opacity:1;transform:scale(1.2);}
+/* STREAK */
+.streak-badge{font-size:11px;font-family:'Cinzel',serif;padding:2px 6px;border-radius:2px;margin-left:6px;}
+.streak-w{background:#1a2e1a;color:#5a9a5a;border:1px solid #2a4a2a;}
+.streak-l{background:#2e1010;color:#c04848;border:1px solid #4a2020;}
+/* SUGGESTIONS */
+.suggest-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-top:.75rem;}
+@media(max-width:700px){.suggest-grid{grid-template-columns:1fr;}}
+.suggest-card{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:.75rem;cursor:pointer;transition:border-color .15s;}
+.suggest-card:hover{border-color:var(--gold-d);}
+.suggest-card.selected{border-color:var(--gold);background:#1f1b12;}
+/* WIN ODDS */
+.odds-bar{height:10px;border-radius:5px;overflow:hidden;background:var(--bg3);margin:.5rem 0;display:flex;}
+.odds-evil{background:var(--evil);transition:width .5s;}
+.odds-good{background:var(--good);transition:width .5s;}
 </style>
 </head>
 <body>
@@ -198,6 +217,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
   <button class="tab" onclick="go('history')">History</button>
   <button class="tab" onclick="go('players')">Players</button>
   <button class="tab" onclick="go('leaderboard')">Leaderboard</button>
+  <button class="tab" onclick="go('stats')">Stats</button>
   <button class="tab" onclick="go('admin')">Admin</button>
   <button class="tab" id="liveTab" onclick="go('live')">Live <span id="liveDot" style="display:none;width:7px;height:7px;border-radius:50%;background:#e08080;display:inline-block;vertical-align:middle;margin-left:4px;animation:pulse .8s infinite"></span></button>
   <span class="spacer"></span>
@@ -221,12 +241,26 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
   </div>
 
   <div id="result" style="display:none">
-    <div style="margin-bottom:.5rem"><div id="gapBadge"></div></div>
+    <div style="margin-bottom:.5rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+      <div id="gapBadge"></div>
+      <div id="oddsBadge"></div>
+    </div>
+    <div id="oddsBar" style="display:none;margin-bottom:.75rem">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-bottom:3px">
+        <span style="color:var(--evil)">⚔ Evil</span>
+        <span style="color:var(--good)">Good ✦</span>
+      </div>
+      <div class="odds-bar"><div class="odds-evil" id="oddsEvil"></div><div class="odds-good" id="oddsGood"></div></div>
+    </div>
     <div class="teams">
       <div class="tpanel evil" id="tEvil"></div>
       <div class="tpanel good" id="tGood"></div>
     </div>
     <p style="font-size:12px;color:var(--muted);margin-top:.6rem">Click any row to swap players between teams or swap civs within a team.</p>
+    <div id="suggestSection" style="display:none;margin-top:1rem">
+      <div class="ct">Top 3 Balanced Splits — click one to use it</div>
+      <div class="suggest-grid" id="suggestGrid"></div>
+    </div>
   </div>
 </div>
 
@@ -311,6 +345,31 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
   <div id="profileContent"></div>
 </div>
 
+<!-- ══ STATS ══ -->
+<div class="page" id="page-stats">
+  <div class="ph"><h1>Community Stats</h1><p>Aggregated statistics across all recorded matches.</p></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;margin-bottom:1rem">
+    <div class="card"><div class="ct">Games Per Day</div><canvas id="gamesPerDayChart" style="width:100%;height:140px"></canvas></div>
+    <div class="card"><div class="ct">Civ Win Rates</div><div id="civMetaStats"></div></div>
+    <div class="card"><div class="ct">Player Streaks</div><div id="streakList"></div></div>
+    <div class="card"><div class="ct">Community Records</div><div id="communityRecords"></div></div>
+  </div>
+</div>
+
+<!-- ══ MATCH EDITOR MODAL ══ -->
+<div class="mo" id="mEditMatch">
+  <div class="modal wide">
+    <span class="mclose" onclick="closeModal('mEditMatch')">×</span>
+    <div class="mtitle">Edit Match Result</div>
+    <div id="editMatchContent"></div>
+    <div class="row" style="margin-top:1rem">
+      <button class="btn" onclick="closeModal('mEditMatch')">Cancel</button>
+      <button class="btn-e" onclick="saveMatchEdit('evil')">⚔ Evil Win</button>
+      <button class="btn-g" onclick="saveMatchEdit('good')">✦ Good Win</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ ADMIN ══ -->
 <div class="page" id="page-admin">
   <div id="adminGate">
@@ -393,6 +452,8 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
       <div><label>Name</label><input type="text" id="epName"></div>
       <div><label>Profile ID</label><input type="number" id="epPid"></div>
     </div>
+    <div class="ct" style="margin-bottom:.6rem">Favourite & Avoid Civs</div>
+    <div id="favAvoidGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin-bottom:1rem"></div>
     <div class="ct" style="margin-bottom:.6rem">Individual Civ Elos</div>
     <div class="civ-grid" id="civGrid"></div>
     <div class="sb" style="margin-top:1.1rem">
@@ -547,9 +608,16 @@ function* permutations(arr){
 }
 
 function bestAssign(players, civs){
+  // Fav civ gets +15% bonus, avoid civ gets -40% penalty
+  const adjElo=(p,cid)=>{
+    let e=civElo(p,cid);
+    if((p.favCivs||[]).includes(cid))   e=Math.round(e*1.15);
+    if((p.avoidCivs||[]).includes(cid)) e=Math.round(e*0.60);
+    return e;
+  };
   let best=null, bestScore=-Infinity;
   for(const perm of permutations(civs.map(c=>c.id))){
-    const score=players.reduce((s,p,i)=>s+civElo(p,perm[i]),0);
+    const score=players.reduce((s,p,i)=>s+adjElo(p,perm[i]),0);
     if(score>bestScore){bestScore=score;best=perm;}
   }
   return players.map((p,i)=>({player:p,civId:best[i],civName:CIVS.find(c=>c.id===best[i]).name,effElo:civElo(p,best[i])}));
@@ -655,25 +723,79 @@ function doBalance(random=false){
     const et=ea.reduce((s,a)=>s+a.effElo,0), gt=ga.reduce((s,a)=>s+a.effElo,0);
     return{evilAssign:ea,goodAssign:ga,evilTotal:et,goodTotal:gt,gap:Math.abs(et-gt)};
   }
-  let best=null,bestGap=Infinity;
+  // Collect top 3 unique splits sorted by gap
+  const results=[];
   for(const m of splits){
     const ep=sel.filter((_,i)=>(m>>i)&1), gp=sel.filter((_,i)=>!((m>>i)&1));
     const ea=bestAssign(ep,EVIL_CIVS), ga=bestAssign(gp,GOOD_CIVS);
     const et=ea.reduce((s,a)=>s+a.effElo,0), gt=ga.reduce((s,a)=>s+a.effElo,0);
     const gap=Math.abs(et-gt);
-    if(gap<bestGap){bestGap=gap;best={evilAssign:ea,goodAssign:ga,evilTotal:et,goodTotal:gt,gap};}
+    results.push({evilAssign:ea,goodAssign:ga,evilTotal:et,goodTotal:gt,gap});
   }
-  return best;
+  results.sort((a,b)=>a.gap-b.gap);
+  // Deduplicate by player set
+  const top3=[], seen=new Set();
+  for(const r of results){
+    const key=[...r.evilAssign.map(a=>a.player.id)].sort().join(',');
+    if(!seen.has(key)){seen.add(key);top3.push(r);}
+    if(top3.length>=3) break;
+  }
+  return{...top3[0], suggestions:top3};
 }
 
-window.runBalance=function(){swapSrc=null;const r=doBalance(false);if(r){lastBal=r;renderResult(r);}};
+function calcWinOdds(r){
+  // Win probability using Elo formula: P(evil wins) = 1/(1+10^((goodTotal-evilTotal)/400))
+  const diff=r.evilTotal-r.goodTotal;
+  const evilPct=Math.round(100/(1+Math.pow(10,-diff/400)));
+  return{evil:evilPct, good:100-evilPct};
+}
+
+window.runBalance=function(){
+  swapSrc=null;
+  const r=doBalance(false);
+  if(r){
+    lastBal=r;
+    renderResult(r);
+    renderSuggestions(r.suggestions||[r]);
+  }
+};
 window.runRandom=function(){swapSrc=null;const r=doBalance(true); if(r){lastBal=r;renderResult(r);}};
+
+function renderSuggestions(suggestions){
+  const sec=document.getElementById('suggestSection');
+  const grid=document.getElementById('suggestGrid');
+  if(!suggestions||suggestions.length<2){sec.style.display='none';return;}
+  sec.style.display='block';
+  grid.innerHTML=suggestions.map((r,i)=>`
+    <div class="suggest-card ${i===0?'selected':''}" onclick="selectSuggestion(${i})">
+      <div style="display:flex;justify-content:space-between;margin-bottom:.5rem">
+        <span style="font-family:'Cinzel',serif;font-size:9px;color:var(--muted)">#${i+1}</span>
+        <span class="gap-badge ${r.gap<100?'tight':r.gap<300?'mid':'wide'}" style="font-size:10px;padding:2px 6px">Gap: ${r.gap}</span>
+      </div>
+      <div style="font-size:12px;color:var(--evil);margin-bottom:2px">⚔ ${r.evilAssign.map(a=>a.player.name).join(', ')}</div>
+      <div style="font-size:12px;color:var(--good)">✦ ${r.goodAssign.map(a=>a.player.name).join(', ')}</div>
+    </div>`).join('');
+  window._suggestions=suggestions;
+}
+
+window.selectSuggestion=function(idx){
+  const r=window._suggestions[idx];
+  lastBal=r; renderResult(r);
+  document.querySelectorAll('.suggest-card').forEach((el,i)=>el.classList.toggle('selected',i===idx));
+};
 
 function renderResult(r){
   document.getElementById('result').style.display='block';
   const cls=r.gap<100?'tight':r.gap<300?'mid':'wide';
   const lbl=r.gap<100?'Well balanced':r.gap<300?'Moderate gap':'Large gap';
   document.getElementById('gapBadge').innerHTML=`<span class="gap-badge ${cls}">Gap: ${r.gap} Elo — ${lbl}</span>`;
+  // Win odds
+  const odds=calcWinOdds(r);
+  document.getElementById('oddsBadge').innerHTML=`<span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted)">⚔ ${odds.evil}% · ✦ ${odds.good}%</span>`;
+  const bar=document.getElementById('oddsBar');
+  bar.style.display='block';
+  document.getElementById('oddsEvil').style.width=odds.evil+'%';
+  document.getElementById('oddsGood').style.width=odds.good+'%';
   renderTeam('tEvil',r.evilAssign,'evil',r.evilTotal);
   renderTeam('tGood',r.goodAssign,'good',r.goodTotal);
 }
@@ -687,7 +809,7 @@ function renderTeam(id,assign,side,total){
     row.className='arow'+(swapSrc?.side===side&&swapSrc?.i===i?' sel':'');
     row.onclick=()=>doSwap(side,i);
     row.innerHTML=`<span class="aname">${a.player.name}</span>
-      <span class="aciv">${a.civName}</span>
+      <span class="aciv">${a.civName}${(a.player.favCivs||[]).includes(a.civId)?' ⭐':''}</span>
       <span class="aelo">${a.effElo}</span>`;
     el.appendChild(row);
   });
@@ -811,7 +933,8 @@ function renderHist(){
         <span class="hbadge ${w}">${w==='evil'?'⚔ Evil Win':'✦ Good Win'}</span>
         ${h.source==='auto'?'<span class="hbadge auto">AUTO</span>':''}
         <span class="hi-meta">${h.date||''} · Gap: ${h.gap!=null?h.gap:'?'}${h.duration?` · ${Math.floor(h.duration/60)}m${String(h.duration%60).padStart(2,'0')}s`:''}</span>
-        <button class="btn" style="font-size:9px;padding:3px 8px;margin-left:auto" onclick="delHist('${h.id}')">✕</button>
+        ${adminUnlocked?`<button class="btn" style="font-size:9px;padding:3px 8px;margin-left:auto" onclick="openMatchEditor('${h.id}')">✎ Edit</button>`:''}
+        <button class="btn" style="font-size:9px;padding:3px 8px;${adminUnlocked?'':'margin-left:auto'}" onclick="delHist('${h.id}')">✕</button>
       </div>
       <div class="hi-teams">
         <div><div class="hi-tl">Evil (${h.evilTotal||''})</div><div class="hi-pl">${eP||'—'}</div></div>
@@ -1096,22 +1219,45 @@ function renderLB(){
   let list=[...players];
   if(q) list=list.filter(p=>p.name.toLowerCase().includes(q));
   list.sort((a,b)=>civF?civElo(b,civF)-civElo(a,civF):overallElo(b)-overallElo(a));
+  // Calculate streaks from history
+  const streaks=calcStreaks();
   el.innerHTML=list.map((p,i)=>{
     const ov=overallElo(p);
     const displayElo=civF?civElo(p,civF):ov;
     const subElo=civF?`<span style="font-size:11px;color:var(--muted);margin-left:4px">(${ov})</span>`:'';
-    const w=civF?(p.civWins?.[civF]||0):(p.wins||0);
-    const l=civF?(p.civLosses?.[civF]||0):(p.losses||0);
-    const tot=w+l;
+    const w=p.wins||0, l=p.losses||0, tot=w+l;
     const wr=tot?Math.round(w/tot*100)+'%':'—';
+    const streak=streaks[p.name];
+    const streakHtml=streak&&streak.count>1?`<span class="streak-badge ${streak.type==='w'?'streak-w':'streak-l'}">${streak.type==='w'?'🔥':'❄'} ${streak.count}${streak.type.toUpperCase()}</span>`:'';
     return `<div class="lbrow">
       <span class="lbrank">${i+1}</span>
-      <span class="lbname" onclick="openProfile('${p.id}')" style="cursor:pointer" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color=''">${p.name}</span>
+      <span class="lbname" onclick="openProfile('${p.id}')" style="cursor:pointer" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color=''">${p.name}${streakHtml}</span>
       <span class="lbelo">${displayElo}${subElo}</span>
       <span class="lbwl">${w}W / ${l}L</span>
       <span class="lbwr">${wr}</span>
     </div>`;
   }).join('');
+}
+
+function calcStreaks(){
+  // For each player, find their current win/loss streak from most recent matches
+  const streaks={};
+  const sorted=[...history].sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
+  players.forEach(p=>{
+    let count=0, type=null;
+    for(const h of sorted){
+      const onEvil=(h.evilAssign||[]).some(a=>a.name===p.name);
+      const onGood=(h.goodAssign||[]).some(a=>a.name===p.name);
+      if(!onEvil&&!onGood) continue;
+      const won=(onEvil&&h.winner==='evil')||(onGood&&h.winner==='good');
+      const t=won?'w':'l';
+      if(type===null) type=t;
+      if(t===type) count++;
+      else break;
+    }
+    if(count>0) streaks[p.name]={type,count};
+  });
+  return streaks;
 }
 
 // ─────────────────────────────────────────
@@ -1124,12 +1270,34 @@ window.editPlayer=function(id){
   document.getElementById('epId').value=id;
   document.getElementById('epName').value=p.name;
   document.getElementById('epPid').value=p.profileId||'';
+  // Fav/Avoid grid
+  const favs=new Set(p.favCivs||[]);
+  const avoids=new Set(p.avoidCivs||[]);
+  document.getElementById('favAvoidGrid').innerHTML=CIVS.map(c=>`
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:5px 8px;display:flex;align-items:center;gap:4px">
+      <span style="font-size:11px;flex:1;color:${c.side==='evil'?'var(--evil)':'var(--good)'}">${c.name}</span>
+      <button class="fa-btn ${favs.has(c.id)?'active':''}" id="fav_${c.id}" onclick="toggleFavAvoid('${c.id}','fav')" title="Favourite">⭐</button>
+      <button class="fa-btn ${avoids.has(c.id)?'active':''}" id="avoid_${c.id}" onclick="toggleFavAvoid('${c.id}','avoid')" title="Avoid">🚫</button>
+    </div>`).join('');
   document.getElementById('civGrid').innerHTML=CIVS.map(c=>`
     <div class="civ-edit">
       <div class="civ-edit-label ${c.side}">${c.name}</div>
       <input type="number" id="ce_${c.id}" value="${civElo(p,c.id)}" min="100" max="3000">
     </div>`).join('');
   openModal('mEditPlayer');
+};
+
+// Toggle fav/avoid buttons in edit modal (mutually exclusive)
+window.toggleFavAvoid=function(civId, type){
+  const favBtn=document.getElementById('fav_'+civId);
+  const avoidBtn=document.getElementById('avoid_'+civId);
+  if(type==='fav'){
+    favBtn.classList.toggle('active');
+    if(favBtn.classList.contains('active')) avoidBtn.classList.remove('active');
+  } else {
+    avoidBtn.classList.toggle('active');
+    if(avoidBtn.classList.contains('active')) favBtn.classList.remove('active');
+  }
 };
 
 window.savePlayer=async function(){
@@ -1141,6 +1309,9 @@ window.savePlayer=async function(){
   p.profileId=pid?Number(pid):null;
   p.civElo=p.civElo||{};
   CIVS.forEach(c=>{ p.civElo[c.id]=Math.max(100,Number(document.getElementById('ce_'+c.id).value)||DEFAULT_ELO); });
+  // Save fav/avoid
+  p.favCivs=CIVS.filter(c=>document.getElementById('fav_'+c.id)?.classList.contains('active')).map(c=>c.id);
+  p.avoidCivs=CIVS.filter(c=>document.getElementById('avoid_'+c.id)?.classList.contains('active')).map(c=>c.id);
   await savePl(p); closeModal('mEditPlayer'); toast('Saved');
 };
 
@@ -1941,6 +2112,198 @@ function drawEloChart(pts){
     ctx.fillStyle='#c9a84c'; ctx.fill();
   });
 }
+
+// ─────────────────────────────────────────
+// STATS PAGE
+// ─────────────────────────────────────────
+function renderStats(){
+  renderGamesPerDay();
+  renderCivMeta();
+  renderStreakList();
+  renderCommunityRecords();
+}
+
+function renderGamesPerDay(){
+  const canvas=document.getElementById('gamesPerDayChart'); if(!canvas) return;
+  // Build games per day from last 60 days
+  const counts={};
+  const now=Date.now();
+  history.forEach(h=>{
+    if(!h.date) return;
+    const daysAgo=Math.floor((now-(h.timestamp||0))/(86400000));
+    if(daysAgo>60) return;
+    counts[h.date]=(counts[h.date]||0)+1;
+  });
+  // Build 60-day array
+  const days=[];
+  for(let i=59;i>=0;i--){
+    const d=new Date(now-i*86400000).toLocaleDateString('en-CA');
+    days.push({date:d,count:counts[d]||0});
+  }
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.offsetWidth, H=canvas.offsetHeight||140;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  const max=Math.max(1,...days.map(d=>d.count));
+  const pad={t:8,r:8,b:20,l:20};
+  const cW=W-pad.l-pad.r, cH=H-pad.t-pad.b;
+  const bW=cW/days.length-1;
+  ctx.clearRect(0,0,W,H);
+  days.forEach((d,i)=>{
+    const x=pad.l+i*(cW/days.length);
+    const bH=(d.count/max)*cH;
+    const y=pad.t+cH-bH;
+    ctx.fillStyle=d.count?'var(--gold)':'rgba(255,255,255,0.05)';
+    ctx.fillRect(x,y,Math.max(1,bW),bH);
+  });
+  // X axis labels (every 10 days)
+  ctx.fillStyle='rgba(156,136,120,0.6)'; ctx.font='9px monospace'; ctx.textAlign='center';
+  [0,10,20,30,40,50,59].forEach(i=>{
+    const x=pad.l+i*(cW/days.length)+bW/2;
+    ctx.fillText(days[i].date.slice(5),x,H-4);
+  });
+}
+
+function renderCivMeta(){
+  const el=document.getElementById('civMetaStats'); if(!el) return;
+  const stats={};
+  CIVS.forEach(c=>{stats[c.id]={civ:c,w:0,l:0};});
+  history.forEach(h=>{
+    [...(h.evilAssign||[]),...(h.goodAssign||[])].forEach(a=>{
+      if(!a.civName) return;
+      const civ=CIVS.find(c=>c.name===a.civName); if(!civ) return;
+      const onEvil=(h.evilAssign||[]).some(x=>x.civName===a.civName&&x.name===a.name);
+      const won=(onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
+      if(won) stats[civ.id].w++; else stats[civ.id].l++;
+    });
+  });
+  el.innerHTML=CIVS.map(c=>{
+    const s=stats[c.id], tot=s.w+s.l, pct=tot?Math.round(s.w/tot*100):0;
+    return `<div style="display:flex;align-items:center;gap:.5rem;padding:4px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:11px;color:${c.side==='evil'?'var(--evil)':'var(--good)'};width:100px;flex-shrink:0">${c.name}</span>
+      <div style="flex:1;height:5px;background:var(--bg2);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${c.side==='evil'?'var(--evil)':'var(--good)'};border-radius:3px"></div>
+      </div>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);width:60px;text-align:right">${s.w}W/${s.l}L ${tot?pct+'%':'—'}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderStreakList(){
+  const el=document.getElementById('streakList'); if(!el) return;
+  const streaks=calcStreaks();
+  const sorted=Object.entries(streaks).filter(([,s])=>s.count>=2).sort((a,b)=>b[1].count-a[1].count);
+  if(!sorted.length){el.innerHTML='<p style="color:var(--muted);font-size:13px">No active streaks.</p>';return;}
+  el.innerHTML=sorted.map(([name,s])=>`
+    <div style="display:flex;align-items:center;gap:.75rem;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="flex:1;font-size:14px">${name}</span>
+      <span class="streak-badge ${s.type==='w'?'streak-w':'streak-l'}">${s.type==='w'?'🔥':'❄'} ${s.count} ${s.type==='w'?'Win':'Loss'} Streak</span>
+    </div>`).join('');
+}
+
+function renderCommunityRecords(){
+  const el=document.getElementById('communityRecords'); if(!el) return;
+  if(!history.length){el.innerHTML='<p style="color:var(--muted);font-size:13px">No matches yet.</p>';return;}
+  const totalGames=history.length;
+  const avgGap=Math.round(history.reduce((s,h)=>s+(h.gap||0),0)/totalGames);
+  const longest=history.reduce((a,b)=>(b.duration||0)>(a.duration||0)?b:a,history[0]);
+  const shortest=history.filter(h=>h.duration).reduce((a,b)=>b.duration<a.duration?b:a,history.find(h=>h.duration)||history[0]);
+  const evilWins=history.filter(h=>h.winner==='evil').length;
+  const fmt=s=>s?`${Math.floor(s/60)}m${String(s%60).padStart(2,'0')}s`:'—';
+  el.innerHTML=`
+    <div style="display:flex;flex-direction:column;gap:.5rem">
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--dim);font-size:13px">Total games</span><span style="font-family:'JetBrains Mono',monospace">${totalGames}</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--dim);font-size:13px">Avg Elo gap</span><span style="font-family:'JetBrains Mono',monospace">${avgGap}</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--dim);font-size:13px">Evil win rate</span><span style="font-family:'JetBrains Mono',monospace;color:var(--evil)">${Math.round(evilWins/totalGames*100)}%</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--dim);font-size:13px">Longest game</span><span style="font-family:'JetBrains Mono',monospace">${fmt(longest?.duration)}</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--dim);font-size:13px">Shortest game</span><span style="font-family:'JetBrains Mono',monospace">${fmt(shortest?.duration)}</span></div>
+    </div>`;
+}
+
+// Render stats when tab is opened
+const _goOrig=window.go;
+window.go=function(name){
+  _goOrig(name);
+  if(name==='stats') setTimeout(renderStats,50);
+};
+
+// ─────────────────────────────────────────
+// MATCH EDITOR
+// ─────────────────────────────────────────
+let editingMatchId=null;
+
+window.openMatchEditor=function(id){
+  if(!adminUnlocked){toast('Admin required','err');return;}
+  const h=history.find(x=>x.id===id); if(!h) return;
+  editingMatchId=id;
+  const fmt=a=>`<span style="font-size:13px">${a.name}${a.civName?' <span style="color:var(--muted)">— '+a.civName+'</span>':''}</span>`;
+  document.getElementById('editMatchContent').innerHTML=`
+    <p style="font-size:13px;color:var(--dim);margin-bottom:.75rem">${h.date} · Gap: ${h.gap||'?'}</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+      <div>
+        <div style="font-family:'Cinzel',serif;font-size:9px;color:var(--evil);letter-spacing:.1em;margin-bottom:.5rem">⚔ EVIL ${h.winner==='evil'?'(WINNER)':''}</div>
+        ${(h.evilAssign||[]).map(fmt).join('<br>')}
+      </div>
+      <div>
+        <div style="font-family:'Cinzel',serif;font-size:9px;color:var(--good);letter-spacing:.1em;margin-bottom:.5rem">✦ GOOD ${h.winner==='good'?'(WINNER)':''}</div>
+        ${(h.goodAssign||[]).map(fmt).join('<br>')}
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:1rem">Select the correct winner below. Elo will be recalculated.</p>`;
+  openModal('mEditMatch');
+};
+
+window.saveMatchEdit=async function(newWinner){
+  if(!editingMatchId) return;
+  const h=history.find(x=>x.id===editingMatchId); if(!h) return;
+  if(h.winner===newWinner){toast('Winner unchanged','err');closeModal('mEditMatch');return;}
+
+  // Reverse old Elo changes then apply new ones
+  const oldWinA=h.winner==='evil'?h.evilAssign:h.goodAssign;
+  const oldLoseA=h.winner==='evil'?h.goodAssign:h.evilAssign;
+  const newWinA=newWinner==='evil'?h.evilAssign:h.goodAssign;
+  const newLoseA=newWinner==='evil'?h.goodAssign:h.evilAssign;
+
+  const profMap=Object.fromEntries(players.map(p=>[p.name,p]));
+
+  // Reverse old result
+  for(const a of oldWinA){
+    const p=profMap[a.name]; if(!p) continue;
+    p.wins=Math.max(0,(p.wins||0)-1);
+  }
+  for(const a of oldLoseA){
+    const p=profMap[a.name]; if(!p) continue;
+    p.losses=Math.max(0,(p.losses||0)-1);
+  }
+
+  // Apply new result
+  const avgWin=newWinA.reduce((s,a)=>s+(a.effElo||1200),0)/Math.max(1,newWinA.length);
+  const avgLose=newLoseA.reduce((s,a)=>s+(a.effElo||1200),0)/Math.max(1,newLoseA.length);
+  for(const a of newWinA){
+    const p=profMap[a.name]; if(!p) continue;
+    p.wins=(p.wins||0)+1;
+    if(a.civName){
+      const civ=CIVS.find(c=>c.name===a.civName);
+      if(civ){p.civElo=p.civElo||{};p.civElo[civ.id]=calcElo(civElo(p,civ.id),avgLose,true,(p.wins||0)+(p.losses||0));}
+    }
+    await savePl(p);
+  }
+  for(const a of newLoseA){
+    const p=profMap[a.name]; if(!p) continue;
+    p.losses=(p.losses||0)+1;
+    if(a.civName){
+      const civ=CIVS.find(c=>c.name===a.civName);
+      if(civ){p.civElo=p.civElo||{};p.civElo[civ.id]=calcElo(civElo(p,civ.id),avgWin,false,(p.wins||0)+(p.losses||0));}
+    }
+    await savePl(p);
+  }
+
+  // Update history doc
+  await setDoc(doc(db,'history',String(editingMatchId)),{...h,winner:newWinner,id:undefined},{merge:true});
+  closeModal('mEditMatch');
+  toast('Match result updated!');
+  editingMatchId=null;
+};
 
 // START
 init();
