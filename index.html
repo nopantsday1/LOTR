@@ -1825,17 +1825,33 @@ function renderProfile(p){
 }
 
 function buildEloHistory(p,matches){
+  // Replay matches oldest→newest using the same calcElo logic as autoRecord
+  // Track overall Elo as average of all 8 civs after each game
+  const civElos={};
+  CIVS.forEach(c=>{ civElos[c.id]=1200; });
+  const overallEloNow=()=>Math.round(CIVS.reduce((s,c)=>s+civElos[c.id],0)/CIVS.length);
+
   const pts=[{date:'Start',elo:1200}];
-  let elo=1200;
+  let gamesPlayed=0;
+
   for(const h of [...matches].reverse()){
     const oe=(h.evilAssign||[]).some(a=>a.name===p.name);
     const won=(oe&&h.winner==='evil')||(!oe&&h.winner==='good');
+    const my=[...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name);
+    if(!my||!my.civName) continue;
+    const civ=CIVS.find(c=>c.name===my.civName);
+    if(!civ) continue;
+
+    // Get opponent average overall Elo (from stored effElo)
     const opp=oe?h.goodAssign:h.evilAssign;
-    const oa=(opp||[]).reduce((s,a)=>s+(a.effElo||1200),0)/Math.max(1,(opp||[]).length);
-    const K=pts.length<=10?64:32;
-    const E=1/(1+Math.pow(10,(oa-elo)/400));
-    elo=Math.max(100,Math.round(elo+K*((won?1:0)-E)));
-    pts.push({date:h.date||'',elo});
+    const oppAvg=(opp||[]).reduce((s,a)=>s+(a.effElo||1200),0)/Math.max(1,(opp||[]).length);
+
+    // Apply same calcElo formula as server
+    const K=gamesPlayed<10?64:32;
+    const E=1/(1+Math.pow(10,(oppAvg-civElos[civ.id])/400));
+    civElos[civ.id]=Math.max(100,Math.round(civElos[civ.id]+K*((won?1:0)-E)));
+    gamesPlayed++;
+    pts.push({date:h.date||'',elo:overallEloNow()});
   }
   return pts;
 }
