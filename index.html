@@ -409,7 +409,13 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
 
     <div class="card">
       <div class="ct">Historical Import <span style="font-size:10px;color:var(--muted)">(one-time)</span></div>
-      <p style="font-size:14px;color:var(--dim);margin-bottom:1rem">Reads all matches from <code style="font-size:12px;color:var(--gold)">matches.json</code>, resets ratings to 1200, then replays every game oldest→newest to compute accurate ratings.</p>
+      <p style="font-size:14px;color:var(--dim);margin-bottom:1rem">Reads all matches from <code style="font-size:12px;color:var(--gold)">matches.json</code> and replays every game oldest→newest to compute ratings.</p>
+      <div style="margin-bottom:.75rem;display:flex;align-items:center;gap:.75rem">
+        <label style="display:flex;align-items:center;gap:.5rem;font-size:13px;color:var(--dim);cursor:pointer">
+          <input type="checkbox" id="importReset" checked style="accent-color:var(--gold)">
+          Reset all ratings to 1200 before import
+        </label>
+      </div>
       <div class="row" style="margin-bottom:.75rem">
         <button class="btn-p" id="importBtn" onclick="runImport()">▶ Run Import</button>
       </div>
@@ -1455,15 +1461,23 @@ window.runImport=async function(){
     if(!resp.ok){ilog('HTTP '+resp.status,'err');return;}
     const data=await resp.json();
     const matches=(data.matches||[]).sort((a,b)=>(a.completiontime||0)-(b.completiontime||0));
-    ilog(`Found ${matches.length} matches. Resetting all ratings to 1200…`,'warn');
+    const doReset=document.getElementById('importReset')?.checked!==false;
 
-    // Reset
-    for(const p of players){
-      p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=DEFAULT_ELO;}); p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
+    if(doReset){
+      ilog(`Found ${matches.length} matches. Resetting all ratings to 1200…`,'warn');
+      for(const p of players){
+        p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=DEFAULT_ELO;}); p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
+      }
+      const hSnap=await getDocs(collection(db,'history'));
+      const batch=writeBatch(db); hSnap.forEach(d=>batch.delete(d.ref)); await batch.commit();
+      ilog('Ratings reset. Processing oldest→newest…');
+    } else {
+      ilog(`Found ${matches.length} matches. Keeping current Elos — processing oldest→newest…`,'warn');
+      for(const p of players){ p.wins=0; p.losses=0; }
+      const hSnap=await getDocs(collection(db,'history'));
+      const batch=writeBatch(db); hSnap.forEach(d=>batch.delete(d.ref)); await batch.commit();
+      ilog('W/L reset, history cleared. Processing…');
     }
-    const hSnap=await getDocs(collection(db,'history'));
-    const batch=writeBatch(db); hSnap.forEach(d=>batch.delete(d.ref)); await batch.commit();
-    ilog('Ratings reset. Processing oldest→newest…');
 
     const profPlayers=players.filter(p=>p.profileId);
     const commIds=new Set(profPlayers.map(p=>Number(p.profileId)));
