@@ -669,20 +669,28 @@ function doSwap(side,idx){
   if(!swapSrc){swapSrc={side,i:idx};renderResult(lastBal);return;}
   const a=swapSrc,b={side,i:idx};
   if(a.side===b.side&&a.i===b.i){swapSrc=null;renderResult(lastBal);return;}
+
   if(a.side===b.side){
-    // swap civs within team
+    // swap civs within team — recalculate effElo for each player with their new civ
     const arr=lastBal[a.side+'Assign'];
-    [arr[a.i].civId,arr[b.i].civId]=[arr[b.i].civId,arr[a.i].civId];
-    [arr[a.i].civName,arr[b.i].civName]=[arr[b.i].civName,arr[a.i].civName];
-    [arr[a.i].effElo,arr[b.i].effElo]=[arr[b.i].effElo,arr[a.i].effElo];
+    const aCivId=arr[a.i].civId, bCivId=arr[b.i].civId;
+    const aPlayer=arr[a.i].player,  bPlayer=arr[b.i].player;
+    arr[a.i].civId   = bCivId;
+    arr[a.i].civName = CIVS.find(c=>c.id===bCivId)?.name||'';
+    arr[a.i].effElo  = civElo(aPlayer, bCivId);
+    arr[b.i].civId   = aCivId;
+    arr[b.i].civName = CIVS.find(c=>c.id===aCivId)?.name||'';
+    arr[b.i].effElo  = civElo(bPlayer, aCivId);
   } else {
-    // swap players across teams — keep civ slots
+    // swap players across teams — keep civ slots, recalculate effElo
     const aArr=lastBal[a.side+'Assign'], bArr=lastBal[b.side+'Assign'];
     const aCiv=aArr[a.i].civId, bCiv=bArr[b.i].civId;
     const aP=aArr[a.i].player, bP=bArr[b.i].player;
-    aArr[a.i]={player:bP,civId:aCiv,civName:CIVS.find(c=>c.id===aCiv).name,effElo:civElo(bP,aCiv)};
-    bArr[b.i]={player:aP,civId:bCiv,civName:CIVS.find(c=>c.id===bCiv).name,effElo:civElo(aP,bCiv)};
+    aArr[a.i]={player:bP, civId:aCiv, civName:CIVS.find(c=>c.id===aCiv)?.name||'', effElo:civElo(bP,aCiv)};
+    bArr[b.i]={player:aP, civId:bCiv, civName:CIVS.find(c=>c.id===bCiv)?.name||'', effElo:civElo(aP,bCiv)};
   }
+
+  // Recalculate totals and gap
   lastBal.evilTotal=lastBal.evilAssign.reduce((s,a)=>s+a.effElo,0);
   lastBal.goodTotal=lastBal.goodAssign.reduce((s,a)=>s+a.effElo,0);
   lastBal.gap=Math.abs(lastBal.evilTotal-lastBal.goodTotal);
