@@ -634,7 +634,7 @@ const toast   = (m,t='ok') => {
 };
 
 function calcElo(elo, oppAvg, won, games){
-  const K=games<10?64:32;
+  const K=games<20?128:games<40?64:32;
   const E=1/(1+Math.pow(10,(oppAvg-elo)/400));
   return Math.max(100, Math.round(elo+K*((won?1:0)-E)));
 }
@@ -2059,7 +2059,7 @@ function buildEloHistory(p,matches){
     const oppAvg=(opp||[]).reduce((s,a)=>s+(a.effElo||1200),0)/Math.max(1,(opp||[]).length);
 
     // Apply same calcElo formula as server
-    const K=gamesPlayed<10?64:32;
+    const K=gamesPlayed<20?128:gamesPlayed<40?64:32;
     const E=1/(1+Math.pow(10,(oppAvg-civElos[civ.id])/400));
     civElos[civ.id]=Math.max(100,Math.round(civElos[civ.id]+K*((won?1:0)-E)));
     gamesPlayed++;
