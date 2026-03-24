@@ -166,6 +166,28 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
 /* TOAST */
 .toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(2rem);background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:9px 20px;border-radius:3px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:300;}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+/* PROFILE */
+.profile-header{display:flex;align-items:center;gap:1.5rem;margin-bottom:1.5rem;flex-wrap:wrap;}
+.profile-avatar{width:56px;height:56px;border-radius:50%;background:var(--bg3);border:2px solid var(--gold-d);display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:22px;color:var(--gold);flex-shrink:0;}
+.profile-name{font-family:'Cinzel',serif;font-size:22px;color:var(--gold);}
+.profile-sub{font-size:13px;color:var(--dim);margin-top:2px;}
+.pstat{text-align:center;min-width:60px;}
+.pstat-val{font-family:'JetBrains Mono',monospace;font-size:18px;color:var(--text);}
+.pstat-lbl{font-size:9px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.1em;text-transform:uppercase;display:block;margin-top:2px;}
+.civ-wl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:.6rem;}
+.civ-wl-card{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:.75rem;}
+.civ-wl-name{font-size:11px;font-family:'Cinzel',serif;letter-spacing:.07em;margin-bottom:.5rem;}
+.civ-wl-name.evil{color:var(--evil);}
+.civ-wl-name.good{color:var(--good);}
+.civ-wl-bar{height:5px;border-radius:3px;background:var(--bg2);overflow:hidden;margin:.3rem 0;}
+.civ-wl-fill{height:100%;border-radius:3px;transition:width .5s;}
+.h2h-row{display:flex;align-items:center;gap:.75rem;padding:8px 1rem;border-bottom:1px solid var(--border);cursor:pointer;}
+.h2h-row:hover td,.h2h-row:hover{background:var(--bg3);}
+.h2h-name{flex:1;font-size:15px;}
+.h2h-rec{font-family:'JetBrains Mono',monospace;font-size:13px;}
+.back-btn{font-family:'Cinzel',serif;font-size:10px;letter-spacing:.1em;color:var(--dim);cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;margin-bottom:1.25rem;background:none;border:none;padding:0;}
+.back-btn:hover{color:var(--gold);}
+.elo-chart{width:100%;height:160px;}
 </style>
 </head>
 <body>
@@ -281,6 +303,12 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
   </div>
 
   <div class="card" style="padding:0"><div id="lbList"></div></div>
+</div>
+
+<!-- ══ PROFILE ══ -->
+<div class="page" id="page-profile">
+  <button class="back-btn" onclick="goBack()">← Back</button>
+  <div id="profileContent"></div>
 </div>
 
 <!-- ══ ADMIN ══ -->
@@ -1010,8 +1038,8 @@ function renderPTable(){
     }).join('');
     const w=civF?(p.civWins?.[civF]||0):(p.wins||0);
     const l=civF?(p.civLosses?.[civF]||0):(p.losses||0);
-    return `<tr onclick="editPlayer('${p.id}')" style="cursor:${adminUnlocked?'pointer':'default'}">
-      <td>${p.name}</td>
+    return `<tr onclick="${adminUnlocked?`editPlayer('${p.id}')`:`openProfile('${p.id}')`}" style="cursor:pointer">
+      <td><span onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color=''" style="transition:color .15s">${p.name}</span></td>
       <td><span class="mono">${civF?`<span style="color:var(--gold)">${civElo(p,civF)}</span> <span style="color:var(--muted);font-size:12px">(${ov})</span>`:ov}</span></td>
       <td><div class="civbars">${bars}</div></td>
       <td style="color:var(--green)">${w}</td>
@@ -1078,7 +1106,7 @@ function renderLB(){
     const wr=tot?Math.round(w/tot*100)+'%':'—';
     return `<div class="lbrow">
       <span class="lbrank">${i+1}</span>
-      <span class="lbname">${p.name}</span>
+      <span class="lbname" onclick="openProfile('${p.id}')" style="cursor:pointer" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color=''">${p.name}</span>
       <span class="lbelo">${displayElo}${subElo}</span>
       <span class="lbwl">${w}W / ${l}L</span>
       <span class="lbwr">${wr}</span>
@@ -1673,7 +1701,7 @@ async function pollForResult(){
   }catch(e){}
 }
 
-window.livePollNow=function(){ pollLobby(); };
+window.livePollNow=function(){ pollLobby(); pollLobbyDirect(); };
 
 window.forceEndGame=function(){
   if(liveResultInterval){ clearInterval(liveResultInterval); liveResultInterval=null; }
@@ -1685,11 +1713,220 @@ window.forceEndGame=function(){
 
 // Start polling on page load
 setInterval(pollLobby, LIVE_INTERVAL_MS);
-setTimeout(pollLobby, 5000); // first check after 5s
+setTimeout(pollLobby, 5000);
+setInterval(()=>{ if(liveState!=='inprogress') pollLobbyDirect(); }, 60000);
+setTimeout(pollLobbyDirect, 20000);
 
-// ─────────────────────────────────────────
+// DIRECT LOBBY API POLL (browser-side via corsproxy)
+const LOBBY_API_URL='https://corsproxy.io/?url='+encodeURIComponent('https://aoe-api.worldsedgelink.com/community/leaderboard/getAvailableLobbies?title=age2&matchtype_id=0&maxplayers=8');
+let lastLobbyApiCheck=0;
+async function pollLobbyDirect(){
+  if(document.hidden||liveState==='inprogress') return;
+  if(Date.now()-lastLobbyApiCheck<55000) return;
+  lastLobbyApiCheck=Date.now();
+  try{
+    const resp=await fetch(LOBBY_API_URL,{signal:AbortSignal.timeout(10000)});
+    if(!resp.ok) return;
+    const data=await resp.json();
+    const lobbies=data.matches||data.matchGroups||data.availableLobbies||[];
+    const profMap=Object.fromEntries(players.filter(p=>p.profileId).map(p=>[Number(p.profileId),p]));
+    const commIds=new Set(Object.keys(profMap).map(Number));
+    for(const match of lobbies){
+      if(match.matchtype_id!==0||match.maxplayers!==8) continue;
+      const allIds=new Set();
+      allIds.add(Number(match.host_profile_id));
+      (match.matchmembers||[]).forEach(m=>allIds.add(Number(m.profile_id)));
+      const slots=await decodeSlotinfo(match.slotinfo||'');
+      slotProfileIds(slots).forEach(id=>allIds.add(id));
+      const found=[...allIds].filter(id=>commIds.has(id));
+      if(found.length>=2){
+        match._slots=slots;
+        activateLobby(match,found.map(id=>profMap[id]).filter(Boolean));
+        const st=document.getElementById('liveStatus');
+        if(st) st.textContent+=' · (live API)';
+        return;
+      }
+    }
+    if(liveState==='lobby') activateInProgress();
+  }catch(e){}
+}
+
+// PLAYER PROFILES
+let profileFromPage='leaderboard';
+window.openProfile=function(playerId,fromPage){
+  const p=players.find(pl=>pl.id===playerId); if(!p) return;
+  profileFromPage=fromPage||'leaderboard';
+  renderProfile(p);
+  go('profile');
+  window.history.pushState({page:'profile',id:playerId},'','#player/'+encodeURIComponent(p.name));
+};
+window.goBack=function(){ window.history.back(); };
+window.addEventListener('popstate',e=>{
+  if(e.state&&e.state.page==='profile'){
+    const p=players.find(pl=>pl.id===e.state.id);
+    if(p){renderProfile(p);go('profile');return;}
+  }
+  go(profileFromPage);
+  window.history.replaceState(null,'',location.pathname);
+});
+
+function renderProfile(p){
+  const ov=Math.round(CIVS.reduce((s,c)=>s+civElo(p,c.id),0)/CIVS.length);
+  const w=p.wins||0,l=p.losses||0,tot=w+l;
+  const wr=tot?Math.round(w/tot*100)+'%':'--';
+  const pm=history.filter(h=>[...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>a.name===p.name))
+    .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
+  const ep=buildEloHistory(p,pm);
+  document.getElementById('profileContent').innerHTML=`
+    <div class="profile-header">
+      <div class="profile-avatar">${p.name[0].toUpperCase()}</div>
+      <div>
+        <div class="profile-name">${p.name}</div>
+        <div class="profile-sub">Profile ID: ${p.profileId||'--'}</div>
+        <div style="display:flex;gap:1.5rem;margin-top:.75rem;flex-wrap:wrap">
+          <div class="pstat"><div class="pstat-val" style="color:var(--gold)">${ov}</div><span class="pstat-lbl">Overall Elo</span></div>
+          <div class="pstat"><div class="pstat-val" style="color:var(--green)">${w}</div><span class="pstat-lbl">Wins</span></div>
+          <div class="pstat"><div class="pstat-val" style="color:var(--evil)">${l}</div><span class="pstat-lbl">Losses</span></div>
+          <div class="pstat"><div class="pstat-val">${wr}</div><span class="pstat-lbl">Win Rate</span></div>
+          <div class="pstat"><div class="pstat-val">${tot}</div><span class="pstat-lbl">Games</span></div>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+      <div class="card">
+        <div class="ct">Elo Over Time</div>
+        ${ep.length>1?'<canvas id="eloChart" style="width:100%;height:160px"></canvas>':'<p style="color:var(--muted);font-size:13px">Not enough data yet.</p>'}
+      </div>
+      <div class="card">
+        <div class="ct">Win Rate by Civ</div>
+        <div class="civ-wl-grid">${buildCivStats(p,pm)}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+      <div class="card" style="padding:0">
+        <div class="ct" style="padding:.75rem 1rem .25rem">Recent Matches</div>
+        ${pm.slice(0,10).map(h=>{
+          const oe=(h.evilAssign||[]).some(a=>a.name===p.name);
+          const won=(oe&&h.winner==='evil')||(!oe&&h.winner==='good');
+          const mc=([...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name)||{}).civName||'--';
+          const dur=h.duration?' · '+Math.floor(h.duration/60)+'m':'';
+          return '<div style="display:flex;align-items:center;gap:.75rem;padding:8px 1rem;border-bottom:1px solid var(--border)">'+
+            '<span style="font-family:Cinzel,serif;font-size:9px;padding:3px 8px;border-radius:2px;white-space:nowrap;'+(won?'background:var(--good-d);color:#80b4d4;border:1px solid var(--good)':'background:var(--evil-d);color:#e08080;border:1px solid var(--evil)')+'">'+( won?'WIN':'LOSS')+'</span>'+
+            '<span style="flex:1;font-size:13px;color:var(--dim)">'+mc+'</span>'+
+            '<span style="font-size:11px;color:var(--muted)">'+(h.date||'')+dur+'</span></div>';
+        }).join('')||'<p style="color:var(--muted);font-size:13px;padding:1rem">No matches yet.</p>'}
+      </div>
+      <div class="card" style="padding:0">
+        <div class="ct" style="padding:.75rem 1rem .25rem">Head-to-Head vs Opponents</div>
+        ${buildH2H(p,pm)}
+      </div>
+    </div>`;
+  if(ep.length>1) setTimeout(()=>drawEloChart(ep),60);
+}
+
+function buildEloHistory(p,matches){
+  const pts=[{date:'Start',elo:1200}];
+  let elo=1200;
+  for(const h of [...matches].reverse()){
+    const oe=(h.evilAssign||[]).some(a=>a.name===p.name);
+    const won=(oe&&h.winner==='evil')||(!oe&&h.winner==='good');
+    const opp=oe?h.goodAssign:h.evilAssign;
+    const oa=(opp||[]).reduce((s,a)=>s+(a.effElo||1200),0)/Math.max(1,(opp||[]).length);
+    const K=pts.length<=10?64:32;
+    const E=1/(1+Math.pow(10,(oa-elo)/400));
+    elo=Math.max(100,Math.round(elo+K*((won?1:0)-E)));
+    pts.push({date:h.date||'',elo});
+  }
+  return pts;
+}
+
+function buildCivStats(p,matches){
+  const st={};
+  CIVS.forEach(c=>{st[c.id]={civ:c,w:0,l:0};});
+  for(const h of matches){
+    const oe=(h.evilAssign||[]).some(a=>a.name===p.name);
+    const won=(oe&&h.winner==='evil')||(!oe&&h.winner==='good');
+    const my=[...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name);
+    if(!my||!my.civName) continue;
+    const civ=CIVS.find(c=>c.name===my.civName);
+    if(civ){if(won)st[civ.id].w++;else st[civ.id].l++;}
+  }
+  return CIVS.map(c=>{
+    const s=st[c.id],tot=s.w+s.l,pct=tot?Math.round(s.w/tot*100):0,elo=civElo(p,c.id);
+    return '<div class="civ-wl-card">'+
+      '<div class="civ-wl-name '+c.side+'">'+c.name+'</div>'+
+      '<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--dim)">'+
+        '<span>'+s.w+'W/'+s.l+'L</span>'+
+        '<span style="font-family:JetBrains Mono,monospace;color:var(--gold)">'+elo+'</span>'+
+      '</div>'+
+      '<div class="civ-wl-bar"><div class="civ-wl-fill" style="width:'+pct+'%;background:'+(c.side==='evil'?'var(--evil)':'var(--good)')+'"></div></div>'+
+      '<div style="font-size:11px;color:var(--muted);text-align:right">'+(tot?pct+'%':'--')+'</div>'+
+    '</div>';
+  }).join('');
+}
+
+function buildH2H(p,matches){
+  const rec={};
+  for(const h of matches){
+    const oe=(h.evilAssign||[]).some(a=>a.name===p.name);
+    const won=(oe&&h.winner==='evil')||(!oe&&h.winner==='good');
+    const opp=oe?h.goodAssign:h.evilAssign;
+    for(const a of (opp||[])){
+      if(!rec[a.name]) rec[a.name]={w:0,l:0};
+      if(won)rec[a.name].w++;else rec[a.name].l++;
+    }
+  }
+  const sorted=Object.entries(rec).filter(([,r])=>r.w+r.l>0).sort((a,b)=>(b[1].w+b[1].l)-(a[1].w+a[1].l));
+  if(!sorted.length) return '<p style="color:var(--muted);font-size:13px;padding:1rem">No data yet.</p>';
+  return sorted.map(([name,r])=>{
+    const tot=r.w+r.l,pct=Math.round(r.w/tot*100);
+    const col=pct>=60?'var(--green)':pct<=40?'var(--evil)':'var(--gold)';
+    const op=players.find(pl=>pl.name===name);
+    return '<div class="h2h-row"'+(op?' onclick="openProfile(\''+op.id+'\',\'profile\')"':'')+'>'+
+      '<span class="h2h-name">'+name+'</span>'+
+      '<span class="h2h-rec" style="color:'+col+'">'+r.w+'W-'+r.l+'L</span>'+
+      '<span style="font-size:11px;color:var(--muted);width:3rem;text-align:right">'+pct+'%</span>'+
+    '</div>';
+  }).join('');
+}
+
+function drawEloChart(pts){
+  const canvas=document.getElementById('eloChart'); if(!canvas) return;
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.offsetWidth,H=canvas.offsetHeight||160;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  const elos=pts.map(p=>p.elo);
+  const minE=Math.min(...elos)-30,maxE=Math.max(...elos)+30;
+  const pad={t:10,r:10,b:20,l:42};
+  const cW=W-pad.l-pad.r,cH=H-pad.t-pad.b;
+  const xS=i=>pad.l+i*(cW/Math.max(1,pts.length-1));
+  const yS=e=>pad.t+cH-(e-minE)/(maxE-minE)*cH;
+  ctx.clearRect(0,0,W,H);
+  for(let i=0;i<=4;i++){
+    const y=pad.t+i*(cH/4);
+    ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+cW,y); ctx.stroke();
+    ctx.fillStyle='rgba(156,136,120,0.7)'; ctx.font='10px monospace'; ctx.textAlign='right';
+    ctx.fillText(Math.round(maxE-(i/4)*(maxE-minE)),pad.l-4,y+4);
+  }
+  const grad=ctx.createLinearGradient(0,pad.t,0,pad.t+cH);
+  grad.addColorStop(0,'rgba(201,168,76,0.25)'); grad.addColorStop(1,'rgba(201,168,76,0)');
+  ctx.beginPath();
+  pts.forEach((p,i)=>i===0?ctx.moveTo(xS(i),yS(p.elo)):ctx.lineTo(xS(i),yS(p.elo)));
+  ctx.lineTo(xS(pts.length-1),pad.t+cH); ctx.lineTo(xS(0),pad.t+cH);
+  ctx.closePath(); ctx.fillStyle=grad; ctx.fill();
+  ctx.strokeStyle='#c9a84c'; ctx.lineWidth=2; ctx.lineJoin='round';
+  ctx.beginPath();
+  pts.forEach((p,i)=>i===0?ctx.moveTo(xS(i),yS(p.elo)):ctx.lineTo(xS(i),yS(p.elo)));
+  ctx.stroke();
+  pts.forEach((p,i)=>{
+    ctx.beginPath(); ctx.arc(xS(i),yS(p.elo),3,0,Math.PI*2);
+    ctx.fillStyle='#c9a84c'; ctx.fill();
+  });
+}
+
 // START
-// ─────────────────────────────────────────
 init();
 </script>
 </body>
