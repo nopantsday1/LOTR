@@ -498,6 +498,10 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
       <div><label>Name</label><input type="text" id="epName"></div>
       <div><label>Profile ID</label><input type="number" id="epPid"></div>
     </div>
+    <div style="margin-bottom:1rem">
+      <label>Alt Profile IDs <span style="font-size:11px;color:var(--muted)">(comma separated — for players with multiple accounts)</span></label>
+      <input type="text" id="epAltPids" placeholder="e.g. 1234567, 7654321" style="width:100%;margin-top:4px">
+    </div>
     <div class="ct" style="margin-bottom:.6rem">Favourite & Avoid Civs</div>
     <div id="favAvoidGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin-bottom:1rem"></div>
     <div class="ct" style="margin-bottom:.6rem">Individual Civ Elos</div>
@@ -614,8 +618,37 @@ const TEAMID_MAP = Object.fromEntries(CIVS.map(c=>[c.teamid, c.id]));
 // Map race_id from matchhistoryreportresults → scenario civ (this IS the station)
 const RACE_MAP = {4:'p1',38:'p2',17:'p3',25:'p4',12:'p5',32:'p6',9:'p7',22:'p8'};
 const DEFAULT_ELO = 1200;
-const LOTR_KW = ['hobbit','lotr','lord of the ring','bfme','the shire','middle'];
+const LOTR_KW = ['hobbit','lotr','lord of the ring','the shire','middle earth'];
+const LOTR_MAPS = ['the_hobbit','hobbit','lotr']; // known scenario mapnames
+function isLotrMatch(match){
+  const desc=(match.description||match.mapname||'').toLowerCase();
+  const map=(match.mapname||'').toLowerCase();
+  return LOTR_KW.some(k=>desc.includes(k)) || LOTR_MAPS.some(k=>map.includes(k));
+}
 const DEFAULT_PASS = 'admin123';
+
+// ─────────────────────────────────────────
+// MULTI-ACCOUNT HELPERS
+// A player can have a primary profileId + altProfileIds array
+// ─────────────────────────────────────────
+function playerProfileIds(p){
+  // Returns all profile IDs for a player as Numbers
+  const ids=[];
+  if(p.profileId) ids.push(Number(p.profileId));
+  (p.altProfileIds||[]).forEach(id=>{ if(id) ids.push(Number(id)); });
+  return ids;
+}
+function buildCommIds(playerList){
+  const set=new Set();
+  playerList.forEach(p=>playerProfileIds(p).forEach(id=>set.add(id)));
+  return set;
+}
+function buildProfMap(playerList){
+  // Maps every profile ID (primary + alt) → player
+  const map={};
+  playerList.forEach(p=>playerProfileIds(p).forEach(id=>{ map[id]=p; }));
+  return map;
+}
 
 // ─────────────────────────────────────────
 // STATE
@@ -721,7 +754,7 @@ async function init(){
     renderWinRate();
   });
   setTimeout(autoRecord, 30000);           // first run after 30s (let onSnapshot settle)
-  setInterval(autoRecord, 15*60*1000);     // then every 15 minutes
+  setInterval(autoRecord, 5*60*1000);      // then every 5 minutes
 }
 
 async function savePl(p){
@@ -1067,10 +1100,9 @@ async function autoRecord(){
     const matches=(data.matches||[]).sort((a,b)=>(a.completiontime||0)-(b.completiontime||0));
     // Use local history cache kept live by onSnapshot — avoids a Firestore read every poll
     const known=new Set(history.map(h=>h.gameId).filter(Boolean));
-    const profPlayers=players.filter(p=>p.profileId);
-    if(!profPlayers.length) return;
-    const commIds=new Set(profPlayers.map(p=>Number(p.profileId)));
-    const profMap=Object.fromEntries(profPlayers.map(p=>[Number(p.profileId),p]));
+    const commIds=buildCommIds(players);
+    const profMap=buildProfMap(players);
+    if(!commIds.size) return;
     let added=0;
 
     for(const match of matches){
@@ -1356,6 +1388,7 @@ window.editPlayer=function(id){
   document.getElementById('epId').value=id;
   document.getElementById('epName').value=p.name;
   document.getElementById('epPid').value=p.profileId||'';
+  document.getElementById('epAltPids').value=(p.altProfileIds||[]).join(', ');
   // Fav/Avoid grid
   const favs=new Set(p.favCivs||[]);
   const avoids=new Set(p.avoidCivs||[]);
@@ -1393,6 +1426,8 @@ window.savePlayer=async function(){
   p.name=document.getElementById('epName').value.trim();
   const pid=document.getElementById('epPid').value;
   p.profileId=pid?Number(pid):null;
+  const altRaw=document.getElementById('epAltPids').value;
+  p.altProfileIds=altRaw.split(',').map(s=>s.trim()).filter(Boolean).map(Number).filter(n=>n&&n!==p.profileId);
   p.civElo=p.civElo||{};
   CIVS.forEach(c=>{ p.civElo[c.id]=Math.max(100,Number(document.getElementById('ce_'+c.id).value)||DEFAULT_ELO); });
   // Save fav/avoid
@@ -1519,9 +1554,8 @@ window.runImport=async function(){
       ilog('W/L reset, history cleared. Processing…');
     }
 
-    const profPlayers=players.filter(p=>p.profileId);
-    const commIds=new Set(profPlayers.map(p=>Number(p.profileId)));
-    const profMap=Object.fromEntries(profPlayers.map(p=>[Number(p.profileId),p]));
+    const commIds=buildCommIds(players);
+    const profMap=buildProfMap(players);
     let done=0, skip=0;
 
     for(const match of matches){
@@ -1697,8 +1731,8 @@ async function pollLobby(){
     const data=await resp.json();
     const matches=data.matches||[];
 
-    const profMap=Object.fromEntries(players.filter(p=>p.profileId).map(p=>[Number(p.profileId),p]));
-    const commIds=new Set(Object.keys(profMap).map(Number));
+    const commIds=buildCommIds(players);
+    const profMap=buildProfMap(players);
 
     const now=new Date().toLocaleTimeString();
     const st=document.getElementById('liveStatus');
@@ -1712,6 +1746,7 @@ async function pollLobby(){
       // No keyword filter — rely on community member count instead
       if(match.matchtype_id!==0) continue;
       if(match.maxplayers!==8) continue;
+      if(!isLotrMatch(match)) continue;
 
       // Collect all player IDs: host + matchmembers + slotinfo
       const allIds=new Set();
@@ -1762,7 +1797,7 @@ function activateLobby(match, foundPlayers){
     const evilSlots=slots.filter(s=>s.position_label&&EVIL_POS.has(s.position_label)).sort((a,b)=>civSortOrder.indexOf(a.position_label)-civSortOrder.indexOf(b.position_label));
     const goodSlots=slots.filter(s=>s.position_label&&GOOD_POS.has(s.position_label)).sort((a,b)=>civSortOrder.indexOf(a.position_label)-civSortOrder.indexOf(b.position_label));
     liveTeams={evil:evilSlots.map(s=>players.find(p=>p.id===String(s.profileId)||Number(p.profileId)===s.profileId)).filter(Boolean),
-               good:goodSlots.map(s=>players.find(p=>p.id===String(s.profileId)||Number(p.profileId)===s.profileId)).filter(Boolean)};
+               good:goodSlots.map(s=>players.find(p=>playerProfileIds(p).includes(Number(s.profileId)))).filter(Boolean)};
   } else if(lastBal){
     liveTeams={evil:lastBal.evilAssign.map(a=>a.player),good:lastBal.goodAssign.map(a=>a.player)};
   } else {
@@ -1779,7 +1814,7 @@ function activateLobby(match, foundPlayers){
     const rows=[];
     if(slotList.length>0){
       slotList.slice(0,4).forEach(s=>{
-        const p=players.find(pl=>Number(pl.profileId)===s.profileId);
+        const p=players.find(pl=>playerProfileIds(pl).includes(Number(s.profileId)));
         const civName=CIVS.find(c=>c.id===s.position_label)?.name||s.position_label||'—';
         rows.push(`<div class="arow" style="cursor:default">
           <span class="aname">${p?p.name:`Player ${s.profileId}`}</span>
@@ -1889,8 +1924,8 @@ async function checkRecentInProgress(){
     const matches=(data.matches||[]);
     const now=Date.now()/1000;
     const knownIds=new Set(history.map(h=>h.gameId).filter(Boolean));
-    const profMap=Object.fromEntries(players.filter(p=>p.profileId).map(p=>[Number(p.profileId),p]));
-    const commIds=new Set(players.filter(p=>p.profileId).map(p=>Number(p.profileId)));
+    const commIds=buildCommIds(players);
+    const profMap=buildProfMap(players);
 
     for(const match of matches){
       const gid=String(match.match_id||match.id);
@@ -1933,8 +1968,7 @@ async function pollForResult(){
     const data=await resp.json();
     const matches=(data.matches||[]).sort((a,b)=>(b.completiontime||0)-(a.completiontime||0));
     const known=new Set(history.map(h=>h.gameId).filter(Boolean));
-    const profPlayers=players.filter(p=>p.profileId);
-    const commIds=new Set(profPlayers.map(p=>Number(p.profileId)));
+    const commIds=buildCommIds(players);
 
     for(const match of matches.slice(0,15)){
       const gid=String(match.match_id||match.id);
@@ -1983,6 +2017,10 @@ setTimeout(pollLobby, 5000);
 setInterval(()=>{ if(liveState!=='inprogress') pollLobbyDirect(); }, 60000);
 setTimeout(pollLobbyDirect, 20000);
 
+// Poll match history directly — every 2 minutes, regardless of tab visibility
+setInterval(autoRecordDirect, 2*60*1000);
+setTimeout(autoRecordDirect, 45000); // first check after 45s
+
 // DIRECT LOBBY API POLL (browser-side via corsproxy)
 const LOBBY_API_URL='https://corsproxy.io/?url='+encodeURIComponent('https://aoe-api.worldsedgelink.com/community/leaderboard/getAvailableLobbies?title=age2&matchtype_id=0&maxplayers=8');
 let lastLobbyApiCheck=0;
@@ -1995,10 +2033,12 @@ async function pollLobbyDirect(){
     if(!resp.ok) return;
     const data=await resp.json();
     const lobbies=data.matches||data.matchGroups||data.availableLobbies||[];
-    const profMap=Object.fromEntries(players.filter(p=>p.profileId).map(p=>[Number(p.profileId),p]));
-    const commIds=new Set(Object.keys(profMap).map(Number));
+    const commIds=buildCommIds(players);
+    const profMap=buildProfMap(players);
     for(const match of lobbies){
       if(match.matchtype_id!==0||match.maxplayers!==8) continue;
+      if(!isLotrMatch(match)) continue;
+      if(!isLotrMatch(match)) continue;
       const allIds=new Set();
       allIds.add(Number(match.host_profile_id));
       (match.matchmembers||[]).forEach(m=>allIds.add(Number(m.profile_id)));
@@ -2015,6 +2055,112 @@ async function pollLobbyDirect(){
     }
     if(liveState==='lobby') activateInProgress();
   }catch(e){}
+}
+
+// DIRECT MATCH HISTORY POLL
+// Polls AoE2 API directly every 3 min — no scraper needed for same-day games
+let lastDirectMatchCheck=0;
+let directPollRunning=false;
+
+// ─────────────────────────────────────────
+// BACKGROUND MATCH POLLER
+// Polls player history directly every 2 min — no scraper dependency
+// Runs regardless of tab visibility so games are captured even if site is open on another tab
+// ─────────────────────────────────────────
+async function autoRecordDirect(){
+  if(directPollRunning||autoRecording) return;
+  if(Date.now()-lastDirectMatchCheck < 110000) return; // min 1min50s between calls
+  directPollRunning=true;
+  lastDirectMatchCheck=Date.now();
+
+  try{
+    const commIds=buildCommIds(players);
+    const profMap=buildProfMap(players);
+    if(!commIds.size){ directPollRunning=false; return; }
+
+    const pids=players.filter(p=>p.profileId).map(p=>p.profileId);
+    if(!pids.length){ directPollRunning=false; return; }
+
+    const aoeUrl=`https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=${encodeURIComponent(JSON.stringify(pids))}`;
+    const resp=await fetch(`https://corsproxy.io/?url=${encodeURIComponent(aoeUrl)}`,{signal:AbortSignal.timeout(15000)});
+    if(!resp.ok){ console.warn('[poll] HTTP',resp.status); directPollRunning=false; return; }
+
+    const data=await resp.json();
+    const matches=data.matchHistoryStats||[];
+    console.log(`[poll] ${matches.length} matches returned`);
+
+    const known=new Set(history.map(h=>h.gameId).filter(Boolean));
+    const EVIL_TEAMS=new Set([5,6,7,8]);
+    const GOOD_TEAMS=new Set([9,10,11,12]);
+    let added=0;
+
+    for(const match of matches){
+      const gid=String(match.id||match.match_id);
+      if(known.has(gid)) continue;
+
+      // Basic filters
+      if(match.matchtype_id!==0||match.maxplayers!==8) continue;
+      if(!isLotrMatch(match)){ console.log(`[poll] Skip ${gid}: not LOTR (desc=${match.description})`); continue; }
+      const dur=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
+      if(dur!==null&&dur<600) continue;
+
+      // Need 4+ community members
+      const members=match.matchhistorymember||match.matchhistoryreportresults||[];
+      const commMembers=members.filter(m=>commIds.has(Number(m.profile_id)));
+      if(commMembers.length<4){ console.log(`[poll] Skip ${gid}: ${commMembers.length} community`); continue; }
+
+      // Winner detection: resulttype 1=win, 2=loss
+      let evilW=0, goodW=0;
+      for(const rt of [1,2]){
+        members.forEach(m=>{
+          if(m.resulttype===rt){
+            const isEvil=EVIL_TEAMS.has(Number(m.teamid));
+            const isGood=GOOD_TEAMS.has(Number(m.teamid));
+            if(rt===1){ if(isEvil) evilW++; else if(isGood) goodW++; }
+            else      { if(isEvil) goodW++; else if(isGood) evilW++; } // loser side → other side won
+          }
+        });
+        if(evilW||goodW) break;
+      }
+      console.log(`[poll] ${gid}: comm=${commMembers.length} evil=${evilW} good=${goodW}`);
+      const winner=evilW>goodW?'evil':goodW>evilW?'good':null;
+      if(!winner) continue;
+
+      // Build team assignments using teamid for civ mapping
+      const evilM=members.filter(m=>EVIL_TEAMS.has(Number(m.teamid)));
+      const goodM=members.filter(m=>GOOD_TEAMS.has(Number(m.teamid)));
+      if(!evilM.length||!goodM.length) continue;
+
+      const mkAssign=arr=>arr.map(m=>{
+        const p=profMap[Number(m.profile_id)]||null;
+        const cid=m.civ_position||TEAMID_MAP[Number(m.teamid)]||null;
+        return{
+          name:      p?p.name:(m.name||`Player ${m.profile_id}`),
+          civId:     cid,
+          civName:   cid?(CIVS.find(c=>c.id===cid)?.name||''):'',
+          effElo:    p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO,
+          isCommunity: commIds.has(Number(m.profile_id)),
+          profileId: String(m.profile_id),
+          player:    p,
+        };
+      });
+
+      const winA =winner==='evil'?mkAssign(evilM):mkAssign(goodM);
+      const loseA=winner==='evil'?mkAssign(goodM):mkAssign(evilM);
+      const ts=(match.completiontime||match.startgametime||0)*1000;
+      const date=ts?new Date(ts).toLocaleDateString('en-CA'):new Date().toLocaleDateString('en-CA');
+
+      await applyResult(winA,loseA,winner,null,null,date,'auto',gid);
+      known.add(gid); added++;
+      console.log('[poll] Recorded',gid,winner);
+    }
+
+    if(added>0) toast(`${added} new match${added>1?'es':''} recorded!`);
+  }catch(e){
+    console.warn('[poll] Error:',e.message);
+  }finally{
+    directPollRunning=false;
+  }
 }
 
 // PLAYER PROFILES
