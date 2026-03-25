@@ -2623,11 +2623,34 @@ window.openMatchDetail=function(id){
 let bulkOrder=[]; // array of player ids in ranked order
 let dragSrcIdx=null;
 
-window.openBulkElo=function(){
+async function loadBulkOrder(){
+  try{
+    const s=await getDoc(doc(db,'settings','bulkOrder'));
+    if(s.exists()){
+      const saved=s.data().order||[];
+      // Merge saved order with current players — keep saved positions, append new players at end
+      const validSaved=saved.filter(id=>players.find(p=>p.id===id));
+      const newPlayers=players.filter(p=>!saved.includes(p.id))
+        .sort((a,b)=>overallElo(b)-overallElo(a)).map(p=>p.id);
+      bulkOrder=[...validSaved,...newPlayers];
+    } else {
+      bulkOrder=[...players].sort((a,b)=>overallElo(b)-overallElo(a)).map(p=>p.id);
+    }
+  }catch(e){
+    bulkOrder=[...players].sort((a,b)=>overallElo(b)-overallElo(a)).map(p=>p.id);
+  }
+}
+
+async function saveBulkOrder(){
+  try{
+    await setDoc(doc(db,'settings','bulkOrder'),{order:bulkOrder});
+  }catch(e){ console.warn('Could not save bulk order',e); }
+}
+
+window.openBulkElo=async function(){
   if(!adminUnlocked){toast('Admin required','err');return;}
   openModal('mBulkElo');
-  // Init order sorted by current overall Elo descending
-  bulkOrder=[...players].sort((a,b)=>overallElo(b)-overallElo(a)).map(p=>p.id);
+  await loadBulkOrder();
   renderBulkList();
   updateBulkPreview();
 };
@@ -2648,7 +2671,6 @@ function updateBulkPreview(){
   const elos=calcBulkElos();
   const el=document.getElementById('bulkEloPreview');
   if(el) el.textContent=`Step: ${elos.length>1?Math.round((elos[0]-elos[elos.length-1])/(elos.length-1)):0} Elo between players`;
-  // Update elo previews on rows
   document.querySelectorAll('.bulk-elo').forEach((el,i)=>{ el.textContent=elos[i]||''; });
   document.querySelectorAll('.bulk-rank').forEach((el,i)=>{ el.textContent='#'+(i+1); });
 }
@@ -2684,13 +2706,14 @@ window.bulkDragOver=function(e,idx){
 window.bulkDragLeave=function(e){
   e.currentTarget.classList.remove('drag-over');
 };
-window.bulkDrop=function(toIdx){
+window.bulkDrop=async function(toIdx){
   if(dragSrcIdx===null||dragSrcIdx===toIdx) return;
   const moved=bulkOrder.splice(dragSrcIdx,1)[0];
   bulkOrder.splice(toIdx,0,moved);
   dragSrcIdx=null;
   renderBulkList();
   updateBulkPreview();
+  await saveBulkOrder(); // auto-save on every drag
 };
 window.bulkDragEnd=function(){
   document.querySelectorAll('.bulk-row').forEach(r=>{
@@ -2710,6 +2733,7 @@ window.applyBulkElo=async function(){
     CIVS.forEach(c=>{ p.civElo[c.id]=elo; });
     await savePl(p);
   }
+  await saveBulkOrder(); // save final order
   closeModal('mBulkElo');
   toast(`Applied Elo ratings to ${bulkOrder.length} players!`);
   renderLB(); renderPTable();
