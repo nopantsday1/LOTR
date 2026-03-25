@@ -1512,11 +1512,28 @@ window.confirmReset=async function(){
     toast(`Deleting... ${deleted} removed`);
     if(hSnap.size<400) break;
   }
+
+  // Load saved bulk order + Elo range to reset to seeded values instead of 1200
+  let seededElos={}; // playerId → elo
+  try{
+    const s=await getDoc(doc(db,'settings','bulkOrder'));
+    if(s.exists()){
+      const order=s.data().order||[];
+      const top=s.data().top||DEFAULT_ELO;
+      const bot=s.data().bot||DEFAULT_ELO;
+      const n=order.length;
+      order.forEach((id,i)=>{
+        seededElos[id]=n===1?top:Math.round(top-(top-bot)*(i/(n-1)));
+      });
+    }
+  }catch(e){}
+
   for(const p of players){
-    p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=DEFAULT_ELO;}); p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
+    const elo=seededElos[p.id]||DEFAULT_ELO;
+    p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=elo;}); p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
     await savePl(p);
   }
-  sync('ok'); toast(`Reset complete — ${deleted} matches deleted`);
+  sync('ok'); toast(`Reset complete — ${deleted} matches deleted${Object.keys(seededElos).length?', Elos restored from seed':''}`);
 };
 
 // ─────────────────────────────────────────
@@ -2628,7 +2645,10 @@ async function loadBulkOrder(){
     const s=await getDoc(doc(db,'settings','bulkOrder'));
     if(s.exists()){
       const saved=s.data().order||[];
-      // Merge saved order with current players — keep saved positions, append new players at end
+      const top=s.data().top;
+      const bot=s.data().bot;
+      if(top) document.getElementById('bulkEloTop').value=top;
+      if(bot) document.getElementById('bulkEloBottom').value=bot;
       const validSaved=saved.filter(id=>players.find(p=>p.id===id));
       const newPlayers=players.filter(p=>!saved.includes(p.id))
         .sort((a,b)=>overallElo(b)-overallElo(a)).map(p=>p.id);
@@ -2643,7 +2663,9 @@ async function loadBulkOrder(){
 
 async function saveBulkOrder(){
   try{
-    await setDoc(doc(db,'settings','bulkOrder'),{order:bulkOrder});
+    const top=Number(document.getElementById('bulkEloTop')?.value)||1400;
+    const bot=Number(document.getElementById('bulkEloBottom')?.value)||1050;
+    await setDoc(doc(db,'settings','bulkOrder'),{order:bulkOrder,top,bot});
   }catch(e){ console.warn('Could not save bulk order',e); }
 }
 
