@@ -977,28 +977,35 @@ window.recordResult=async function(winner){
 
 // Core: update ratings and save to history
 async function applyResult(winA,loseA,winner,evilTotal,goodTotal,date,source,gameId){
-  const avgWin  = winA.reduce((s,a)=>s+overallElo(a.player),0)/(winA.length||1);
-  const avgLose = loseA.reduce((s,a)=>s+overallElo(a.player),0)/(loseA.length||1);
+  // Only use community players (with stored Elo) for avgWin/avgLose calculation
+  const commWinPlayers=winA.filter(a=>a.player&&a.player.id);
+  const commLosePlayers=loseA.filter(a=>a.player&&a.player.id);
+  const avgWin =commWinPlayers.length ?commWinPlayers.reduce((s,a)=>s+overallElo(a.player),0)/commWinPlayers.length :DEFAULT_ELO;
+  const avgLose=commLosePlayers.length?commLosePlayers.reduce((s,a)=>s+overallElo(a.player),0)/commLosePlayers.length:DEFAULT_ELO;
   for(const a of winA){
     if(!a.player||!a.player.id) continue;
     const p=a.player, g=(p.wins||0)+(p.losses||0);
     p.civElo=p.civElo||{};
-    const curCivElo=civElo(p,a.civId);
-    const cgW=a.civId?((p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0)):undefined;
-    p.civElo[a.civId]=calcElo(curCivElo, avgLose, true, g, cgW);
+    if(a.civId){
+      const curCivElo=civElo(p,a.civId);
+      const cgW=(p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0);
+      p.civElo[a.civId]=calcElo(curCivElo, avgLose, true, g, cgW);
+      p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1;
+    }
     p.wins=(p.wins||0)+1;
-    if(a.civId){ p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1; }
     await savePl(p);
   }
   for(const a of loseA){
     if(!a.player||!a.player.id) continue;
     const p=a.player, g=(p.wins||0)+(p.losses||0);
     p.civElo=p.civElo||{};
-    const curCivElo=civElo(p,a.civId);
-    const cgL=a.civId?((p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0)):undefined;
-    p.civElo[a.civId]=calcElo(curCivElo, avgWin, false, g, cgL);
+    if(a.civId){
+      const curCivElo=civElo(p,a.civId);
+      const cgL=(p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0);
+      p.civElo[a.civId]=calcElo(curCivElo, avgWin, false, g, cgL);
+      p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1;
+    }
     p.losses=(p.losses||0)+1;
-    if(a.civId){ p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1; }
     await savePl(p);
   }
   const d=date||new Date().toLocaleDateString('en-CA');
@@ -2134,6 +2141,7 @@ async function autoRecordDirect(){
       const mkAssign=arr=>arr.map(m=>{
         const p=profMap[Number(m.profile_id)]||null;
         const cid=m.civ_position||TEAMID_MAP[Number(m.teamid)]||null;
+        console.log(`[poll] player=${p?.name||m.profile_id} teamid=${m.teamid} civ_position=${m.civ_position} → civId=${cid}`);
         return{
           name:      p?p.name:(m.name||`Player ${m.profile_id}`),
           civId:     cid,
