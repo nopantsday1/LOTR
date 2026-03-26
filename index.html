@@ -535,7 +535,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
     <div class="card" style="text-align:center;padding:2.5rem 1rem">
       <div style="font-size:32px;margin-bottom:.75rem;opacity:.4">⚔</div>
       <p style="font-size:15px;color:var(--dim);margin-bottom:.5rem">Watching for community lobbies every 30s</p>
-      <p style="font-size:13px;color:var(--muted)">When 2+ community members join a LOTR lobby, this tab activates automatically.</p>
+      <p style="font-size:13px;color:var(--muted)">When 2+ community members join a LOTR/Hobbit lobby, this tab activates automatically.</p>
     </div>
   </div>
 
@@ -775,6 +775,11 @@ async function init(){
     players=[]; snap.forEach(d=>players.push({id:d.id,...d.data()}));
     players.sort((a,b)=>overallElo(b)-overallElo(a));
     renderGrid(); renderPTable(); renderLB(); sync('ok');
+    // Re-subscribe WebSocket to updated player list
+    if(lobbyWs&&lobbyWs.readyState===WebSocket.OPEN){
+      const pids=players.filter(p=>p.profileId).map(p=>String(p.profileId));
+      if(pids.length) lobbyWs.send(JSON.stringify({action:'subscribe',type:'players',context:'lobby',ids:pids}));
+    }
   });
   onSnapshot(query(collection(db,'history'),orderBy('timestamp','desc'),limit(100)),snap=>{
     // limit(100) keeps read costs low — enough for deduplication in autoRecord
@@ -1725,7 +1730,7 @@ document.querySelectorAll('.mo').forEach(m=>m.addEventListener('click',e=>{if(e.
 // ─────────────────────────────────────────
 // Reads lobby.json (updated by GitHub Action every 2 min)
 // State: idle → lobby → inprogress
-const LIVE_INTERVAL_MS  = 30000;  // lobby poll
+const LIVE_INTERVAL_MS  = 15000;  // lobby.json poll every 15s
 const RESULT_INTERVAL_MS = 45000; // result poll
 
 let liveState = 'idle';       // 'idle' | 'lobby' | 'inprogress'
@@ -1797,7 +1802,11 @@ async function pollLobby(){
 
     const now=new Date().toLocaleTimeString();
     const st=document.getElementById('liveStatus');
-    if(st) st.textContent=`Last checked: ${now} · ${matches.length} lobbies · ${matches.filter(m=>m.matchtype_id===0&&m.maxplayers===8).length} custom 8-player`;
+    // Show staleness warning if lobby.json hasn't been updated in >10 minutes
+    const updated=data.updated||(data.matches?.[0]?.completiontime||0);
+    const ageMin=updated?Math.round((Date.now()/1000-updated)/60):null;
+    const staleWarn=ageMin&&ageMin>10?` ⚠ lobby.json ${ageMin}m old`:'';
+    if(st) st.textContent=`Last checked: ${now} · ${matches.length} lobbies · ${matches.filter(m=>m.matchtype_id===0&&m.maxplayers===8).length} custom 8-player${staleWarn}`;
 
     // Don't re-detect if game already started
     if(liveState==='inprogress') return;
@@ -2132,8 +2141,11 @@ window.forceEndGame=function(){
 // Start polling on page load
 setInterval(pollLobby, LIVE_INTERVAL_MS);
 setTimeout(pollLobby, 5000);
-setInterval(()=>{ if(liveState!=='inprogress') pollLobbyDirect(); }, 60000);
-setTimeout(pollLobbyDirect, 20000);
+// WebSocket for real-time lobby detection
+setTimeout(connectLobbyWs, 3000);
+// HTTP fallback poll every 60s (WebSocket handles real-time)
+setInterval(()=>{ if(liveState!=='inprogress'&&!lobbyWsAlive) pollLobbyHttp(); }, 60000);
+setTimeout(()=>{ if(!lobbyWsAlive) pollLobbyHttp(); }, 30000);
 
 // Poll match history directly — every 2 minutes, regardless of tab visibility
 setInterval(autoRecordDirect, 2*60*1000);
@@ -2158,11 +2170,120 @@ async function fetchWithProxy(aoeUrl, timeout=12000){
   throw new Error('Proxy failed');
 }
 
-const LOBBY_API_URL='https://aoe-api.worldsedgelink.com/community/leaderboard/getAvailableLobbies?title=age2&matchtype_id=0&maxplayers=8';
+// ─────────────────────────────────────────
+// aoe2lobby.com WebSocket — real-time lobby updates
+// ─────────────────────────────────────────
+let lobbyWs=null;
+let lobbyWsReconnectTimer=null;
+let lobbyWsAlive=false;
+
+function connectLobbyWs(){
+  if(lobbyWs&&(lobbyWs.readyState===WebSocket.OPEN||lobbyWs.readyState===WebSocket.CONNECTING)) return;
+  try{
+    lobbyWs=new WebSocket('wss://data.aoe2lobby.com/ws/');
+    lobbyWs.onopen=()=>{
+      lobbyWsAlive=true;
+      console.log('[ws] Connected to aoe2lobby.com');
+      // Subscribe to all lobby matches
+      lobbyWs.send(JSON.stringify({action:'subscribe',type:'matches',context:'lobby'}));
+      // Also subscribe to our specific community player IDs for instant notifications
+      const pids=players.filter(p=>p.profileId).map(p=>String(p.profileId));
+      if(pids.length) lobbyWs.send(JSON.stringify({action:'subscribe',type:'players',context:'lobby',ids:pids}));
+      const st=document.getElementById('liveStatus');
+      if(st) st.textContent='Live — connected to aoe2lobby.com WebSocket';
+    };
+    lobbyWs.onmessage=async(e)=>{
+      try{
+        const msg=JSON.parse(e.data);
+        // Player status update — one of our community members changed status
+        if(msg.player_status){
+          const commIds=buildCommIds(players);
+          const profMap=buildProfMap(players);
+          for(const[pid,status]of Object.entries(msg.player_status)){
+            if(!commIds.has(Number(pid))) continue;
+            console.log('[ws] Player update:',pid,status);
+            if(status.status==='lobby'&&liveState!=='lobby'&&liveState!=='inprogress'){
+              // A community player entered a lobby — fetch it
+              setTimeout(()=>pollLobbyHttp(), 1000);
+            } else if(status.status==='ingame'&&liveState==='lobby'){
+              activateInProgress();
+            } else if(status.status==='offline'||status.status==='menu'){
+              // ignore
+            }
+          }
+        }
+        // Full match update — check for LOTR community match
+        if(msg.matches){
+          const commIds=buildCommIds(players);
+          const profMap=buildProfMap(players);
+          if(liveState==='inprogress') return;
+          for(const match of (Array.isArray(msg.matches)?msg.matches:Object.values(msg.matches))){
+            if(!match||typeof match!=='object') continue;
+            if(match.matchtype_id!==0||match.maxplayers!==8) continue;
+            if(!isLotrMatch(match)) continue;
+            const allIds=new Set();
+            if(match.host_profile_id) allIds.add(Number(match.host_profile_id));
+            (match.matchmembers||[]).forEach(m=>allIds.add(Number(m.profile_id)));
+            const found=[...allIds].filter(id=>commIds.has(id));
+            if(found.length>=1){
+              const slots=await decodeSlotinfo(match.slotinfo||'');
+              match._slots=slots;
+              activateLobby(match,found.map(id=>profMap[id]).filter(Boolean));
+              const st=document.getElementById('liveStatus');
+              if(st) st.textContent='Live — LOTR lobby detected via WebSocket';
+              return;
+            }
+          }
+        }
+      }catch(err){ console.warn('[ws] parse error',err.message); }
+    };
+    lobbyWs.onerror=()=>{ console.warn('[ws] Error'); lobbyWsAlive=false; };
+    lobbyWs.onclose=()=>{
+      lobbyWsAlive=false;
+      console.warn('[ws] Disconnected — reconnecting in 10s');
+      const st=document.getElementById('liveStatus');
+      if(st&&liveState==='idle') st.textContent='WebSocket disconnected — reconnecting…';
+      lobbyWsReconnectTimer=setTimeout(connectLobbyWs, 10000);
+    };
+  }catch(e){ console.warn('[ws] Failed to connect:',e.message); }
+}
+
+// HTTP fallback — used when WebSocket finds a community player in a lobby
+// but we need full match details
+const LOBBY_API_URL='https://aoe-api.worldsedgelink.com/community/advertisement/findAdvertisements?title=age2&count=200';
 let lastLobbyApiCheck=0;
+
+async function pollLobbyHttp(){
+  if(liveState==='inprogress') return;
+  if(Date.now()-lastLobbyApiCheck<8000) return;
+  lastLobbyApiCheck=Date.now();
+  try{
+    const data=await fetchWithProxy(LOBBY_API_URL);
+    const lobbies=data.matches||[];
+    const commIds=buildCommIds(players);
+    const profMap=buildProfMap(players);
+    for(const match of lobbies){
+      if(match.matchtype_id!==0||match.maxplayers!==8) continue;
+      if(!isLotrMatch(match)) continue;
+      const allIds=new Set();
+      allIds.add(Number(match.host_profile_id));
+      (match.matchmembers||[]).forEach(m=>allIds.add(Number(m.profile_id)));
+      const slots=await decodeSlotinfo(match.slotinfo||'');
+      slotProfileIds(slots).forEach(id=>allIds.add(id));
+      const found=[...allIds].filter(id=>commIds.has(id));
+      if(found.length>=1){
+        match._slots=slots;
+        activateLobby(match,found.map(id=>profMap[id]).filter(Boolean));
+        return;
+      }
+    }
+    if(liveState==='lobby') activateInProgress();
+  }catch(e){ console.warn('[lobbyHttp]',e.message); }
+}
+
 async function pollLobbyDirect(){
-  // Lobby detection relies on lobby.json (scraper) — this is a no-op
-  // Only autoRecordDirect uses fetchWithProxy for completed match recording
+  // Kept for compatibility — now just runs the HTTP poll
+  await pollLobbyHttp();
 }
 
 // DIRECT MATCH HISTORY POLL
