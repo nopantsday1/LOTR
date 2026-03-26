@@ -628,6 +628,10 @@ const TEAMID_MAP = Object.fromEntries(CIVS.map(c=>[c.teamid, c.id]));
 const RACE_MAP = {4:'p1',38:'p2',17:'p3',25:'p4',12:'p5',32:'p6',9:'p7',22:'p8'};
 const DEFAULT_ELO = 1200;
 const LOTR_KW = ['hobbit','lotr','lord of the ring','the shire','middle earth'];
+
+// Normalize old civ names to current names (for existing Firestore records)
+const CIV_NAME_MAP={'P5 Blue Mts':'P5 Blue Mountains','Blue Mts':'Blue Mountains'};
+function normCivName(n){ return CIV_NAME_MAP[n]||n; }
 const LOTR_MAPS = ['the_hobbit','hobbit','lotr']; // known scenario mapnames
 function isLotrMatch(match){
   const desc=(match.description||match.mapname||'').toLowerCase();
@@ -945,7 +949,7 @@ function renderTeam(id,assign,side,total){
     row.className='arow'+(swapSrc?.side===side&&swapSrc?.i===i?' sel':'');
     row.onclick=()=>doSwap(side,i);
     row.innerHTML=`<span class="aname">${a.player.name}</span>
-      <span class="aciv">${a.civName}${(a.player.favCivs||[]).includes(a.civId)?' ⭐':''}</span>
+      <span class="aciv">${normCivName(a.civName)}${(a.player.favCivs||[]).includes(a.civId)?' ⭐':''}</span>
       <span class="aelo">${a.effElo}</span>`;
     el.appendChild(row);
   });
@@ -1066,7 +1070,7 @@ function renderHist(){
           civName=civs[idx]||'';
         }
       }
-      const civHtml = civName?` <span style="font-size:12px;color:var(--muted)">— ${civName}</span>`:'';
+      const civHtml = civName?` <span style="font-size:12px;color:var(--muted)">— ${normCivName(civName)}</span>`:'';
       const isUnknown = !a.isCommunity && a.profileId;
       const addHint  = isUnknown?` <button onclick="promptAddPlayer('${a.name}','${a.profileId}')" style="font-size:10px;font-family:'Cinzel',serif;letter-spacing:.08em;background:var(--gold-d);border:1px solid var(--gold);color:var(--gold);padding:2px 7px;border-radius:2px;cursor:pointer;margin-left:4px" title="Add ${a.name} to your community">＋ Add ${a.name}</button>`:'';
       return nameHtml+civHtml+addHint;
@@ -1143,18 +1147,18 @@ async function autoRecord(){
       const durCheck=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
       if(durCheck!==null && durCheck<600) continue;
 
-      // Skip duplicate lineups — same community players within 30 min of an existing game
-      const matchCommIds=new Set(members.filter(m=>commIds.has(Number(m.profile_id))).map(m=>String(m.profile_id)));
-      const matchStart=match.startgametime||match.completiontime||0;
-      const isDuplicate=history.some(h=>{
-        const hStart=h.timestamp?Math.floor(h.timestamp/1000):0;
-        if(Math.abs(matchStart-hStart)>1800) return false; // more than 30 min apart
-        const hPlayers=new Set([...(h.evilAssign||[]),...(h.goodAssign||[])].map(a=>String(a.profileId)).filter(Boolean));
-        if(hPlayers.size<4) return false;
-        const overlap=[...matchCommIds].filter(id=>hPlayers.has(id)).length;
-        return overlap>=matchCommIds.size*0.75; // 75%+ same players = duplicate
+      // Skip if exact same players in exact same civ positions — rehost/restore detection
+      // Uses civ position (e.g. p1@P1 Dol Guldur) so same players with different civs are NOT duplicates
+      const mkLineup=arr=>arr.map(m=>({pid:String(m.profile_id),pos:m.civ_position||String(m.teamid||'')}))
+        .filter(x=>x.pid).sort((a,b)=>a.pid.localeCompare(b.pid)).map(x=>x.pid+'@'+x.pos).join('|');
+      const matchLineup=mkLineup(members);
+      const isDuplicate=matchLineup.length>0&&history.some(h=>{
+        const hLineup=[...(h.evilAssign||[]),...(h.goodAssign||[])]
+          .filter(a=>a.profileId).map(a=>({pid:String(a.profileId),pos:a.civName||''}))
+          .sort((a,b)=>a.pid.localeCompare(b.pid)).map(x=>x.pid+'@'+x.pos).join('|');
+        return hLineup===matchLineup;
       });
-      if(isDuplicate){ console.log('[autoRecord] Skipping duplicate lineup:', gid); continue; }
+      if(isDuplicate){ console.log('[autoRecord] Skipping exact duplicate lineup (rehost/restore):', gid); continue; }
       // No description filter — rely on matchtype_id=0 + maxplayers=8 + 4+ community players
       // (mapname is always "my map" for custom scenarios in the API)
       const comm=members.filter(m=>commIds.has(Number(m.profile_id)));
@@ -2073,54 +2077,30 @@ setTimeout(pollLobbyDirect, 20000);
 setInterval(autoRecordDirect, 2*60*1000);
 setTimeout(autoRecordDirect, 45000); // first check after 45s
 
-// DIRECT LOBBY API POLL (browser-side via CORS proxy with fallbacks)
-const CORS_PROXIES=[
-  url=>`https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-  url=>`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-];
-
+// DIRECT LOBBY API POLL (browser-side via corsproxy.io)
 async function fetchWithProxy(aoeUrl, timeout=12000){
-  for(const mkProxy of CORS_PROXIES){
-    try{
-      const proxyUrl=mkProxy(aoeUrl);
-      const resp=await fetch(proxyUrl,{signal:AbortSignal.timeout(timeout)});
-      if(resp.ok) return await resp.json();
-      console.warn('[proxy] HTTP',resp.status,'from',proxyUrl.slice(0,50));
-    }catch(e){ console.warn('[proxy] Error:',e.message); }
-  }
-  throw new Error('All proxies failed');
+  // corsproxy.io - try with x-cors-api-key header for better reliability
+  const proxyUrl=`https://corsproxy.io/?url=${encodeURIComponent(aoeUrl)}`;
+  try{
+    const resp=await fetch(proxyUrl,{
+      signal:AbortSignal.timeout(timeout),
+      headers:{'x-requested-with':'XMLHttpRequest'}
+    });
+    if(resp.ok){
+      const text=await resp.text();
+      if(text.startsWith('<')){ throw new Error('Got HTML instead of JSON'); }
+      return JSON.parse(text);
+    }
+    console.warn('[proxy] HTTP',resp.status);
+  }catch(e){ console.warn('[proxy] Error:',e.message); }
+  throw new Error('Proxy failed');
 }
 
 const LOBBY_API_URL='https://aoe-api.worldsedgelink.com/community/leaderboard/getAvailableLobbies?title=age2&matchtype_id=0&maxplayers=8';
 let lastLobbyApiCheck=0;
 async function pollLobbyDirect(){
-  if(document.hidden||liveState==='inprogress') return;
-  if(Date.now()-lastLobbyApiCheck<55000) return;
-  lastLobbyApiCheck=Date.now();
-  try{
-    const data=await fetchWithProxy(LOBBY_API_URL);
-    const lobbies=data.matches||data.matchGroups||data.availableLobbies||[];
-    const commIds=buildCommIds(players);
-    const profMap=buildProfMap(players);
-    for(const match of lobbies){
-      if(match.matchtype_id!==0||match.maxplayers!==8) continue;
-      if(!isLotrMatch(match)) continue;
-      const allIds=new Set();
-      allIds.add(Number(match.host_profile_id));
-      (match.matchmembers||[]).forEach(m=>allIds.add(Number(m.profile_id)));
-      const slots=await decodeSlotinfo(match.slotinfo||'');
-      slotProfileIds(slots).forEach(id=>allIds.add(id));
-      const found=[...allIds].filter(id=>commIds.has(id));
-      if(found.length>=1){
-        match._slots=slots;
-        activateLobby(match,found.map(id=>profMap[id]).filter(Boolean));
-        const st=document.getElementById('liveStatus');
-        if(st) st.textContent+=' · (live API)';
-        return;
-      }
-    }
-    if(liveState==='lobby') activateInProgress();
-  }catch(e){}
+  // Lobby detection relies on lobby.json (scraper) — this is a no-op
+  // Only autoRecordDirect uses fetchWithProxy for completed match recording
 }
 
 // DIRECT MATCH HISTORY POLL
@@ -2296,7 +2276,7 @@ function renderProfile(p){
         ${pm.slice(0,10).map(h=>{
           const oe=(h.evilAssign||[]).some(a=>a.name===p.name);
           const won=(oe&&h.winner==='evil')||(!oe&&h.winner==='good');
-          const mc=([...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name)||{}).civName||'--';
+          const mc=normCivName(([...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name)||{}).civName||'--');
           const dur=h.duration?' · '+fmtDuration(h.duration):'';
           return '<div onclick="openMatchDetail(\''+h.id+'\')" style="display:flex;align-items:center;gap:.75rem;padding:8px 1rem;border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">'+
             '<span style="font-family:Cinzel,serif;font-size:9px;padding:3px 8px;border-radius:2px;white-space:nowrap;'+(won?'background:var(--good-d);color:#80b4d4;border:1px solid var(--good)':'background:var(--evil-d);color:#e08080;border:1px solid var(--evil)')+'">'+( won?'WIN':'LOSS')+'</span>'+
