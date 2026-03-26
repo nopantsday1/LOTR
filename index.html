@@ -545,6 +545,9 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
       <div style="font-family:'Cinzel',serif;font-size:10px;letter-spacing:.15em;color:var(--gold);margin-bottom:.4rem">LOBBY DETECTED</div>
       <div id="lobbyName" style="font-family:'Cinzel',serif;font-size:18px;color:var(--text)"></div>
       <div id="lobbyInfo" style="font-size:13px;color:var(--dim);margin-top:.3rem"></div>
+      <div id="lobbyBalanceBtn" style="display:none;margin-top:.75rem">
+        <button class="btn-p" onclick="balanceLobbyPlayers()" style="font-size:11px;padding:8px 20px">⚖ Balance These Players</button>
+      </div>
     </div>
     <div class="teams">
       <div class="tpanel evil">
@@ -1912,9 +1915,28 @@ function activateLobby(match, foundPlayers){
       <div class="odds-bar"><div class="odds-evil" style="width:${odds}%"></div><div class="odds-good" style="width:${100-odds}%"></div></div>`;
   }
 
+  // Show "Balance These Players" button only when lobby is full (8 players)
+  const allLobbyPlayers=[...liveTeams.evil,...liveTeams.good].filter(Boolean);
+  const btnEl=document.getElementById('lobbyBalanceBtn');
+  if(btnEl) btnEl.style.display=allLobbyPlayers.length>=8?'block':'none';
+
   // Store lobby start time so the timer is accurate when game begins
   liveLobbyStart=match.startgametime?match.startgametime*1000:Date.now();
 }
+
+// Pre-select lobby players on balance page and navigate there
+window.balanceLobbyPlayers=function(){
+  if(!liveTeams) return;
+  const lobbyPlayers=[...liveTeams.evil,...liveTeams.good].filter(Boolean);
+  if(lobbyPlayers.length<8){ toast('Need 8 players in lobby','err'); return; }
+  // Clear current selection and select lobby players
+  selected.clear();
+  lobbyPlayers.forEach(p=>{ if(p?.id) selected.add(p.id); });
+  go('balance');
+  renderGrid();
+  updateSel();
+  toast('8 lobby players selected — click Balance Teams!');
+};
 
 function renderLobbySlots(elId, team, civs){
   const el=document.getElementById(elId); if(!el) return;
