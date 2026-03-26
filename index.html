@@ -195,6 +195,11 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
 .fa-btn.active{opacity:1;transform:scale(1.2);}
 /* STREAK */
 .streak-badge{font-size:11px;font-family:'Cinzel',serif;padding:2px 6px;border-radius:2px;margin-left:6px;}
+.fun-card{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:.85rem 1rem;display:flex;flex-direction:column;gap:4px;}
+.fun-emoji{font-size:22px;line-height:1;margin-bottom:2px;}
+.fun-title{font-size:10px;font-family:'Cinzel',serif;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+.fun-winner{font-size:15px;color:var(--gold);font-weight:bold;}
+.fun-detail{font-size:12px;color:var(--dim);}
 .streak-w{background:#1a2e1a;color:#5a9a5a;border:1px solid #2a4a2a;}
 .streak-l{background:#2e1010;color:#c04848;border:1px solid #4a2020;}
 /* SUGGESTIONS */
@@ -360,6 +365,10 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
     <div class="card" style="grid-column:1/-1"><div class="ct">Games Per Day</div><canvas id="gamesPerDayChart" style="width:100%;height:220px"></canvas></div>
     <div class="card"><div class="ct">Player Streaks</div><div id="streakList"></div></div>
     <div class="card"><div class="ct">Community Records</div><div id="communityRecords"></div></div>
+  </div>
+  <div class="card" style="margin-bottom:1rem">
+    <div class="ct">🎭 Fun Stats</div>
+    <div id="funStats" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.75rem;margin-top:.5rem"></div>
   </div>
 </div>
 
@@ -2521,6 +2530,159 @@ function renderStats(){
   renderGamesPerDay();
   renderStreakList();
   renderCommunityRecords();
+  renderFunStats();
+}
+
+function renderFunStats(){
+  const el=document.getElementById('funStats'); if(!el) return;
+  if(!history.length||!players.length){el.innerHTML='<p style="color:var(--muted);font-size:13px">Not enough data yet.</p>';return;}
+
+  const stats={}; // playerId → aggregated stats
+  players.forEach(p=>{
+    stats[p.id]={name:p.name,wins:0,losses:0,evilGames:0,goodGames:0,
+      totalDuration:0,upsetWins:0,upsetLosses:0,biggestWinGap:0,biggestLossGap:0,
+      shortWins:0,shortGames:0,teammates:{}};
+  });
+
+  const funCards=[];
+
+  // Process history
+  for(const h of history){
+    const evilA=h.evilAssign||[], goodA=h.goodAssign||[];
+    const allA=[...evilA,...goodA];
+    const dur=h.duration||0;
+    const gap=h.gap||0;
+    const evilWon=h.winner==='evil';
+
+    // Determine if this was an upset (lower total Elo won)
+    const evilTotal=h.evilTotal||0, goodTotal=h.goodTotal||0;
+    const upset=(evilWon&&evilTotal<goodTotal)||(!evilWon&&goodTotal<evilTotal);
+
+    for(const a of allA){
+      const p=players.find(pl=>pl.name===a.name); if(!p||!stats[p.id]) continue;
+      const s=stats[p.id];
+      const onEvil=evilA.some(x=>x.name===a.name);
+      const won=(onEvil&&evilWon)||(!onEvil&&!evilWon);
+      if(won) s.wins++; else s.losses++;
+      if(onEvil) s.evilGames++; else s.goodGames++;
+      s.totalDuration+=dur;
+      if(won&&gap>s.biggestWinGap) s.biggestWinGap=gap;
+      if(!won&&gap>s.biggestLossGap) s.biggestLossGap=gap;
+      if(upset&&won) s.upsetWins++;
+      if(dur&&dur<1800&&won){ s.shortWins++; s.shortGames++; }
+      else if(dur&&dur<1800) s.shortGames++;
+
+      // Teammate tracking
+      const myTeam=onEvil?evilA:goodA;
+      for(const t of myTeam){
+        if(t.name===a.name) continue;
+        s.teammates[t.name]=s.teammates[t.name]||{w:0,l:0};
+        if(won) s.teammates[t.name].w++; else s.teammates[t.name].l++;
+      }
+    }
+  }
+
+  const ps=Object.values(stats).filter(s=>s.wins+s.losses>0);
+  const fmt=s=>fmtDuration(s);
+
+  const card=(emoji,title,winner,detail)=>`
+    <div class="fun-card">
+      <div class="fun-emoji">${emoji}</div>
+      <div class="fun-title">${title}</div>
+      <div class="fun-winner">${winner}</div>
+      <div class="fun-detail">${detail}</div>
+    </div>`;
+
+  // 1. Most games played
+  const mostGames=[...ps].sort((a,b)=>(b.wins+b.losses)-(a.wins+a.losses))[0];
+  funCards.push(card('🎮','Most Games Played',mostGames.name,`${mostGames.wins+mostGames.losses} games`));
+
+  // 2. Most wins
+  const mostWins=[...ps].sort((a,b)=>b.wins-a.wins)[0];
+  funCards.push(card('🏆','Most Wins',mostWins.name,`${mostWins.wins} wins`));
+
+  // 3. Most losses (suffering award)
+  const mostLosses=[...ps].sort((a,b)=>b.losses-a.losses)[0];
+  funCards.push(card('💀','The Suffering Award',mostLosses.name,`${mostLosses.losses} losses — hang in there`));
+
+  // 4. Evil loyalist (most % on evil)
+  const evilLoyal=[...ps].filter(s=>s.evilGames+s.goodGames>=5).sort((a,b)=>(b.evilGames/(b.evilGames+b.goodGames))-(a.evilGames/(a.evilGames+a.goodGames)))[0];
+  if(evilLoyal){
+    const pct=Math.round(evilLoyal.evilGames/(evilLoyal.evilGames+evilLoyal.goodGames)*100);
+    funCards.push(card('⚔️','Evil Loyalist',evilLoyal.name,`${pct}% of games on evil side`));
+  }
+
+  // 5. Good loyalist
+  const goodLoyal=[...ps].filter(s=>s.evilGames+s.goodGames>=5).sort((a,b)=>(b.goodGames/(b.evilGames+b.goodGames))-(a.goodGames/(a.evilGames+a.goodGames)))[0];
+  if(goodLoyal){
+    const pct=Math.round(goodLoyal.goodGames/(goodLoyal.evilGames+goodLoyal.goodGames)*100);
+    funCards.push(card('✦','Good Loyalist',goodLoyal.name,`${pct}% of games on good side`));
+  }
+
+  // 6. Marathon player — most total hours
+  const marathon=[...ps].sort((a,b)=>b.totalDuration-a.totalDuration)[0];
+  funCards.push(card('⏱️','Marathon Player',marathon.name,`${fmtDuration(marathon.totalDuration)} total playtime`));
+
+  // 7. Biggest upset winner
+  const upsetKing=[...ps].sort((a,b)=>b.upsetWins-a.upsetWins)[0];
+  if(upsetKing.upsetWins>0)
+    funCards.push(card('🌟','Upset King',upsetKing.name,`${upsetKing.upsetWins} wins against the odds`));
+
+  // 8. Speed demon — best win rate in games under 30 min
+  const speedsters=[...ps].filter(s=>s.shortGames>=3).sort((a,b)=>(b.shortWins/b.shortGames)-(a.shortWins/a.shortGames));
+  if(speedsters.length){
+    const s=speedsters[0];
+    funCards.push(card('⚡','Speed Demon',s.name,`${Math.round(s.shortWins/s.shortGames*100)}% win rate in games <30m`));
+  }
+
+  // 9. Biggest gap win (dominant victor)
+  const dominant=[...ps].sort((a,b)=>b.biggestWinGap-a.biggestWinGap)[0];
+  funCards.push(card('💪','Most Dominant Win',dominant.name,`Won with a ${dominant.biggestWinGap} Elo gap`));
+
+  // 10. Ghost — most registered, fewest games
+  const ghost=[...ps].filter(s=>s.wins+s.losses>0).sort((a,b)=>(a.wins+a.losses)-(b.wins+b.losses))[0];
+  funCards.push(card('👻','The Ghost',ghost.name,`Only ${ghost.wins+ghost.losses} games played`));
+
+  // 11. Best duo — two players with best win rate together (min 5 games)
+  let bestDuo=null, bestDuoRate=0;
+  for(const s of ps){
+    for(const [tname,rec] of Object.entries(s.teammates)){
+      if(rec.w+rec.l<5) continue;
+      const rate=rec.w/(rec.w+rec.l);
+      if(rate>bestDuoRate){bestDuoRate=rate;bestDuo={a:s.name,b:tname,w:rec.w,l:rec.l};}
+    }
+  }
+  if(bestDuo)
+    funCards.push(card('🤝','Best Duo',`${bestDuo.a} & ${bestDuo.b}`,`${bestDuo.w}W/${bestDuo.l}L together (${Math.round(bestDuoRate*100)}%)`));
+
+  // 12. Civ specialist — biggest gap between best and worst civ Elo
+  let biggestCivGap=0, civSpec=null;
+  for(const p of players){
+    if(!p.civElo) continue;
+    const elos=Object.values(p.civElo).filter(e=>e>0);
+    if(elos.length<2) continue;
+    const gap=Math.max(...elos)-Math.min(...elos);
+    if(gap>biggestCivGap){biggestCivGap=gap;civSpec=p;}
+  }
+  if(civSpec){
+    const best=CIVS.reduce((a,c)=>civElo(civSpec,c.id)>civElo(civSpec,a.id)?c:a,CIVS[0]);
+    const worst=CIVS.reduce((a,c)=>civElo(civSpec,c.id)<civElo(civSpec,a.id)?c:a,CIVS[0]);
+    funCards.push(card('🎭','Civ Specialist',civSpec.name,`${biggestCivGap} Elo gap: best ${best.name} (${civElo(civSpec,best.id)}), worst ${worst.name} (${civElo(civSpec,worst.id)})`));
+  }
+
+  // 13. Longest single game
+  const longestH=history.filter(h=>h.duration).sort((a,b)=>b.duration-a.duration)[0];
+  if(longestH){
+    const players_in=([...(longestH.evilAssign||[]),...(longestH.goodAssign||[])]).filter(a=>a.isCommunity).map(a=>a.name).join(', ');
+    funCards.push(card('🕰️','Longest Game Ever',fmtDuration(longestH.duration),`${longestH.date} — ${longestH.winner==='evil'?'Evil':'Good'} won`));
+  }
+
+  // 14. Shortest game
+  const shortestH=history.filter(h=>h.duration&&h.duration>600).sort((a,b)=>a.duration-b.duration)[0];
+  if(shortestH)
+    funCards.push(card('💨','Fastest Game Ever',fmtDuration(shortestH.duration),`${shortestH.date} — ${shortestH.winner==='evil'?'Evil':'Good'} won`));
+
+  el.innerHTML=funCards.join('');
 }
 
 function renderGamesPerDay(){
