@@ -1795,7 +1795,6 @@ async function pollLobby(){
 
     for(const match of matches){
       // Only 8-player custom games (matchtype_id=0, maxplayers=8)
-      // No keyword filter — rely on community member count instead
       if(match.matchtype_id!==0) continue;
       if(match.maxplayers!==8) continue;
       if(!isLotrMatch(match)) continue;
@@ -1808,8 +1807,9 @@ async function pollLobby(){
       slotProfileIds(slots).forEach(id=>allIds.add(id));
 
       const found=[...allIds].filter(id=>commIds.has(id));
-      if(found.length>=2){
-        match._slots=slots; // store full slot data for civ assignment
+      // For LOTR lobbies, 1 community member is enough to flag it
+      if(found.length>=1){
+        match._slots=slots;
         activateLobby(match, found.map(id=>profMap[id]).filter(Boolean));
         return;
       }
@@ -2073,23 +2073,37 @@ setTimeout(pollLobbyDirect, 20000);
 setInterval(autoRecordDirect, 2*60*1000);
 setTimeout(autoRecordDirect, 45000); // first check after 45s
 
-// DIRECT LOBBY API POLL (browser-side via corsproxy)
-const LOBBY_API_URL='https://corsproxy.io/?url='+encodeURIComponent('https://aoe-api.worldsedgelink.com/community/leaderboard/getAvailableLobbies?title=age2&matchtype_id=0&maxplayers=8');
+// DIRECT LOBBY API POLL (browser-side via CORS proxy with fallbacks)
+const CORS_PROXIES=[
+  url=>`https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+  url=>`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+];
+
+async function fetchWithProxy(aoeUrl, timeout=12000){
+  for(const mkProxy of CORS_PROXIES){
+    try{
+      const proxyUrl=mkProxy(aoeUrl);
+      const resp=await fetch(proxyUrl,{signal:AbortSignal.timeout(timeout)});
+      if(resp.ok) return await resp.json();
+      console.warn('[proxy] HTTP',resp.status,'from',proxyUrl.slice(0,50));
+    }catch(e){ console.warn('[proxy] Error:',e.message); }
+  }
+  throw new Error('All proxies failed');
+}
+
+const LOBBY_API_URL='https://aoe-api.worldsedgelink.com/community/leaderboard/getAvailableLobbies?title=age2&matchtype_id=0&maxplayers=8';
 let lastLobbyApiCheck=0;
 async function pollLobbyDirect(){
   if(document.hidden||liveState==='inprogress') return;
   if(Date.now()-lastLobbyApiCheck<55000) return;
   lastLobbyApiCheck=Date.now();
   try{
-    const resp=await fetch(LOBBY_API_URL,{signal:AbortSignal.timeout(10000)});
-    if(!resp.ok) return;
-    const data=await resp.json();
+    const data=await fetchWithProxy(LOBBY_API_URL);
     const lobbies=data.matches||data.matchGroups||data.availableLobbies||[];
     const commIds=buildCommIds(players);
     const profMap=buildProfMap(players);
     for(const match of lobbies){
       if(match.matchtype_id!==0||match.maxplayers!==8) continue;
-      if(!isLotrMatch(match)) continue;
       if(!isLotrMatch(match)) continue;
       const allIds=new Set();
       allIds.add(Number(match.host_profile_id));
@@ -2097,7 +2111,7 @@ async function pollLobbyDirect(){
       const slots=await decodeSlotinfo(match.slotinfo||'');
       slotProfileIds(slots).forEach(id=>allIds.add(id));
       const found=[...allIds].filter(id=>commIds.has(id));
-      if(found.length>=2){
+      if(found.length>=1){
         match._slots=slots;
         activateLobby(match,found.map(id=>profMap[id]).filter(Boolean));
         const st=document.getElementById('liveStatus');
@@ -2133,13 +2147,21 @@ async function autoRecordDirect(){
     const pids=players.filter(p=>p.profileId).map(p=>p.profileId);
     if(!pids.length){ directPollRunning=false; return; }
 
-    const aoeUrl=`https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=${encodeURIComponent(JSON.stringify(pids))}`;
-    const resp=await fetch(`https://corsproxy.io/?url=${encodeURIComponent(aoeUrl)}`,{signal:AbortSignal.timeout(15000)});
-    if(!resp.ok){ console.warn('[poll] HTTP',resp.status); directPollRunning=false; return; }
-
-    const data=await resp.json();
-    const matches=data.matchHistoryStats||[];
-    console.log(`[poll] ${matches.length} matches returned`);
+    // Batch into groups of 10 to avoid 413 URL too large
+    const BATCH=10;
+    const allMatches=[];
+    for(let i=0;i<pids.length;i+=BATCH){
+      const batch=pids.slice(i,i+BATCH);
+      try{
+        const aoeUrl=`https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=${encodeURIComponent(JSON.stringify(batch))}`;
+        const data=await fetchWithProxy(aoeUrl,15000);
+        allMatches.push(...(data.matchHistoryStats||[]));
+      }catch(e){ console.warn('[poll] Batch failed:',e.message); }
+    }
+    // Deduplicate by match ID
+    const seen=new Set();
+    const matches=allMatches.filter(m=>{ const id=String(m.id||m.match_id); return seen.has(id)?false:(seen.add(id),true); });
+    console.log(`[poll] ${matches.length} unique matches from ${pids.length} players`);
 
     const known=new Set(history.map(h=>String(h.gameId)).filter(Boolean));
     const EVIL_TEAMS=new Set([5,6,7,8]);
