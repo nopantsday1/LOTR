@@ -2376,11 +2376,13 @@ function drawEloChart(pts){
   const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
   const elos=pts.map(p=>p.elo);
   const minE=Math.min(...elos)-30,maxE=Math.max(...elos)+30;
-  const pad={t:10,r:10,b:20,l:42};
+  const pad={t:10,r:10,b:30,l:42}; // extra bottom padding for date labels
   const cW=W-pad.l-pad.r,cH=H-pad.t-pad.b;
   const xS=i=>pad.l+i*(cW/Math.max(1,pts.length-1));
   const yS=e=>pad.t+cH-(e-minE)/(maxE-minE)*cH;
   ctx.clearRect(0,0,W,H);
+
+  // Y axis grid + labels
   for(let i=0;i<=4;i++){
     const y=pad.t+i*(cH/4);
     ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1;
@@ -2388,20 +2390,42 @@ function drawEloChart(pts){
     ctx.fillStyle='rgba(156,136,120,0.7)'; ctx.font='10px monospace'; ctx.textAlign='right';
     ctx.fillText(Math.round(maxE-(i/4)*(maxE-minE)),pad.l-4,y+4);
   }
+
+  // Gradient fill
   const grad=ctx.createLinearGradient(0,pad.t,0,pad.t+cH);
   grad.addColorStop(0,'rgba(201,168,76,0.25)'); grad.addColorStop(1,'rgba(201,168,76,0)');
   ctx.beginPath();
   pts.forEach((p,i)=>i===0?ctx.moveTo(xS(i),yS(p.elo)):ctx.lineTo(xS(i),yS(p.elo)));
   ctx.lineTo(xS(pts.length-1),pad.t+cH); ctx.lineTo(xS(0),pad.t+cH);
   ctx.closePath(); ctx.fillStyle=grad; ctx.fill();
+
+  // Line
   ctx.strokeStyle='#c9a84c'; ctx.lineWidth=2; ctx.lineJoin='round';
   ctx.beginPath();
   pts.forEach((p,i)=>i===0?ctx.moveTo(xS(i),yS(p.elo)):ctx.lineTo(xS(i),yS(p.elo)));
   ctx.stroke();
+
+  // Dots
   pts.forEach((p,i)=>{
     ctx.beginPath(); ctx.arc(xS(i),yS(p.elo),3,0,Math.PI*2);
     ctx.fillStyle='#c9a84c'; ctx.fill();
   });
+
+  // X axis date labels — show first, last, and a few in between
+  ctx.fillStyle='rgba(156,136,120,0.6)'; ctx.font='9px monospace'; ctx.textAlign='center';
+  const labelIndices=new Set([0,pts.length-1]);
+  // Add evenly spaced labels (skip 'Start')
+  const step=Math.max(1,Math.floor((pts.length-1)/4));
+  for(let i=step;i<pts.length-1;i+=step) labelIndices.add(i);
+  labelIndices.forEach(i=>{
+    const p=pts[i];
+    const label=i===0?'Start':(p.date?p.date.slice(5):`G${i}`); // show MM-DD
+    ctx.fillText(label,xS(i),pad.t+cH+14);
+  });
+
+  // X axis title
+  ctx.fillStyle='rgba(156,136,120,0.4)'; ctx.font='9px monospace'; ctx.textAlign='center';
+  ctx.fillText(`${pts.length-1} games`,W/2,H-2);
 }
 
 // ─────────────────────────────────────────
