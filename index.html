@@ -2754,7 +2754,10 @@ function renderCivMeta(){
 function renderStreakList(){
   const el=document.getElementById('streakList'); if(!el) return;
   const streaks=calcStreaks();
-  const sorted=Object.entries(streaks).filter(([,s])=>s.count>=2).sort((a,b)=>b[1].count-a[1].count);
+  const all=Object.entries(streaks).filter(([,s])=>s.count>=2);
+  const wins =all.filter(([,s])=>s.type==='w').sort((a,b)=>b[1].count-a[1].count);
+  const losses=all.filter(([,s])=>s.type==='l').sort((a,b)=>a[1].count-b[1].count);
+  const sorted=[...wins,...losses];
   if(!sorted.length){el.innerHTML='<p style="color:var(--muted);font-size:13px">No active streaks.</p>';return;}
   el.innerHTML=sorted.map(([name,s])=>`
     <div style="display:flex;align-items:center;gap:.75rem;padding:6px 0;border-bottom:1px solid var(--border)">
