@@ -71,7 +71,7 @@ input:focus,select:focus{outline:none;border-color:var(--gold-d);}
 label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase;}
 
 /* PLAYER GRID */
-#playerGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:6px;max-height:320px;overflow-y:auto;}
+#playerGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:6px;}
 .pci{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px 10px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:border-color .15s,background .15s;user-select:none;}
 .pci:hover{border-color:var(--border2);}
 .pci.on{border-color:var(--gold-d);background:#1f1b12;}
@@ -296,7 +296,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
         <option value="p2">P2 Dol Guldur</option>
         <option value="p3">P3 Azog's Host</option>
         <option value="p4">P4 Goblin</option>
-        <option value="p5">P5 Blue Mts</option>
+        <option value="p5">P5 Blue Mountains</option>
         <option value="p6">P6 Northmen</option>
         <option value="p7">P7 Elves</option>
         <option value="p8">P8 Iron Hills</option>
@@ -336,7 +336,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
         <option value="p2">Sort by P2 Dol Guldur</option>
         <option value="p3">Sort by P3 Azog's Host</option>
         <option value="p4">Sort by P4 Goblin</option>
-        <option value="p5">Sort by P5 Blue Mts</option>
+        <option value="p5">Sort by P5 Blue Mountains</option>
         <option value="p6">Sort by P6 Northmen</option>
         <option value="p7">Sort by P7 Elves</option>
         <option value="p8">Sort by P8 Iron Hills</option>
@@ -606,7 +606,7 @@ const CIVS = [
   {id:'p2', name:'P2 Dol Guldur',  side:'evil', teamid:6 },
   {id:'p3', name:"P3 Azog's Host", side:'evil', teamid:7 },
   {id:'p4', name:'P4 Goblin',      side:'evil', teamid:8 },
-  {id:'p5', name:'P5 Blue Mts',    side:'good', teamid:9 },
+  {id:'p5', name:'P5 Blue Mountains',    side:'good', teamid:9 },
   {id:'p6', name:'P6 Northmen',    side:'good', teamid:10},
   {id:'p7', name:'P7 Elves',       side:'good', teamid:11},
   {id:'p8', name:'P8 Iron Hills',  side:'good', teamid:12},
@@ -626,6 +626,17 @@ function isLotrMatch(match){
   return LOTR_KW.some(k=>desc.includes(k)) || LOTR_MAPS.some(k=>map.includes(k));
 }
 const DEFAULT_PASS = 'admin123';
+
+function fmtDuration(s){
+  if(!s) return '—';
+  if(s>=3600){
+    const h=Math.floor(s/3600);
+    const m=Math.floor((s%3600)/60);
+    const sec=s%60;
+    return `${h}h${String(m).padStart(2,'0')}m${String(sec).padStart(2,'0')}s`;
+  }
+  return `${Math.floor(s/60)}m${String(s%60).padStart(2,'0')}s`;
+}
 
 // ─────────────────────────────────────────
 // MULTI-ACCOUNT HELPERS
@@ -1042,7 +1053,7 @@ function renderHist(){
         const sideArr=side==='evil'?(h.evilAssign||[]):(h.goodAssign||[]);
         const idx=sideArr.indexOf(a);
         if(idx>=0){
-          const civs=side==='evil'?['P1 Dol Guldur','P2 Dol Guldur',"P3 Azog's Host",'P4 Goblin']:['P5 Blue Mts','P6 Northmen','P7 Elves','P8 Iron Hills'];
+          const civs=side==='evil'?['P1 Dol Guldur','P2 Dol Guldur',"P3 Azog's Host",'P4 Goblin']:['P5 Blue Mountains','P6 Northmen','P7 Elves','P8 Iron Hills'];
           civName=civs[idx]||'';
         }
       }
@@ -1057,7 +1068,7 @@ function renderHist(){
       <div class="hi-top">
         <span class="hbadge ${w}">${w==='evil'?'⚔ Evil Win':'✦ Good Win'}</span>
         ${h.source==='auto'?'<span class="hbadge auto">AUTO</span>':''}
-        <span class="hi-meta">${h.date||''} · Gap: ${h.gap!=null?h.gap:'?'}${h.duration?` · ${Math.floor(h.duration/60)}m${String(h.duration%60).padStart(2,'0')}s`:''}</span>
+        <span class="hi-meta">${h.date||''} · Gap: ${h.gap!=null?h.gap:'?'}${h.duration?` · ${fmtDuration(h.duration)}`:''}</span>
         ${adminUnlocked?`<button class="btn" style="font-size:9px;padding:3px 8px;margin-left:auto" onclick="openMatchEditor('${h.id}')">✎ Edit</button>`:''}
         <button class="btn" style="font-size:9px;padding:3px 8px;${adminUnlocked?'':'margin-left:auto'}" onclick="delHist('${h.id}')">✕</button>
       </div>
@@ -2237,16 +2248,17 @@ function renderProfile(p){
         </div>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+    <div style="margin-bottom:1rem">
       <div class="card">
         <div class="ct">Elo Over Time</div>
-        ${ep.length>1?'<canvas id="eloChart" style="width:100%;height:160px"></canvas>':'<p style="color:var(--muted);font-size:13px">Not enough data yet.</p>'}
+        ${ep.length>1?'<div style="position:relative"><canvas id="eloChart" style="width:100%;height:240px"></canvas><div id="eloTooltip" style="display:none;position:absolute;background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:5px 10px;font-size:12px;font-family:JetBrains Mono,monospace;color:var(--gold);pointer-events:none;white-space:nowrap"></div></div>':'<p style="color:var(--muted);font-size:13px">Not enough data yet.</p>'}
       </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
       <div class="card">
         <div class="ct">Win Rate by Civ</div>
         <div class="civ-wl-grid">${buildCivStats(p,pm)}</div>
       </div>
-    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
       <div class="card" style="padding:0">
         <div class="ct" style="padding:.75rem 1rem .25rem">Recent Matches</div>
@@ -2254,7 +2266,7 @@ function renderProfile(p){
           const oe=(h.evilAssign||[]).some(a=>a.name===p.name);
           const won=(oe&&h.winner==='evil')||(!oe&&h.winner==='good');
           const mc=([...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name)||{}).civName||'--';
-          const dur=h.duration?' · '+Math.floor(h.duration/60)+'m'+String(h.duration%60).padStart(2,'0')+'s':'';
+          const dur=h.duration?' · '+fmtDuration(h.duration):'';
           return '<div onclick="openMatchDetail(\''+h.id+'\')" style="display:flex;align-items:center;gap:.75rem;padding:8px 1rem;border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">'+
             '<span style="font-family:Cinzel,serif;font-size:9px;padding:3px 8px;border-radius:2px;white-space:nowrap;'+(won?'background:var(--good-d);color:#80b4d4;border:1px solid var(--good)':'background:var(--evil-d);color:#e08080;border:1px solid var(--evil)')+'">'+( won?'WIN':'LOSS')+'</span>'+
             '<span style="flex:1;font-size:13px;color:var(--dim)">'+mc+'</span>'+
@@ -2371,12 +2383,12 @@ function buildH2H(p,matches){
 function drawEloChart(pts){
   const canvas=document.getElementById('eloChart'); if(!canvas) return;
   const dpr=window.devicePixelRatio||1;
-  const W=canvas.offsetWidth,H=canvas.offsetHeight||160;
+  const W=canvas.offsetWidth,H=canvas.offsetHeight||240;
   canvas.width=W*dpr; canvas.height=H*dpr;
   const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
   const elos=pts.map(p=>p.elo);
   const minE=Math.min(...elos)-30,maxE=Math.max(...elos)+30;
-  const pad={t:10,r:10,b:30,l:42}; // extra bottom padding for date labels
+  const pad={t:10,r:10,b:30,l:42};
   const cW=W-pad.l-pad.r,cH=H-pad.t-pad.b;
   const xS=i=>pad.l+i*(cW/Math.max(1,pts.length-1));
   const yS=e=>pad.t+cH-(e-minE)/(maxE-minE)*cH;
@@ -2407,23 +2419,97 @@ function drawEloChart(pts){
 
   // Dots
   pts.forEach((p,i)=>{
-    ctx.beginPath(); ctx.arc(xS(i),yS(p.elo),3,0,Math.PI*2);
+    ctx.beginPath(); ctx.arc(xS(i),yS(p.elo),4,0,Math.PI*2);
     ctx.fillStyle='#c9a84c'; ctx.fill();
   });
 
-  // X axis date labels — show first, last, and a few in between
+  // X axis date labels
   ctx.fillStyle='rgba(156,136,120,0.6)'; ctx.font='9px monospace'; ctx.textAlign='center';
   const labelIndices=new Set([0,pts.length-1]);
-  // Add evenly spaced labels (skip 'Start')
-  const step=Math.max(1,Math.floor((pts.length-1)/4));
+  const step=Math.max(1,Math.floor((pts.length-1)/5));
   for(let i=step;i<pts.length-1;i+=step) labelIndices.add(i);
   labelIndices.forEach(i=>{
-    const p=pts[i];
-    const label=i===0?'Start':(p.date?p.date.slice(5):`G${i}`); // show MM-DD
+    const label=i===0?'Start':(pts[i].date?pts[i].date.slice(5):`G${i}`);
     ctx.fillText(label,xS(i),pad.t+cH+14);
   });
 
   // X axis title
+  ctx.fillStyle='rgba(156,136,120,0.4)'; ctx.font='9px monospace'; ctx.textAlign='center';
+  ctx.fillText(`${pts.length-1} games`,W/2,H-2);
+
+  // Store points for hover detection
+  canvas._chartPts=pts.map((p,i)=>({x:xS(i),y:yS(p.elo),elo:p.elo,date:p.date,idx:i}));
+
+  // Hover tooltip
+  canvas.onmousemove=function(e){
+    const rect=canvas.getBoundingClientRect();
+    const mx=(e.clientX-rect.left)*(W/rect.width);
+    const my=(e.clientY-rect.top)*(H/rect.height);
+    const tip=document.getElementById('eloTooltip');
+    if(!tip) return;
+    // Find nearest point
+    let nearest=null, minDist=Infinity;
+    for(const pt of canvas._chartPts){
+      const d=Math.hypot(pt.x-mx,pt.y-my);
+      if(d<minDist){minDist=d;nearest=pt;}
+    }
+    if(nearest&&minDist<20){
+      const label=nearest.idx===0?'Start':(nearest.date||`Game ${nearest.idx}`);
+      tip.textContent=`${label}: ${nearest.elo} Elo`;
+      // Position tooltip — keep within bounds
+      const tipX=Math.min(e.clientX-rect.left+10, rect.width-140);
+      const tipY=Math.max(e.clientY-rect.top-30, 4);
+      tip.style.left=tipX+'px';
+      tip.style.top=tipY+'px';
+      tip.style.display='block';
+      // Highlight dot
+      ctx.clearRect(0,0,W,H);
+      drawEloChartStatic(ctx,pts,pad,cW,cH,minE,maxE,xS,yS,W,H);
+      ctx.beginPath(); ctx.arc(nearest.x,nearest.y,6,0,Math.PI*2);
+      ctx.fillStyle='#fff'; ctx.fill();
+      ctx.beginPath(); ctx.arc(nearest.x,nearest.y,4,0,Math.PI*2);
+      ctx.fillStyle='#c9a84c'; ctx.fill();
+    } else {
+      tip.style.display='none';
+    }
+  };
+  canvas.onmouseleave=function(){
+    const tip=document.getElementById('eloTooltip');
+    if(tip) tip.style.display='none';
+  };
+}
+
+function drawEloChartStatic(ctx,pts,pad,cW,cH,minE,maxE,xS,yS,W,H){
+  ctx.clearRect(0,0,W,H);
+  for(let i=0;i<=4;i++){
+    const y=pad.t+i*(cH/4);
+    ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+cW,y); ctx.stroke();
+    ctx.fillStyle='rgba(156,136,120,0.7)'; ctx.font='10px monospace'; ctx.textAlign='right';
+    ctx.fillText(Math.round(maxE-(i/4)*(maxE-minE)),pad.l-4,y+4);
+  }
+  const grad=ctx.createLinearGradient(0,pad.t,0,pad.t+cH);
+  grad.addColorStop(0,'rgba(201,168,76,0.25)'); grad.addColorStop(1,'rgba(201,168,76,0)');
+  ctx.beginPath();
+  pts.forEach((p,i)=>i===0?ctx.moveTo(xS(i),yS(p.elo)):ctx.lineTo(xS(i),yS(p.elo)));
+  ctx.lineTo(xS(pts.length-1),pad.t+cH); ctx.lineTo(xS(0),pad.t+cH);
+  ctx.closePath(); ctx.fillStyle=grad; ctx.fill();
+  ctx.strokeStyle='#c9a84c'; ctx.lineWidth=2; ctx.lineJoin='round';
+  ctx.beginPath();
+  pts.forEach((p,i)=>i===0?ctx.moveTo(xS(i),yS(p.elo)):ctx.lineTo(xS(i),yS(p.elo)));
+  ctx.stroke();
+  pts.forEach((p,i)=>{
+    ctx.beginPath(); ctx.arc(xS(i),yS(p.elo),4,0,Math.PI*2);
+    ctx.fillStyle='#c9a84c'; ctx.fill();
+  });
+  ctx.fillStyle='rgba(156,136,120,0.6)'; ctx.font='9px monospace'; ctx.textAlign='center';
+  const labelIndices=new Set([0,pts.length-1]);
+  const step=Math.max(1,Math.floor((pts.length-1)/5));
+  for(let i=step;i<pts.length-1;i+=step) labelIndices.add(i);
+  labelIndices.forEach(i=>{
+    const label=i===0?'Start':(pts[i].date?pts[i].date.slice(5):`G${i}`);
+    ctx.fillText(label,xS(i),pad.t+cH+14);
+  });
   ctx.fillStyle='rgba(156,136,120,0.4)'; ctx.font='9px monospace'; ctx.textAlign='center';
   ctx.fillText(`${pts.length-1} games`,W/2,H-2);
 }
@@ -2523,7 +2609,7 @@ function renderCommunityRecords(){
   const longest=history.reduce((a,b)=>(b.duration||0)>(a.duration||0)?b:a,history[0]);
   const shortest=history.filter(h=>h.duration).reduce((a,b)=>b.duration<a.duration?b:a,history.find(h=>h.duration)||history[0]);
   const evilWins=history.filter(h=>h.winner==='evil').length;
-  const fmt=s=>s?`${Math.floor(s/60)}m${String(s%60).padStart(2,'0')}s`:'—';
+  const fmt=fmtDuration;
   el.innerHTML=`
     <div style="display:flex;flex-direction:column;gap:.5rem">
       <div style="display:flex;justify-content:space-between"><span style="color:var(--dim);font-size:13px">Total games</span><span style="font-family:'JetBrains Mono',monospace">${totalGames}</span></div>
@@ -2617,7 +2703,7 @@ window.saveMatchEdit=async function(newWinner){
 // ─────────────────────────────────────────
 window.openMatchDetail=function(id){
   const h=history.find(x=>x.id===id); if(!h) return;
-  const dur=h.duration?`${Math.floor(h.duration/60)}m${String(h.duration%60).padStart(2,'0')}s`:'—';
+  const dur=h.duration?fmtDuration(h.duration):'—';
   const evilTotal=h.evilTotal||0, goodTotal=h.goodTotal||0;
   const odds=evilTotal&&goodTotal?Math.round(100/(1+Math.pow(10,-(evilTotal-goodTotal)/400))):null;
 
