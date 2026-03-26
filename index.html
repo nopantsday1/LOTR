@@ -548,14 +548,15 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
     </div>
     <div class="teams">
       <div class="tpanel evil">
-        <div class="tlabel evil">⚔ Evil Forces</div>
+        <div class="tlabel evil">⚔ Evil Forces<span id="lobbyEvilElo" style="font-family:'JetBrains Mono',monospace;font-size:12px"></span></div>
         <div id="lobbyEvil"></div>
       </div>
       <div class="tpanel good">
-        <div class="tlabel good">✦ Free Peoples</div>
+        <div class="tlabel good">✦ Free Peoples<span id="lobbyGoodElo" style="font-family:'JetBrains Mono',monospace;font-size:12px"></span></div>
         <div id="lobbyGood"></div>
       </div>
     </div>
+  <div id="lobbyOdds" style="margin-top:.75rem;padding:0 .25rem"></div>
   </div>
 
   <!-- IN PROGRESS -->
@@ -566,6 +567,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
       <div id="progressStatus" style="font-size:12px;color:var(--muted);margin-top:.4rem"></div>
       <button class="btn" onclick="forceEndGame()" style="margin-top:1rem;font-size:9px;opacity:.6">✕ End Game / Reset</button>
     </div>
+    <div id="ipOdds" style="margin-bottom:.75rem"></div>
     <div class="teams">
       <div class="tpanel evil">
         <div class="tlabel evil">⚔ Evil Forces<span id="evilElo" style="font-family:'JetBrains Mono',monospace;font-size:12px"></span></div>
@@ -1872,11 +1874,7 @@ function activateLobby(match, foundPlayers){
       slotList.slice(0,4).forEach(s=>{
         const p=players.find(pl=>playerProfileIds(pl).includes(Number(s.profileId)));
         const civName=CIVS.find(c=>c.id===s.position_label)?.name||s.position_label||'—';
-        rows.push(`<div class="arow" style="cursor:default">
-          <span class="aname">${p?p.name:`Player ${s.profileId}`}</span>
-          <span class="aciv">${civName}</span>
-          <span class="aelo">${p?overallElo(p):''}</span>
-        </div>`);
+        rows.push(`<div class="arow" style="cursor:${p?'pointer':'default'}" ${p?`onclick="openProfile('${p.id}')"`:''}>          <span class="aname">${p?p.name:`Player ${s.profileId}`}</span>          <span class="aciv">${normCivName(civName)}</span>          <span class="aelo">${p?overallElo(p):''}</span>        </div>`);
       });
     } else {
       fallbackTeam.slice(0,4).forEach((p,i)=>{
@@ -1895,6 +1893,24 @@ function activateLobby(match, foundPlayers){
   const goodSlots=slots.filter(s=>s.position_label&&GOOD_POS.has(s.position_label)).sort((a,b)=>civSortOrder.indexOf(a.position_label)-civSortOrder.indexOf(b.position_label));
   renderLobbyWithCivs('lobbyEvil', evilSlots, liveTeams.evil, EVIL_CIVS);
   renderLobbyWithCivs('lobbyGood', goodSlots, liveTeams.good, GOOD_CIVS);
+
+  // Show Elo totals and win odds in lobby view
+  const evilEloTotal=liveTeams.evil.filter(Boolean).reduce((s,p)=>s+overallElo(p),0);
+  const goodEloTotal=liveTeams.good.filter(Boolean).reduce((s,p)=>s+overallElo(p),0);
+  const elEl=document.getElementById('lobbyEvilElo');
+  const glEl=document.getElementById('lobbyGoodElo');
+  if(elEl) elEl.textContent=evilEloTotal?` ${evilEloTotal}`:'';
+  if(glEl) glEl.textContent=goodEloTotal?` ${goodEloTotal}`:'';
+  if(evilEloTotal&&goodEloTotal){
+    const odds=Math.round(100/(1+Math.pow(10,-(evilEloTotal-goodEloTotal)/400)));
+    const oddsEl=document.getElementById('lobbyOdds');
+    if(oddsEl) oddsEl.innerHTML=`
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-bottom:3px">
+        <span style="color:var(--evil)">⚔ Evil ${odds}%</span>
+        <span style="color:var(--good)">${100-odds}% Good ✦</span>
+      </div>
+      <div class="odds-bar"><div class="odds-evil" style="width:${odds}%"></div><div class="odds-good" style="width:${100-odds}%"></div></div>`;
+  }
 
   // Store lobby start time so the timer is accurate when game begins
   liveLobbyStart=match.startgametime?match.startgametime*1000:Date.now();
@@ -1946,18 +1962,42 @@ function activateInProgress(){
 function renderInProgress(){
   if(!liveTeams) return;
   const {evil,good}=liveTeams;
-  const et=evil.reduce((s,p)=>s+overallElo(p),0);
-  const gt=good.reduce((s,p)=>s+overallElo(p),0);
+
+  const getCivName=(p,side)=>{
+    if(lastBal){
+      const assign=side==='evil'?lastBal.evilAssign:lastBal.goodAssign;
+      const a=assign.find(a=>a.player?.id===p.id);
+      if(a?.civName) return normCivName(a.civName);
+    }
+    return '';
+  };
+
+  const et=evil.filter(Boolean).reduce((s,p)=>s+overallElo(p),0);
+  const gt=good.filter(Boolean).reduce((s,p)=>s+overallElo(p),0);
+  const odds=et&&gt?Math.round(100/(1+Math.pow(10,-(et-gt)/400))):50;
 
   document.getElementById('evilElo').textContent=` ${et}`;
   document.getElementById('goodElo').textContent=` ${gt}`;
 
-  const row=p=>`<div class="arow" style="cursor:default">
-    <span class="aname">${p.name}</span>
-    <span class="aelo">${overallElo(p)}</span>
-  </div>`;
-  document.getElementById('ipEvil').innerHTML=evil.map(row).join('');
-  document.getElementById('ipGood').innerHTML=good.map(row).join('');
+  const row=(p,side)=>{
+    if(!p) return `<div class="arow" style="cursor:default;opacity:.35"><span class="aname">Unknown</span></div>`;
+    const civ=getCivName(p,side);
+    return `<div class="arow" style="cursor:pointer" onclick="openProfile('${p.id}')">
+      <span class="aname">${p.name}</span>
+      ${civ?`<span class="aciv">${civ}</span>`:''}
+      <span class="aelo">${overallElo(p)}</span>
+    </div>`;
+  };
+  document.getElementById('ipEvil').innerHTML=evil.map(p=>row(p,'evil')).join('');
+  document.getElementById('ipGood').innerHTML=good.map(p=>row(p,'good')).join('');
+
+  const oddsEl=document.getElementById('ipOdds');
+  if(oddsEl) oddsEl.innerHTML=`
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-bottom:3px">
+      <span style="color:var(--evil)">⚔ Evil ${odds}%</span>
+      <span style="color:var(--good)">${100-odds}% Good ✦</span>
+    </div>
+    <div class="odds-bar"><div class="odds-evil" style="width:${odds}%"></div><div class="odds-good" style="width:${100-odds}%"></div></div>`;
 }
 
 function startTimer(){
