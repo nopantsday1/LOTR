@@ -700,7 +700,12 @@ let autoRecording=false;
 // HELPERS
 // ─────────────────────────────────────────
 const civElo  = (p,cid)    => Math.max(100, p.civElo?.[cid] ?? DEFAULT_ELO);
-const overallElo = p        => Math.round(CIVS.reduce((s,c)=>s+civElo(p,c.id),0)/CIVS.length);
+const overallElo = p => {
+  // Average only civs the player has actually played — unplayed civs skew the average
+  const played = CIVS.filter(c => (p.civWins?.[c.id]||0)+(p.civLosses?.[c.id]||0) > 0);
+  const pool = played.length ? played : CIVS; // fallback to all if no civ data
+  return Math.round(pool.reduce((s,c)=>s+civElo(p,c.id),0)/pool.length);
+};
 const sync    = s           => document.getElementById('sync').className='sync '+s;
 const toast   = (m,t='ok') => {
   const el=document.getElementById('toast');
