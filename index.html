@@ -1854,6 +1854,7 @@ function activateLobby(match, foundPlayers){
 
   // Build profileId → position_label map from slot data
   const slots=match._slots||[];
+  console.log('[lobby] Activating with',foundPlayers.length,'players,',slots.length,'slots, slotinfo='+(match.slotinfo?'yes':'no'));
   const slotByPid={};
   slots.forEach(s=>{ if(s.profileId) slotByPid[s.profileId]=s; });
 
@@ -2198,10 +2199,10 @@ function connectLobbyWs(){
         // Player status update — one of our community members changed status
         if(msg.player_status){
           const commIds=buildCommIds(players);
-          const profMap=buildProfMap(players);
           for(const[pid,status]of Object.entries(msg.player_status)){
             if(!commIds.has(Number(pid))) continue;
-            console.log('[ws] Player update:',pid,status);
+            if(!status||!status.status) continue; // ignore null/initial snapshots
+            console.log('[ws] Player update:',pid,status.status);
             if(status.status==='lobby'&&liveState!=='lobby'&&liveState!=='inprogress'){
               // A community player entered a lobby — fetch it
               setTimeout(()=>pollLobbyHttp(), 1000);
@@ -2215,7 +2216,6 @@ function connectLobbyWs(){
         // Full match update — check for LOTR community match
         if(msg.matches){
           const commIds=buildCommIds(players);
-          const profMap=buildProfMap(players);
           if(liveState==='inprogress') return;
           for(const match of (Array.isArray(msg.matches)?msg.matches:Object.values(msg.matches))){
             if(!match||typeof match!=='object') continue;
@@ -2225,12 +2225,10 @@ function connectLobbyWs(){
             if(match.host_profile_id) allIds.add(Number(match.host_profile_id));
             (match.matchmembers||[]).forEach(m=>allIds.add(Number(m.profile_id)));
             const found=[...allIds].filter(id=>commIds.has(id));
-            if(found.length>=1){
-              const slots=await decodeSlotinfo(match.slotinfo||'');
-              match._slots=slots;
-              activateLobby(match,found.map(id=>profMap[id]).filter(Boolean));
-              const st=document.getElementById('liveStatus');
-              if(st) st.textContent='Live — LOTR lobby detected via WebSocket';
+            if(found.length>=2){
+              console.log('[ws] LOTR lobby with',found.length,'community members — fetching full data');
+              // Always fetch full data from API to get slotinfo for civ positions
+              setTimeout(()=>pollLobbyHttp(), 500);
               return;
             }
           }
@@ -2477,42 +2475,48 @@ function renderProfile(p){
 }
 
 function buildEloHistory(p,matches){
-  // Start from player's actual stored Elos, then work backwards to find starting point
-  // by reversing the Elo changes from most recent to oldest, then replay forward
-  const civElos={};
-  CIVS.forEach(c=>{ civElos[c.id]=civElo(p,c.id); }); // start from current real Elos
+  // Replay matches oldest→newest using normCivName to handle old records
+  // Start from seeded Elo (all civs equal) and simulate forward
+  const sorted=[...matches].reverse(); // oldest first
 
-  // First pass: reverse all matches to find the starting Elos
-  const sorted=[...matches]; // already newest→oldest
-  for(const h of sorted){
-    const oe=(h.evilAssign||[]).some(a=>a.name===p.name);
-    const won=(oe&&h.winner==='evil')||(!oe&&h.winner==='good');
-    const my=[...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name);
-    if(!my||!my.civName) continue;
-    const civ=CIVS.find(c=>c.name===my.civName); if(!civ) continue;
-    const opp=oe?h.goodAssign:h.evilAssign;
-    const oppAvg=(opp||[]).reduce((s,a)=>s+(a.effElo||1200),0)/Math.max(1,(opp||[]).length);
-    const g=sorted.indexOf(h); // approximate games count
-    const K=g<20?128:g<40?64:32;
+  // Estimate starting Elo by reverse-simulating from current
+  const civElos={};
+  CIVS.forEach(c=>{ civElos[c.id]=civElo(p,c.id); });
+
+  // Reverse pass to find approximate starting point
+  const reversed=[...matches]; // newest first
+  for(const h of reversed){
+    const allA=[...(h.evilAssign||[]),...(h.goodAssign||[])];
+    const my=allA.find(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
+    if(!my) continue;
+    const onEvil=(h.evilAssign||[]).some(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
+    const won=(onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
+    const civName=normCivName(my.civName||'');
+    const civ=CIVS.find(c=>normCivName(c.name)===civName);
+    if(!civ) continue;
+    const opp=onEvil?h.goodAssign:h.evilAssign;
+    const oppAvg=(opp||[]).reduce((s,a)=>s+(a.effElo||DEFAULT_ELO),0)/Math.max(1,(opp||[]).length);
+    const K=32;
     const E=1/(1+Math.pow(10,(oppAvg-civElos[civ.id])/400));
-    // Reverse: subtract what was added
     civElos[civ.id]=Math.max(100,Math.round(civElos[civ.id]-K*((won?1:0)-E)));
   }
 
-  // Now replay forward from reconstructed starting Elos
   const startElo=Math.round(CIVS.reduce((s,c)=>s+civElos[c.id],0)/CIVS.length);
   const pts=[{date:'Start',elo:startElo}];
   let gamesPlayed=0;
-  const civGamesPlayed={}; // track per-civ games for K=200 provisional
+  const civGamesPlayed={};
 
-  for(const h of [...matches].reverse()){
-    const oe=(h.evilAssign||[]).some(a=>a.name===p.name);
-    const won=(oe&&h.winner==='evil')||(!oe&&h.winner==='good');
-    const my=[...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name);
-    if(!my||!my.civName) continue;
-    const civ=CIVS.find(c=>c.name===my.civName); if(!civ) continue;
-    const opp=oe?h.goodAssign:h.evilAssign;
-    const oppAvg=(opp||[]).reduce((s,a)=>s+(a.effElo||1200),0)/Math.max(1,(opp||[]).length);
+  for(const h of sorted){
+    const allA=[...(h.evilAssign||[]),...(h.goodAssign||[])];
+    const my=allA.find(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
+    if(!my) continue;
+    const onEvil=(h.evilAssign||[]).some(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
+    const won=(onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
+    const civName=normCivName(my.civName||'');
+    const civ=CIVS.find(c=>normCivName(c.name)===civName);
+    if(!civ) continue;
+    const opp=onEvil?h.goodAssign:h.evilAssign;
+    const oppAvg=(opp||[]).reduce((s,a)=>s+(a.effElo||DEFAULT_ELO),0)/Math.max(1,(opp||[]).length);
     const civG=civGamesPlayed[civ.id]||0;
     const K=civG<5?200:gamesPlayed<20?128:gamesPlayed<40?64:32;
     const E=1/(1+Math.pow(10,(oppAvg-civElos[civ.id])/400));
@@ -2524,30 +2528,34 @@ function buildEloHistory(p,matches){
   return pts;
 }
 
+
 function buildCivStats(p,matches){
   const st={};
   CIVS.forEach(c=>{st[c.id]={civ:c,w:0,l:0};});
   for(const h of matches){
-    const oe=(h.evilAssign||[]).some(a=>a.name===p.name);
-    const won=(oe&&h.winner==='evil')||(!oe&&h.winner==='good');
-    const my=[...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name);
-    if(!my||!my.civName) continue;
-    const civ=CIVS.find(c=>c.name===my.civName);
+    const allA=[...(h.evilAssign||[]),...(h.goodAssign||[])];
+    const my=allA.find(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
+    if(!my) continue;
+    const onEvil=(h.evilAssign||[]).some(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
+    const won=(onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
+    const civName=normCivName(my.civName||'');
+    const civ=CIVS.find(c=>normCivName(c.name)===civName);
     if(civ){if(won)st[civ.id].w++;else st[civ.id].l++;}
   }
   return CIVS.map(c=>{
     const s=st[c.id],tot=s.w+s.l,pct=tot?Math.round(s.w/tot*100):0,elo=civElo(p,c.id);
+    const bar='<div class="civ-wl-bar"><div class="civ-wl-fill" style="width:'+pct+'%;background:'+(c.side==='evil'?'var(--evil)':'var(--good)')+'"></div></div>';
     return '<div class="civ-wl-card">'+
       '<div class="civ-wl-name '+c.side+'">'+c.name+'</div>'+
       '<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--dim)">'+
         '<span>'+s.w+'W/'+s.l+'L</span>'+
         '<span style="font-family:JetBrains Mono,monospace;color:var(--gold)">'+elo+'</span>'+
-      '</div>'+
-      '<div class="civ-wl-bar"><div class="civ-wl-fill" style="width:'+pct+'%;background:'+(c.side==='evil'?'var(--evil)':'var(--good)')+'"></div></div>'+
+      '</div>'+bar+
       '<div style="font-size:11px;color:var(--muted);text-align:right">'+(tot?pct+'%':'--')+'</div>'+
     '</div>';
   }).join('');
 }
+
 
 function buildH2H(p,matches){
   const rec={};
