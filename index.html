@@ -2419,12 +2419,20 @@ window.addEventListener('popstate',e=>{
 });
 
 function renderProfile(p){
-  const ov=Math.round(CIVS.reduce((s,c)=>s+civElo(p,c.id),0)/CIVS.length);
-  const w=p.wins||0,l=p.losses||0,tot=w+l;
-  const wr=tot?Math.round(w/tot*100)+'%':'--';
-  const pm=history.filter(h=>[...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>a.name===p.name))
+  const pm=history.filter(h=>[...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>
+    a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId))))
     .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
-  const ep=buildEloHistory(p,pm);
+  const {pts:ep,civElos:derivedCivElos}=buildEloHistory(p,pm);
+  // Use derived Elos from history replay — more accurate than Firestore values
+  // (Firestore civElo may be stale if games were recorded without civ_position)
+  const dispElo=id=>derivedCivElos[id]||civElo(p,id);
+  const ov=Math.round(CIVS.reduce((s,c)=>s+dispElo(c.id),0)/CIVS.length);
+  const w=pm.filter(h=>{
+    const onEvil=(h.evilAssign||[]).some(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
+    return (onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
+  }).length;
+  const l=pm.length-w, tot=pm.length;
+  const wr=tot?Math.round(w/tot*100)+'%':'--';
   document.getElementById('profileContent').innerHTML=`
     <div class="profile-header">
       <div class="profile-avatar">${p.name[0].toUpperCase()}</div>
@@ -2449,7 +2457,7 @@ function renderProfile(p){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
       <div class="card">
         <div class="ct">Win Rate by Civ</div>
-        <div class="civ-wl-grid">${buildCivStats(p,pm)}</div>
+        <div class="civ-wl-grid">${buildCivStats(p,pm,dispElo)}</div>
       </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
       <div class="card" style="padding:0">
@@ -2525,11 +2533,12 @@ function buildEloHistory(p,matches){
     civGamesPlayed[civ.id]=(civGamesPlayed[civ.id]||0)+1;
     pts.push({date:h.date||'',elo:Math.round(CIVS.reduce((s,c)=>s+civElos[c.id],0)/CIVS.length)});
   }
-  return pts;
+  return {pts, civElos};
 }
 
 
-function buildCivStats(p,matches){
+function buildCivStats(p,matches,dispElo){
+  dispElo=dispElo||(id=>civElo(p,id));
   const st={};
   CIVS.forEach(c=>{st[c.id]={civ:c,w:0,l:0};});
   for(const h of matches){
@@ -2543,7 +2552,7 @@ function buildCivStats(p,matches){
     if(civ){if(won)st[civ.id].w++;else st[civ.id].l++;}
   }
   return CIVS.map(c=>{
-    const s=st[c.id],tot=s.w+s.l,pct=tot?Math.round(s.w/tot*100):0,elo=civElo(p,c.id);
+    const s=st[c.id],tot=s.w+s.l,pct=tot?Math.round(s.w/tot*100):0,elo=dispElo(c.id);
     const bar='<div class="civ-wl-bar"><div class="civ-wl-fill" style="width:'+pct+'%;background:'+(c.side==='evil'?'var(--evil)':'var(--good)')+'"></div></div>';
     return '<div class="civ-wl-card">'+
       '<div class="civ-wl-name '+c.side+'">'+c.name+'</div>'+
