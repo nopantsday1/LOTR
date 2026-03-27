@@ -735,11 +735,24 @@ function* permutations(arr){
 }
 
 function bestAssign(players, civs){
-  // Fav civ gets +15% bonus, avoid civ gets -40% penalty
+  // Get each player's most recently played civ to avoid back-to-back same civ
+  const lastCiv={};
+  for(const p of players){
+    const recent=history
+      .filter(h=>[...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>a.name===p.name))
+      .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0))[0];
+    if(recent){
+      const a=[...(recent.evilAssign||[]),...(recent.goodAssign||[])].find(a=>a.name===p.name);
+      if(a?.civName) lastCiv[p.id]=CIVS.find(c=>normCivName(c.name)===normCivName(a.civName))?.id;
+    }
+  }
+
+  // Fav civ +15%, avoid civ -40%, same as last game -25%
   const adjElo=(p,cid)=>{
     let e=civElo(p,cid);
     if((p.favCivs||[]).includes(cid))   e=Math.round(e*1.15);
     if((p.avoidCivs||[]).includes(cid)) e=Math.round(e*0.60);
+    if(lastCiv[p.id]===cid)             e=Math.round(e*0.75);
     return e;
   };
   let best=null, bestScore=-Infinity;
@@ -2509,15 +2522,21 @@ function renderProfile(p){
     a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId))))
     .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
   const {pts:ep,civElos:derivedCivElos}=buildEloHistory(p,pm);
-  // Use derived Elos from history replay — more accurate than Firestore values
-  // (Firestore civElo may be stale if games were recorded without civ_position)
   const dispElo=id=>derivedCivElos[id]||civElo(p,id);
-  const ov=Math.round(CIVS.reduce((s,c)=>s+dispElo(c.id),0)/CIVS.length);
-  const w=pm.filter(h=>{
-    const onEvil=(h.evilAssign||[]).some(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
-    return (onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
-  }).length;
-  const l=pm.length-w, tot=pm.length;
+
+  // Count played civs from history to match overallElo() logic
+  const playedCivIds=new Set();
+  for(const h of pm){
+    const a=[...(h.evilAssign||[]),...(h.goodAssign||[])].find(x=>
+      x.name===p.name||(x.profileId&&String(x.profileId)===String(p.profileId)));
+    if(a?.civName){
+      const civ=CIVS.find(c=>normCivName(c.name)===normCivName(a.civName));
+      if(civ) playedCivIds.add(civ.id);
+    }
+  }
+  const pool=playedCivIds.size?CIVS.filter(c=>playedCivIds.has(c.id)):CIVS;
+  const ov=Math.round(pool.reduce((s,c)=>s+dispElo(c.id),0)/pool.length);
+  const w=p.wins||0, l=p.losses||0, tot=w+l;
   const wr=tot?Math.round(w/tot*100)+'%':'--';
   document.getElementById('profileContent').innerHTML=`
     <div class="profile-header">
