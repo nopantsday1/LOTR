@@ -2522,10 +2522,10 @@ function renderProfile(p){
   const pm=history.filter(h=>[...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>
     a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId))))
     .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
-  const {pts:ep}=buildEloHistory(p,pm);
-  // Use Firestore values (accurate after Recalculate) — same source as leaderboard
-  const dispElo=id=>civElo(p,id);
-  const ov=overallElo(p); // uses same logic as leaderboard
+  const {pts:ep,civElos:derivedCivElos}=buildEloHistory(p,pm);
+  // Use derived Elos for display — consistent between header and civ cards
+  const dispElo=id=>derivedCivElos[id]??civElo(p,id);
+  const ov=Math.round(CIVS.reduce((s,c)=>s+dispElo(c.id),0)/CIVS.length);
   const w=p.wins||0, l=p.losses||0, tot=w+l;
   const wr=tot?Math.round(w/tot*100)+'%':'--';
   document.getElementById('profileContent').innerHTML=`
