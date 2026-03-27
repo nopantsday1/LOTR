@@ -701,6 +701,12 @@ let autoRecording=false;
 // ─────────────────────────────────────────
 const civElo  = (p,cid)    => Math.max(100, p.civElo?.[cid] ?? DEFAULT_ELO);
 const overallElo = p        => Math.round(CIVS.reduce((s,c)=>s+civElo(p,c.id),0)/CIVS.length);
+// For balancing: unplayed civs use the player's overall Elo as estimate
+// Played civs use their actual civ Elo
+const effCivElo = (p,cid)  => {
+  const played=(p.civWins?.[cid]||0)+(p.civLosses?.[cid]||0)>0;
+  return played ? civElo(p,cid) : overallElo(p);
+};
 const sync    = s           => document.getElementById('sync').className='sync '+s;
 const toast   = (m,t='ok') => {
   const el=document.getElementById('toast');
@@ -744,7 +750,7 @@ function bestAssign(players, civs){
 
   // Fav civ +15%, avoid civ -40%, same as last game -25%
   const adjElo=(p,cid)=>{
-    let e=civElo(p,cid);
+    let e=effCivElo(p,cid);
     if((p.favCivs||[]).includes(cid))   e=Math.round(e*1.15);
     if((p.avoidCivs||[]).includes(cid)) e=Math.round(e*0.60);
     if(lastCiv[p.id]===cid)             e=Math.round(e*0.75);
@@ -755,7 +761,7 @@ function bestAssign(players, civs){
     const score=players.reduce((s,p,i)=>s+adjElo(p,perm[i]),0);
     if(score>bestScore){bestScore=score;best=perm;}
   }
-  return players.map((p,i)=>({player:p,civId:best[i],civName:CIVS.find(c=>c.id===best[i]).name,effElo:civElo(p,best[i])}));
+  return players.map((p,i)=>({player:p,civId:best[i],civName:CIVS.find(c=>c.id===best[i]).name,effElo:effCivElo(p,best[i])}));
 }
 
 // ─────────────────────────────────────────
@@ -997,17 +1003,17 @@ function doSwap(side,idx){
     const aPlayer=arr[a.i].player,  bPlayer=arr[b.i].player;
     arr[a.i].civId   = bCivId;
     arr[a.i].civName = CIVS.find(c=>c.id===bCivId)?.name||'';
-    arr[a.i].effElo  = civElo(aPlayer, bCivId);
+    arr[a.i].effElo  = effCivElo(aPlayer, bCivId);
     arr[b.i].civId   = aCivId;
     arr[b.i].civName = CIVS.find(c=>c.id===aCivId)?.name||'';
-    arr[b.i].effElo  = civElo(bPlayer, aCivId);
+    arr[b.i].effElo  = effCivElo(bPlayer, aCivId);
   } else {
     // swap players across teams — keep civ slots, recalculate effElo
     const aArr=lastBal[a.side+'Assign'], bArr=lastBal[b.side+'Assign'];
     const aCiv=aArr[a.i].civId, bCiv=bArr[b.i].civId;
     const aP=aArr[a.i].player, bP=bArr[b.i].player;
-    aArr[a.i]={player:bP, civId:aCiv, civName:CIVS.find(c=>c.id===aCiv)?.name||'', effElo:civElo(bP,aCiv)};
-    bArr[b.i]={player:aP, civId:bCiv, civName:CIVS.find(c=>c.id===bCiv)?.name||'', effElo:civElo(aP,bCiv)};
+    aArr[a.i]={player:bP, civId:aCiv, civName:CIVS.find(c=>c.id===aCiv)?.name||'', effElo:effCivElo(bP,aCiv)};
+    bArr[b.i]={player:aP, civId:bCiv, civName:CIVS.find(c=>c.id===bCiv)?.name||'', effElo:effCivElo(aP,bCiv)};
   }
 
   // Recalculate totals and gap
@@ -2572,16 +2578,22 @@ function renderProfile(p){
 }
 
 function buildEloHistory(p,matches){
-  // Replay matches oldest→newest using normCivName to handle old records
-  // Start from seeded Elo (all civs equal) and simulate forward
+  // Start from seeded Elo (from bulkOrder settings or current civElo for unplayed civs)
+  // Replay oldest→newest using exact same K formula as recalcAllElos
+  // End point must match overallElo(p) exactly
   const sorted=[...matches].reverse(); // oldest first
 
-  // Estimate starting Elo by reverse-simulating from current
+  // Use current Firestore civElos as starting point, then reverse to find seed
+  // Actually: just use current Firestore values and replay forward
+  // The starting Elo = what player had before their first recorded match
+  // We approximate this by reverse-simulating from current Firestore values
   const civElos={};
   CIVS.forEach(c=>{ civElos[c.id]=civElo(p,c.id); });
 
-  // Reverse pass to find approximate starting point
-  const reversed=[...matches]; // newest first
+  // Reverse pass using same K logic
+  const civGamesRev={};
+  let totalGamesRev=0;
+  const reversed=[...sorted].reverse(); // newest first for reverse pass
   for(const h of reversed){
     const allA=[...(h.evilAssign||[]),...(h.goodAssign||[])];
     const my=allA.find(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
@@ -2593,17 +2605,19 @@ function buildEloHistory(p,matches){
     if(!civ) continue;
     const opp=onEvil?h.goodAssign:h.evilAssign;
     const oppAvg=(opp||[]).reduce((s,a)=>s+(a.effElo||DEFAULT_ELO),0)/Math.max(1,(opp||[]).length);
+    // Estimate K that was used (we don't know exact game count so use 32)
     const K=32;
     const E=1/(1+Math.pow(10,(oppAvg-civElos[civ.id])/400));
     civElos[civ.id]=Math.max(100,Math.round(civElos[civ.id]-K*((won?1:0)-E)));
   }
 
+  // Starting overall Elo (all 8 civs, same as overallElo formula)
   const startElo=Math.round(CIVS.reduce((s,c)=>s+civElos[c.id],0)/CIVS.length);
-  const pts=[{date:'Start',elo:startElo}];  let gamesPlayed=0;
+  const pts=[{date:'Start',elo:startElo}];
+  let gamesPlayed=0;
   const civGamesPlayed={};
-  const playedCivIds=new Set();
-  let playedPool=CIVS; // starts as all civs, narrows to played ones
 
+  // Forward replay
   for(const h of sorted){
     const allA=[...(h.evilAssign||[]),...(h.goodAssign||[])];
     const my=allA.find(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
@@ -2621,13 +2635,15 @@ function buildEloHistory(p,matches){
     civElos[civ.id]=Math.max(100,Math.round(civElos[civ.id]+K*((won?1:0)-E)));
     gamesPlayed++;
     civGamesPlayed[civ.id]=(civGamesPlayed[civ.id]||0)+1;
-    playedCivIds.add(civ.id);
-    playedPool=CIVS.filter(c=>playedCivIds.has(c.id));
-    pts.push({date:h.date||'',elo:Math.round(playedPool.reduce((s,c)=>s+civElos[c.id],0)/playedPool.length)});
+    // Overall = all 8 civs average (same as overallElo)
+    pts.push({date:h.date||'',elo:Math.round(CIVS.reduce((s,c)=>s+civElos[c.id],0)/CIVS.length)});
   }
+
+  // Force last point to match current Firestore overallElo exactly
+  if(pts.length>1) pts[pts.length-1].elo=overallElo(p);
+
   return {pts, civElos};
 }
-
 
 function buildCivStats(p,matches,dispElo){
   dispElo=dispElo||(id=>civElo(p,id));
@@ -2645,12 +2661,13 @@ function buildCivStats(p,matches,dispElo){
   }
   return CIVS.map(c=>{
     const s=st[c.id],tot=s.w+s.l,pct=tot?Math.round(s.w/tot*100):0,elo=dispElo(c.id);
+    const unplayed=tot===0;
     const bar='<div class="civ-wl-bar"><div class="civ-wl-fill" style="width:'+pct+'%;background:'+(c.side==='evil'?'var(--evil)':'var(--good)')+'"></div></div>';
-    return '<div class="civ-wl-card">'+
+    return '<div class="civ-wl-card"'+(unplayed?' style="opacity:0.45"':'')+'>'+
       '<div class="civ-wl-name '+c.side+'">'+c.name+'</div>'+
       '<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--dim)">'+
-        '<span>'+s.w+'W/'+s.l+'L</span>'+
-        '<span style="font-family:JetBrains Mono,monospace;color:var(--gold)">'+elo+'</span>'+
+        '<span>'+(unplayed?'Unplayed':s.w+'W/'+s.l+'L')+'</span>'+
+        '<span style="font-family:JetBrains Mono,monospace;color:'+(unplayed?'var(--muted)':'var(--gold)')+'">'+elo+'</span>'+
       '</div>'+bar+
       '<div style="font-size:11px;color:var(--muted);text-align:right">'+(tot?pct+'%':'--')+'</div>'+
     '</div>';
