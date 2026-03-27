@@ -438,6 +438,13 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
     </div>
 
     <div class="card">
+      <div class="ct">Recalculate Elos from History</div>
+      <p style="font-size:14px;color:var(--dim);margin-bottom:1rem">Replays all recorded matches to recalculate correct civ Elos. Use this to fix players stuck at seeded values.</p>
+      <div id="recalcStatus" style="font-size:12px;color:var(--muted);margin-bottom:.5rem"></div>
+      <button class="btn-p" onclick="recalcAllElos()">⟳ Recalculate All Elos</button>
+    </div>
+
+    <div class="card">
       <div class="ct">Players</div>
       <div style="margin-bottom:.75rem"><button class="btn" onclick="openModal('mAddPlayer')">+ Add Player</button></div>
       <div id="apList"></div>
@@ -1568,6 +1575,80 @@ window.confirmReset=async function(){
     await savePl(p);
   }
   sync('ok'); toast(`Reset complete — ${deleted} matches deleted${Object.keys(seededElos).length?', Elos restored from seed':''}`);
+};
+
+window.recalcAllElos=async function(){
+  if(!adminUnlocked){toast('Admin required','err');return;}
+  const log=s=>{const el=document.getElementById('recalcStatus');if(el)el.textContent=s;};
+  log('Loading history…');
+
+  // Sort history oldest→newest
+  const sorted=[...history].sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
+  if(!sorted.length){log('No history found.');return;}
+
+  // Reset all player Elos/W/L to seeded values first
+  const snap=await getDoc(doc(db,'settings','bulkOrder'));
+  const seededElos={};
+  if(snap.exists()){
+    const order=snap.data().order||[];
+    const top=snap.data().top||DEFAULT_ELO;
+    const bot=snap.data().bot||DEFAULT_ELO;
+    const n=order.length;
+    order.forEach((id,i)=>{ seededElos[id]=n===1?top:Math.round(top-(top-bot)*(i/(n-1))); });
+  }
+  for(const p of players){
+    const elo=seededElos[p.id]||DEFAULT_ELO;
+    p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=elo;});
+    p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
+  }
+  log(`Replaying ${sorted.length} matches…`);
+
+  let done=0;
+  for(const h of sorted){
+    const evilA=h.evilAssign||[], goodA=h.goodAssign||[];
+    const allA=[...evilA,...goodA];
+    const commWin=(h.winner==='evil'?evilA:goodA).filter(a=>{
+      const p=players.find(pl=>pl.name===a.name||(a.profileId&&String(a.profileId)===String(pl.profileId)));
+      return !!p;
+    });
+    const commLose=(h.winner==='evil'?goodA:evilA).filter(a=>{
+      const p=players.find(pl=>pl.name===a.name||(a.profileId&&String(a.profileId)===String(pl.profileId)));
+      return !!p;
+    });
+    const avgWin=commWin.length?commWin.reduce((s,a)=>{
+      const p=players.find(pl=>pl.name===a.name||(a.profileId&&String(a.profileId)===String(pl.profileId)));
+      return s+overallElo(p);
+    },0)/commWin.length:DEFAULT_ELO;
+    const avgLose=commLose.length?commLose.reduce((s,a)=>{
+      const p=players.find(pl=>pl.name===a.name||(a.profileId&&String(a.profileId)===String(pl.profileId)));
+      return s+overallElo(p);
+    },0)/commLose.length:DEFAULT_ELO;
+
+    for(const [arr,won] of [[commWin,true],[commLose,false]]){
+      for(const a of arr){
+        const p=players.find(pl=>pl.name===a.name||(a.profileId&&String(a.profileId)===String(pl.profileId)));
+        if(!p) continue;
+        const civName=normCivName(a.civName||'');
+        const civ=CIVS.find(c=>normCivName(c.name)===civName);
+        const g=(p.wins||0)+(p.losses||0);
+        if(civ){
+          const cg=(p.civWins?.[civ.id]||0)+(p.civLosses?.[civ.id]||0);
+          p.civElo[civ.id]=calcElo(civElo(p,civ.id),won?avgLose:avgWin,won,g,cg);
+          if(won){p.civWins=p.civWins||{};p.civWins[civ.id]=(p.civWins[civ.id]||0)+1;}
+          else   {p.civLosses=p.civLosses||{};p.civLosses[civ.id]=(p.civLosses[civ.id]||0)+1;}
+        }
+        if(won)p.wins=(p.wins||0)+1; else p.losses=(p.losses||0)+1;
+      }
+    }
+    done++;
+    if(done%10===0) log(`Replayed ${done}/${sorted.length} matches…`);
+  }
+
+  log(`Saving ${players.length} players…`);
+  for(const p of players) await savePl(p);
+  log(`Done! ${sorted.length} matches replayed, ${players.length} players updated.`);
+  toast('Elos recalculated from history!');
+  renderLB(); renderPTable();
 };
 
 // ─────────────────────────────────────────
