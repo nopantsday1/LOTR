@@ -1637,15 +1637,44 @@ window.confirmReset=async function(){
 // Replays all stored matches oldest→newest, using the same kFactor() as calcElo().
 // Resets players to seeded Elos first, then replays every match to produce
 // correct civElo, civWins, civLosses, wins, losses in Firestore.
+// ── RECALCULATE ALL ELOS ─────────────────────────────────────────────────────
 window.recalcAllElos=async function(){
   if(!adminUnlocked){toast('Admin required','err');return;}
   const log=s=>{const el=document.getElementById('recalcStatus');if(el)el.textContent=s;};
-  log('Loading history…');
+  log('Loading…');
 
-  const sorted=[...history].sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
+  // ── Step 1: Deduplicate history in Firestore by gameId ──────────────────
+  // Fetch all history docs and delete true duplicates (same gameId)
+  log('Checking for duplicate matches in Firestore…');
+  const allSnap=await getDocs(collection(db,'history'));
+  const seenGameIds=new Map(); // gameId → docRef (keep first)
+  const dupeRefs=[];
+  allSnap.forEach(d=>{
+    const gid=String(d.data().gameId||d.id);
+    if(seenGameIds.has(gid)){
+      dupeRefs.push(d.ref); // mark as duplicate
+    } else {
+      seenGameIds.set(gid,d.ref);
+    }
+  });
+  if(dupeRefs.length>0){
+    log(`Removing ${dupeRefs.length} duplicate records…`);
+    for(let i=0;i<dupeRefs.length;i+=400){
+      const batch=writeBatch(db);
+      dupeRefs.slice(i,i+400).forEach(r=>batch.delete(r));
+      await batch.commit();
+    }
+    log(`Removed ${dupeRefs.length} duplicates.`);
+  }
+
+  // ── Step 2: Load clean history oldest→newest ────────────────────────────
+  const sorted=[...history]
+    .filter((h,i,arr)=>arr.findIndex(x=>String(x.gameId||x.id)===String(h.gameId||h.id))===i)
+    .sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
   if(!sorted.length){log('No history found.');return;}
+  log(`${sorted.length} unique matches to replay.`);
 
-  // Load seeded Elos from bulkOrder settings
+  // ── Step 3: Load seeded Elos ─────────────────────────────────────────────
   const snap=await getDoc(doc(db,'settings','bulkOrder'));
   const seededElos={};
   if(snap.exists()){
@@ -1656,15 +1685,14 @@ window.recalcAllElos=async function(){
     order.forEach((id,i)=>{ seededElos[id]=n===1?top:Math.round(top-(top-bot)*(i/(n-1))); });
   }
 
-  // Reset all players to seeded values
+  // ── Step 4: Reset all players ────────────────────────────────────────────
   for(const p of players){
     const seed=seededElos[p.id]||DEFAULT_ELO;
     p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=seed;});
     p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
   }
-  log(`Replaying ${sorted.length} matches…`);
 
-  // Helper: find player by name or profileId
+  // ── Step 5: Replay oldest→newest ─────────────────────────────────────────
   const findPlayer=a=>players.find(pl=>
     pl.name===a.name||(a.profileId&&String(a.profileId)===String(pl.profileId)));
 
@@ -1673,38 +1701,38 @@ window.recalcAllElos=async function(){
     const winA =(h.winner==='evil'?h.evilAssign:h.goodAssign)||[];
     const loseA=(h.winner==='evil'?h.goodAssign:h.evilAssign)||[];
 
-    // Compute pre-game team averages using current (pre-update) Elos
+    // Pre-game team averages
     const commWin =winA.map(a=>findPlayer(a)).filter(Boolean);
     const commLose=loseA.map(a=>findPlayer(a)).filter(Boolean);
-    const avgWin =commWin.length ?commWin.reduce((s,p)=>s+overallElo(p),0)/commWin.length :DEFAULT_ELO;
+    const avgWin =commWin.length?commWin.reduce((s,p)=>s+overallElo(p),0)/commWin.length:DEFAULT_ELO;
     const avgLose=commLose.length?commLose.reduce((s,p)=>s+overallElo(p),0)/commLose.length:DEFAULT_ELO;
 
-    // Apply results — track processed player IDs to prevent double-counting
-    const processedThisMatch = new Set();
-    for(const [arr, won, oppAvg] of [[winA,true,avgLose],[loseA,false,avgWin]]){
+    // Each player processed exactly once per match
+    const seen=new Set();
+    for(const [arr,won,opp] of [[winA,true,avgLose],[loseA,false,avgWin]]){
       for(const a of arr){
-        const p=findPlayer(a); if(!p) continue;
-        if(processedThisMatch.has(p.id)) continue; // skip if already processed
-        processedThisMatch.add(p.id);
+        const p=findPlayer(a); if(!p||seen.has(p.id)) continue;
+        seen.add(p.id);
         const g=(p.wins||0)+(p.losses||0);
         const civName=normCivName(a.civName||'');
         const civ=CIVS.find(c=>normCivName(c.name)===civName);
         if(civ){
           const cg=(p.civWins?.[civ.id]||0)+(p.civLosses?.[civ.id]||0);
-          p.civElo[civ.id]=calcElo(civElo(p,civ.id), oppAvg, won, g, cg);
-          if(won){ p.civWins=p.civWins||{}; p.civWins[civ.id]=(p.civWins[civ.id]||0)+1; }
-          else   { p.civLosses=p.civLosses||{}; p.civLosses[civ.id]=(p.civLosses[civ.id]||0)+1; }
+          p.civElo[civ.id]=calcElo(civElo(p,civ.id),opp,won,g,cg);
+          if(won){p.civWins=p.civWins||{};p.civWins[civ.id]=(p.civWins[civ.id]||0)+1;}
+          else   {p.civLosses=p.civLosses||{};p.civLosses[civ.id]=(p.civLosses[civ.id]||0)+1;}
         }
-        if(won) p.wins=(p.wins||0)+1; else p.losses=(p.losses||0)+1;
+        if(won)p.wins=(p.wins||0)+1; else p.losses=(p.losses||0)+1;
       }
     }
     done++;
-    if(done%10===0) log(`Replayed ${done}/${sorted.length} matches…`);
+    if(done%10===0) log(`Replayed ${done}/${sorted.length}…`);
   }
 
+  // ── Step 6: Save all players ──────────────────────────────────────────────
   log(`Saving ${players.length} players…`);
   for(const p of players) await savePl(p);
-  log(`Done! ${sorted.length} matches replayed, ${players.length} players updated.`);
+  log(`✓ Done — ${sorted.length} matches, ${dupeRefs.length} duplicates removed.`);
   toast('Elos recalculated!');
   renderLB(); renderPTable();
 };
