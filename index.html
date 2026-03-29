@@ -699,14 +699,26 @@ let autoRecording=false;
 // ─────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────
-const civElo  = (p,cid)    => Math.max(100, p.civElo?.[cid] ?? DEFAULT_ELO);
-const overallElo = p        => Math.round(CIVS.reduce((s,c)=>s+civElo(p,c.id),0)/CIVS.length);
-// For balancing: unplayed civs use the player's overall Elo as estimate
-// Played civs use their actual civ Elo
-const effCivElo = (p,cid)  => {
-  const played=(p.civWins?.[cid]||0)+(p.civLosses?.[cid]||0)>0;
+// ── ELO HELPERS ─────────────────────────────────────────────────────────────
+// civElo: stored civ Elo from Firestore (floor 100)
+const civElo = (p,cid) => Math.max(100, p.civElo?.[cid] ?? DEFAULT_ELO);
+
+// overallElo: average of all 8 civ Elos (source of truth for leaderboard/balance)
+const overallElo = p => Math.round(CIVS.reduce((s,c)=>s+civElo(p,c.id),0)/CIVS.length);
+
+// effCivElo: for balancing — unplayed civs estimated at player's overall Elo
+const effCivElo = (p,cid) => {
+  const played = (p.civWins?.[cid]||0)+(p.civLosses?.[cid]||0) > 0;
   return played ? civElo(p,cid) : overallElo(p);
 };
+
+// K factor: civ-provisional (first 5 games on civ) → new-player → established
+function kFactor(totalGames, civGames){
+  if(civGames < 5)    return 200; // provisional: first 5 games on this civ
+  if(totalGames < 20) return 128; // new player overall
+  if(totalGames < 40) return 64;
+  return 32;
+}
 const sync    = s           => document.getElementById('sync').className='sync '+s;
 const toast   = (m,t='ok') => {
   const el=document.getElementById('toast');
@@ -715,16 +727,9 @@ const toast   = (m,t='ok') => {
 };
 
 function calcElo(elo, oppAvg, won, totalGames, civGames){
-  // K=200 for first 5 games on this specific civ (provisional)
-  // K=128 for first 20 total games (new player)
-  // K=64 for games 20-40
-  // K=32 after 40 games
-  const K = (civGames !== undefined && civGames < 5) ? 200
-           : totalGames < 20 ? 128
-           : totalGames < 40 ? 64
-           : 32;
-  const E=1/(1+Math.pow(10,(oppAvg-elo)/400));
-  return Math.max(100, Math.round(elo+K*((won?1:0)-E)));
+  const K = kFactor(totalGames, civGames ?? 99);
+  const E = 1/(1+Math.pow(10,(oppAvg-elo)/400));
+  return Math.max(100, Math.round(elo + K*((won?1:0)-E)));
 }
 
 function* permutations(arr){
@@ -1596,16 +1601,19 @@ window.confirmReset=async function(){
   sync('ok'); toast(`Reset complete — ${deleted} matches deleted${Object.keys(seededElos).length?', Elos restored from seed':''}`);
 };
 
+// ── RECALCULATE ALL ELOS ─────────────────────────────────────────────────────
+// Replays all stored matches oldest→newest, using the same kFactor() as calcElo().
+// Resets players to seeded Elos first, then replays every match to produce
+// correct civElo, civWins, civLosses, wins, losses in Firestore.
 window.recalcAllElos=async function(){
   if(!adminUnlocked){toast('Admin required','err');return;}
   const log=s=>{const el=document.getElementById('recalcStatus');if(el)el.textContent=s;};
   log('Loading history…');
 
-  // Sort history oldest→newest
   const sorted=[...history].sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
   if(!sorted.length){log('No history found.');return;}
 
-  // Reset all player Elos/W/L to seeded values first
+  // Load seeded Elos from bulkOrder settings
   const snap=await getDoc(doc(db,'settings','bulkOrder'));
   const seededElos={};
   if(snap.exists()){
@@ -1615,48 +1623,47 @@ window.recalcAllElos=async function(){
     const n=order.length;
     order.forEach((id,i)=>{ seededElos[id]=n===1?top:Math.round(top-(top-bot)*(i/(n-1))); });
   }
+
+  // Reset all players to seeded values
   for(const p of players){
-    const elo=seededElos[p.id]||DEFAULT_ELO;
-    p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=elo;});
+    const seed=seededElos[p.id]||DEFAULT_ELO;
+    p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=seed;});
     p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
   }
   log(`Replaying ${sorted.length} matches…`);
 
+  // Helper: find player by name or profileId
+  const findPlayer=a=>players.find(pl=>
+    pl.name===a.name||(a.profileId&&String(a.profileId)===String(pl.profileId)));
+
   let done=0;
   for(const h of sorted){
-    const evilA=h.evilAssign||[], goodA=h.goodAssign||[];
-    const allA=[...evilA,...goodA];
-    const commWin=(h.winner==='evil'?evilA:goodA).filter(a=>{
-      const p=players.find(pl=>pl.name===a.name||(a.profileId&&String(a.profileId)===String(pl.profileId)));
-      return !!p;
-    });
-    const commLose=(h.winner==='evil'?goodA:evilA).filter(a=>{
-      const p=players.find(pl=>pl.name===a.name||(a.profileId&&String(a.profileId)===String(pl.profileId)));
-      return !!p;
-    });
-    const avgWin=commWin.length?commWin.reduce((s,a)=>{
-      const p=players.find(pl=>pl.name===a.name||(a.profileId&&String(a.profileId)===String(pl.profileId)));
-      return s+overallElo(p);
-    },0)/commWin.length:DEFAULT_ELO;
-    const avgLose=commLose.length?commLose.reduce((s,a)=>{
-      const p=players.find(pl=>pl.name===a.name||(a.profileId&&String(a.profileId)===String(pl.profileId)));
-      return s+overallElo(p);
-    },0)/commLose.length:DEFAULT_ELO;
+    const winA =(h.winner==='evil'?h.evilAssign:h.goodAssign)||[];
+    const loseA=(h.winner==='evil'?h.goodAssign:h.evilAssign)||[];
 
-    for(const [arr,won] of [[commWin,true],[commLose,false]]){
+    // Compute pre-game team averages using current (pre-update) Elos
+    const commWin =winA.map(a=>findPlayer(a)).filter(Boolean);
+    const commLose=loseA.map(a=>findPlayer(a)).filter(Boolean);
+    const avgWin =commWin.length ?commWin.reduce((s,p)=>s+overallElo(p),0)/commWin.length :DEFAULT_ELO;
+    const avgLose=commLose.length?commLose.reduce((s,p)=>s+overallElo(p),0)/commLose.length:DEFAULT_ELO;
+
+    // Apply results — track processed player IDs to prevent double-counting
+    const processedThisMatch = new Set();
+    for(const [arr, won, oppAvg] of [[winA,true,avgLose],[loseA,false,avgWin]]){
       for(const a of arr){
-        const p=players.find(pl=>pl.name===a.name||(a.profileId&&String(a.profileId)===String(pl.profileId)));
-        if(!p) continue;
+        const p=findPlayer(a); if(!p) continue;
+        if(processedThisMatch.has(p.id)) continue; // skip if already processed
+        processedThisMatch.add(p.id);
+        const g=(p.wins||0)+(p.losses||0);
         const civName=normCivName(a.civName||'');
         const civ=CIVS.find(c=>normCivName(c.name)===civName);
-        const g=(p.wins||0)+(p.losses||0);
         if(civ){
           const cg=(p.civWins?.[civ.id]||0)+(p.civLosses?.[civ.id]||0);
-          p.civElo[civ.id]=calcElo(civElo(p,civ.id),won?avgLose:avgWin,won,g,cg);
-          if(won){p.civWins=p.civWins||{};p.civWins[civ.id]=(p.civWins[civ.id]||0)+1;}
-          else   {p.civLosses=p.civLosses||{};p.civLosses[civ.id]=(p.civLosses[civ.id]||0)+1;}
+          p.civElo[civ.id]=calcElo(civElo(p,civ.id), oppAvg, won, g, cg);
+          if(won){ p.civWins=p.civWins||{}; p.civWins[civ.id]=(p.civWins[civ.id]||0)+1; }
+          else   { p.civLosses=p.civLosses||{}; p.civLosses[civ.id]=(p.civLosses[civ.id]||0)+1; }
         }
-        if(won)p.wins=(p.wins||0)+1; else p.losses=(p.losses||0)+1;
+        if(won) p.wins=(p.wins||0)+1; else p.losses=(p.losses||0)+1;
       }
     }
     done++;
@@ -1666,7 +1673,7 @@ window.recalcAllElos=async function(){
   log(`Saving ${players.length} players…`);
   for(const p of players) await savePl(p);
   log(`Done! ${sorted.length} matches replayed, ${players.length} players updated.`);
-  toast('Elos recalculated from history!');
+  toast('Elos recalculated!');
   renderLB(); renderPTable();
 };
 
@@ -2518,16 +2525,27 @@ window.addEventListener('popstate',e=>{
   window.history.replaceState(null,'',location.pathname);
 });
 
+// ── PROFILE PAGE ─────────────────────────────────────────────────────────────
+// All display values (header, chart, civ cards) derive from a single history
+// replay via buildEloHistory. No Firestore civElo used for display here —
+// only the replay result matters so everything is internally consistent.
+// ── PROFILE RENDERING ────────────────────────────────────────────────────────
 function renderProfile(p){
-  const pm=history.filter(h=>[...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>
-    a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId))))
+  const w = p.wins||0, l = p.losses||0, tot = w+l;
+  const wr = tot ? Math.round(w/tot*100)+'%' : '--';
+
+  const pm = history
+    .filter(h=>[...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>
+      a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId))))
     .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
-  const {pts:ep,civElos:derivedCivElos}=buildEloHistory(p,pm);
-  // Use derived Elos for display — consistent between header and civ cards
-  const dispElo=id=>derivedCivElos[id]??civElo(p,id);
-  const ov=Math.round(CIVS.reduce((s,c)=>s+dispElo(c.id),0)/CIVS.length);
-  const w=p.wins||0, l=p.losses||0, tot=w+l;
-  const wr=tot?Math.round(w/tot*100)+'%':'--';
+
+  // ov = average of all 8 civElo values — identical to overallElo(p) and leaderboard
+  const ov = overallElo(p);
+
+  // Chart uses forward replay, last point forced to match ov
+  const ep = buildEloHistory(p, pm);
+  if(ep.length>0) ep[ep.length-1].elo = ov;
+
   document.getElementById('profileContent').innerHTML=`
     <div class="profile-header">
       <div class="profile-avatar">${p.name[0].toUpperCase()}</div>
@@ -2546,103 +2564,86 @@ function renderProfile(p){
     <div style="margin-bottom:1rem">
       <div class="card">
         <div class="ct">Elo Over Time</div>
-        ${ep.length>1?'<div style="position:relative"><canvas id="eloChart" style="width:100%;height:240px"></canvas><div id="eloTooltip" style="display:none;position:absolute;background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:5px 10px;font-size:12px;font-family:JetBrains Mono,monospace;color:var(--gold);pointer-events:none;white-space:nowrap"></div></div>':'<p style="color:var(--muted);font-size:13px">Not enough data yet.</p>'}
+        ${ep.length>1
+          ? '<div style="position:relative"><canvas id="eloChart" style="width:100%;height:240px"></canvas><div id="eloTooltip" style="display:none;position:absolute;background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:5px 10px;font-size:12px;font-family:JetBrains Mono,monospace;color:var(--gold);pointer-events:none;white-space:nowrap"></div></div>'
+          : '<p style="color:var(--muted);font-size:13px">Not enough data yet.</p>'}
       </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
       <div class="card">
         <div class="ct">Win Rate by Civ</div>
-        <div class="civ-wl-grid">${buildCivStats(p,pm,dispElo)}</div>
+        <div class="civ-wl-grid">${buildCivStats(p,pm,id=>civElo(p,id))}</div>
       </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
       <div class="card" style="padding:0">
         <div class="ct" style="padding:.75rem 1rem .25rem">Recent Matches</div>
         ${pm.slice(0,10).map(h=>{
-          const oe=(h.evilAssign||[]).some(a=>a.name===p.name);
-          const won=(oe&&h.winner==='evil')||(!oe&&h.winner==='good');
-          const mc=normCivName(([...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name)||{}).civName||'--');
+          const onEvil=(h.evilAssign||[]).some(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
+          const won=(onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
+          const my=[...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
+          const mc=normCivName(my?.civName||'--');
           const dur=h.duration?' · '+fmtDuration(h.duration):'';
-          return '<div onclick="openMatchDetail(\''+h.id+'\')" style="display:flex;align-items:center;gap:.75rem;padding:8px 1rem;border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">'+
-            '<span style="font-family:Cinzel,serif;font-size:9px;padding:3px 8px;border-radius:2px;white-space:nowrap;'+(won?'background:var(--good-d);color:#80b4d4;border:1px solid var(--good)':'background:var(--evil-d);color:#e08080;border:1px solid var(--evil)')+'">'+( won?'WIN':'LOSS')+'</span>'+
+          return '<div style="display:flex;align-items:center;gap:.75rem;padding:8px 1rem;border-bottom:1px solid var(--border);cursor:pointer" onclick="openMatchDetail('+JSON.stringify(h).replace(/"/g,'&quot;')+')">'+
+            '<span style="font-family:Cinzel,serif;font-size:9px;padding:3px 8px;border-radius:2px;white-space:nowrap;'+(won?'background:var(--good-d);color:#80b4d4;border:1px solid var(--good)':'background:var(--evil-d);color:#e08080;border:1px solid var(--evil)')+'">'+(won?'WIN':'LOSS')+'</span>'+
             '<span style="flex:1;font-size:13px;color:var(--dim)">'+mc+'</span>'+
-            '<span style="font-size:11px;color:var(--muted)">'+(h.date||'')+dur+'</span>'+
-            '<span style="font-size:11px;color:var(--muted);margin-left:4px">›</span></div>';
+            '<span style="font-size:11px;color:var(--muted)">'+( h.date||'')+dur+'</span></div>';
         }).join('')||'<p style="color:var(--muted);font-size:13px;padding:1rem">No matches yet.</p>'}
       </div>
-      <div class="card" style="padding:0">
-        <div class="ct" style="padding:.75rem 1rem .25rem">Head-to-Head vs Opponents</div>
-        ${buildH2H(p,pm)}
-      </div>
+    </div>
+    <div class="card" style="padding:0">
+      <div class="ct" style="padding:.75rem 1rem .25rem">Head-to-Head vs Opponents</div>
+      ${buildH2H(p,pm)}
     </div>`;
   if(ep.length>1) setTimeout(()=>drawEloChart(ep),60);
 }
 
-function buildEloHistory(p,matches){
-  // Start from seeded Elo (from bulkOrder settings or current civElo for unplayed civs)
-  // Replay oldest→newest using exact same K formula as recalcAllElos
-  // End point must match overallElo(p) exactly
-  const sorted=[...matches].reverse(); // oldest first
+// ── ELO CHART HISTORY ────────────────────────────────────────────────────────
+// Simple forward replay for the chart. Starts from overallElo(p) reversed back
+// to approximate the starting point, then replays forward.
+// renderProfile forces the last point to match overallElo(p) exactly.
+function buildEloHistory(p, matches){
+  const sorted = [...matches].reverse(); // oldest first
 
-  // Use current Firestore civElos as starting point, then reverse to find seed
-  // Actually: just use current Firestore values and replay forward
-  // The starting Elo = what player had before their first recorded match
-  // We approximate this by reverse-simulating from current Firestore values
-  const civElos={};
-  CIVS.forEach(c=>{ civElos[c.id]=civElo(p,c.id); });
+  // Initialise from Firestore civElos
+  const civElos = {};
+  CIVS.forEach(c => { civElos[c.id] = civElo(p, c.id); });
 
-  // Reverse pass using same K logic
-  const civGamesRev={};
-  let totalGamesRev=0;
-  const reversed=[...sorted].reverse(); // newest first for reverse pass
-  for(const h of reversed){
-    const allA=[...(h.evilAssign||[]),...(h.goodAssign||[])];
-    const my=allA.find(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
+  // Reverse pass to find approximate start
+  for(const h of [...sorted].reverse()){
+    const allA = [...(h.evilAssign||[]),...(h.goodAssign||[])];
+    const my = allA.find(a => a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
     if(!my) continue;
-    const onEvil=(h.evilAssign||[]).some(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
-    const won=(onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
-    const civName=normCivName(my.civName||'');
-    const civ=CIVS.find(c=>normCivName(c.name)===civName);
+    const onEvil = (h.evilAssign||[]).some(a => a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
+    const won = (onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
+    const civ = CIVS.find(c => normCivName(c.name)===normCivName(my.civName||''));
     if(!civ) continue;
-    const opp=onEvil?h.goodAssign:h.evilAssign;
-    const oppAvg=(opp||[]).reduce((s,a)=>s+(a.effElo||DEFAULT_ELO),0)/Math.max(1,(opp||[]).length);
-    // Estimate K that was used (we don't know exact game count so use 32)
-    const K=32;
-    const E=1/(1+Math.pow(10,(oppAvg-civElos[civ.id])/400));
-    civElos[civ.id]=Math.max(100,Math.round(civElos[civ.id]-K*((won?1:0)-E)));
+    const opp = onEvil ? h.goodAssign : h.evilAssign;
+    const oppAvg = (opp||[]).reduce((s,a)=>s+(a.effElo||DEFAULT_ELO),0)/Math.max(1,(opp||[]).length);
+    const E = 1/(1+Math.pow(10,(oppAvg-civElos[civ.id])/400));
+    civElos[civ.id] = Math.max(100, Math.round(civElos[civ.id] - 32*((won?1:0)-E)));
   }
 
-  // Starting overall Elo (all 8 civs, same as overallElo formula)
-  const startElo=Math.round(CIVS.reduce((s,c)=>s+civElos[c.id],0)/CIVS.length);
-  const pts=[{date:'Start',elo:startElo}];
-  let gamesPlayed=0;
-  const civGamesPlayed={};
+  const pts = [{date:'Start', elo: Math.round(CIVS.reduce((s,c)=>s+civElos[c.id],0)/CIVS.length)}];
+  let totalGames = 0;
+  const civGames = {};
 
-  // Forward replay
   for(const h of sorted){
-    const allA=[...(h.evilAssign||[]),...(h.goodAssign||[])];
-    const my=allA.find(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
+    const allA = [...(h.evilAssign||[]),...(h.goodAssign||[])];
+    const my = allA.find(a => a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
     if(!my) continue;
-    const onEvil=(h.evilAssign||[]).some(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
-    const won=(onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
-    const civName=normCivName(my.civName||'');
-    const civ=CIVS.find(c=>normCivName(c.name)===civName);
+    const onEvil = (h.evilAssign||[]).some(a => a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
+    const won = (onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
+    const civ = CIVS.find(c => normCivName(c.name)===normCivName(my.civName||''));
     if(!civ) continue;
-    const opp=onEvil?h.goodAssign:h.evilAssign;
-    const oppAvg=(opp||[]).reduce((s,a)=>s+(a.effElo||DEFAULT_ELO),0)/Math.max(1,(opp||[]).length);
-    const civG=civGamesPlayed[civ.id]||0;
-    const K=civG<5?200:gamesPlayed<20?128:gamesPlayed<40?64:32;
-    const E=1/(1+Math.pow(10,(oppAvg-civElos[civ.id])/400));
-    civElos[civ.id]=Math.max(100,Math.round(civElos[civ.id]+K*((won?1:0)-E)));
-    gamesPlayed++;
-    civGamesPlayed[civ.id]=(civGamesPlayed[civ.id]||0)+1;
-    // Overall = all 8 civs average (same as overallElo)
-    pts.push({date:h.date||'',elo:Math.round(CIVS.reduce((s,c)=>s+civElos[c.id],0)/CIVS.length)});
+    const opp = onEvil ? h.goodAssign : h.evilAssign;
+    const oppAvg = (opp||[]).reduce((s,a)=>s+(a.effElo||DEFAULT_ELO),0)/Math.max(1,(opp||[]).length);
+    const cg = civGames[civ.id]||0;
+    const E = 1/(1+Math.pow(10,(oppAvg-civElos[civ.id])/400));
+    civElos[civ.id] = Math.max(100, Math.round(civElos[civ.id] + kFactor(totalGames,cg)*((won?1:0)-E)));
+    totalGames++;
+    civGames[civ.id] = cg+1;
+    pts.push({date: h.date||'', elo: Math.round(CIVS.reduce((s,c)=>s+civElos[c.id],0)/CIVS.length)});
   }
-
-  // Force last point to match current Firestore overallElo exactly
-  if(pts.length>1) pts[pts.length-1].elo=overallElo(p);
-
-  return {pts, civElos};
+  return pts;
 }
 
 function buildCivStats(p,matches,dispElo){
