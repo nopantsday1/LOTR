@@ -746,26 +746,43 @@ function* permutations(arr){
 }
 
 function bestAssign(players, civs){
-  // Get each player's most recently played civ to avoid back-to-back same civ
-  const lastCiv={};
+  // Build each player's recent civ history (last 3 games) and unplayed civs
+  const recentCivs={}; // playerId → [civId, civId, civId] newest first
+  const playedCivs={}; // playerId → Set of civIds ever played on this side
   for(const p of players){
-    const recent=history
+    const myMatches=history
       .filter(h=>[...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>a.name===p.name))
-      .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0))[0];
-    if(recent){
-      const a=[...(recent.evilAssign||[]),...(recent.goodAssign||[])].find(a=>a.name===p.name);
-      if(a?.civName) lastCiv[p.id]=CIVS.find(c=>normCivName(c.name)===normCivName(a.civName))?.id;
+      .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
+    recentCivs[p.id]=[];
+    playedCivs[p.id]=new Set();
+    for(const h of myMatches){
+      const a=[...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name);
+      if(!a?.civName) continue;
+      const civ=CIVS.find(c=>normCivName(c.name)===normCivName(a.civName));
+      if(!civ) continue;
+      // Only track civs on the same side (evil/good) as current assignment pool
+      if(civs.some(c=>c.id===civ.id)){
+        if(recentCivs[p.id].length<3) recentCivs[p.id].push(civ.id);
+        playedCivs[p.id].add(civ.id);
+      }
     }
   }
 
-  // Fav civ +15%, avoid civ -40%, same as last game -25%
   const adjElo=(p,cid)=>{
     let e=effCivElo(p,cid);
+    // Fav/avoid modifiers
     if((p.favCivs||[]).includes(cid))   e=Math.round(e*1.15);
     if((p.avoidCivs||[]).includes(cid)) e=Math.round(e*0.60);
-    if(lastCiv[p.id]===cid)             e=Math.round(e*0.75);
+    // Rotation penalties — stronger for more recent play
+    const recent=recentCivs[p.id]||[];
+    if(recent[0]===cid) e=Math.round(e*0.65); // last game: -35%
+    else if(recent[1]===cid) e=Math.round(e*0.80); // 2 games ago: -20%
+    else if(recent[2]===cid) e=Math.round(e*0.90); // 3 games ago: -10%
+    // Bonus for civs never played — encourages variety
+    if(!(playedCivs[p.id]||new Set()).has(cid)) e=Math.round(e*1.10);
     return e;
   };
+
   let best=null, bestScore=-Infinity;
   for(const perm of permutations(civs.map(c=>c.id))){
     const score=players.reduce((s,p,i)=>s+adjElo(p,perm[i]),0);
@@ -2544,8 +2561,19 @@ function renderProfile(p){
       a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId))))
     .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
 
-  // ov = average of all 8 civElo values — identical to overallElo(p) and leaderboard
-  const ov = overallElo(p);
+  // Compute overall Elo from played civs, detected directly from match history
+  // More reliable than civWins/civLosses which may be stale
+  const playedCivIds = new Set();
+  for(const h of pm){
+    const my = [...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>
+      a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
+    if(my?.civName){
+      const civ=CIVS.find(c=>normCivName(c.name)===normCivName(my.civName));
+      if(civ) playedCivIds.add(civ.id);
+    }
+  }
+  const pool = playedCivIds.size ? CIVS.filter(c=>playedCivIds.has(c.id)) : CIVS;
+  const ov = Math.round(pool.reduce((s,c)=>s+civElo(p,c.id),0)/pool.length);
 
   // Chart uses forward replay - no forcing, shows natural progression
   const ep = buildEloHistory(p, pm);
