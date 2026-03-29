@@ -704,7 +704,12 @@ let autoRecording=false;
 const civElo = (p,cid) => Math.max(100, p.civElo?.[cid] ?? DEFAULT_ELO);
 
 // overallElo: average of all 8 civ Elos (source of truth for leaderboard/balance)
-const overallElo = p => Math.round(CIVS.reduce((s,c)=>s+civElo(p,c.id),0)/CIVS.length);
+const overallElo = p => {
+  // Only average civs the player has actually played — unplayed civs excluded
+  const played = CIVS.filter(c => (p.civWins?.[c.id]||0)+(p.civLosses?.[c.id]||0) > 0);
+  const pool = played.length ? played : CIVS; // fallback to all if no data yet
+  return Math.round(pool.reduce((s,c)=>s+civElo(p,c.id),0)/pool.length);
+};
 
 // effCivElo: for balancing — unplayed civs estimated at player's overall Elo
 const effCivElo = (p,cid) => {
@@ -2542,9 +2547,8 @@ function renderProfile(p){
   // ov = average of all 8 civElo values — identical to overallElo(p) and leaderboard
   const ov = overallElo(p);
 
-  // Chart uses forward replay, last point forced to match ov
+  // Chart uses forward replay - no forcing, shows natural progression
   const ep = buildEloHistory(p, pm);
-  if(ep.length>0) ep[ep.length-1].elo = ov;
 
   document.getElementById('profileContent').innerHTML=`
     <div class="profile-header">
@@ -2622,7 +2626,12 @@ function buildEloHistory(p, matches){
     civElos[civ.id] = Math.max(100, Math.round(civElos[civ.id] - 32*((won?1:0)-E)));
   }
 
-  const pts = [{date:'Start', elo: Math.round(CIVS.reduce((s,c)=>s+civElos[c.id],0)/CIVS.length)}];
+  const playedInChart = new Set();
+  const chartAvg = () => {
+    const pool = playedInChart.size ? CIVS.filter(c=>playedInChart.has(c.id)) : CIVS;
+    return Math.round(pool.reduce((s,c)=>s+civElos[c.id],0)/pool.length);
+  };
+  const pts = [{date:'Start', elo: chartAvg()}];
   let totalGames = 0;
   const civGames = {};
 
@@ -2641,7 +2650,8 @@ function buildEloHistory(p, matches){
     civElos[civ.id] = Math.max(100, Math.round(civElos[civ.id] + kFactor(totalGames,cg)*((won?1:0)-E)));
     totalGames++;
     civGames[civ.id] = cg+1;
-    pts.push({date: h.date||'', elo: Math.round(CIVS.reduce((s,c)=>s+civElos[c.id],0)/CIVS.length)});
+    playedInChart.add(civ.id);
+    pts.push({date: h.date||'', elo: chartAvg()});
   }
   return pts;
 }
