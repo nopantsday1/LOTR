@@ -1,0 +1,3751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Hobbit Balancer</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #0d0b09;
+  --bg2:      #141210;
+  --bg3:      #1c1915;
+  --border:   #2e2820;
+  --border2:  #3d352a;
+  --text:     #e8dcc8;
+  --dim:      #9a8878;
+  --muted:    #5c5048;
+  --gold:     #c9a84c;
+  --gold-d:   #7a6330;
+  --evil:     #c04848;
+  --evil-d:   #7a2828;
+  --good:     #4a8fb5;
+  --good-d:   #2a5070;
+  --green:    #5a9a5a;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Crimson Text',serif;font-size:16px;min-height:100vh;}
+button,input,select{font-family:'Crimson Text',serif;font-size:15px;}
+
+/* NAV */
+nav{background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 1.5rem;height:52px;position:sticky;top:0;z-index:100;}
+.brand{font-family:'Cinzel',serif;font-size:13px;letter-spacing:.15em;color:var(--gold);margin-right:2rem;text-transform:uppercase;}
+.tab{font-family:'Cinzel',serif;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);padding:0 1rem;height:52px;display:flex;align-items:center;cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+.spacer{flex:1;}
+.sync{width:7px;height:7px;border-radius:50%;background:var(--muted);transition:background .3s;}
+.sync.ok{background:var(--green);}
+.sync.spin{background:var(--gold);animation:pulse .8s infinite;}
+.sync.err{background:var(--evil);}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* LAYOUT */
+.page{display:none;padding:1.5rem;max-width:1100px;margin:0 auto;}
+.page.on{display:block;}
+.ph{margin-bottom:1.5rem;}
+.ph h1{font-family:'Cinzel',serif;font-size:20px;letter-spacing:.1em;color:var(--gold);margin-bottom:.25rem;}
+.ph p{font-size:14px;color:var(--dim);}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1.25rem;margin-bottom:1rem;}
+.ct{font-family:'Cinzel',serif;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:.75rem;}
+hr{border:none;border-top:1px solid var(--border);margin:1.1rem 0;}
+.row{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;}
+.sb{display:flex;align-items:center;justify-content:space-between;gap:.5rem;}
+
+/* BUTTONS */
+.btn{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:7px 16px;border-radius:3px;cursor:pointer;font-family:'Cinzel',serif;font-size:10px;letter-spacing:.1em;text-transform:uppercase;transition:border-color .15s,color .15s;}
+.btn:hover{border-color:var(--gold-d);color:var(--gold);}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn-p{background:var(--gold-d);border-color:var(--gold);color:var(--gold);padding:9px 22px;font-family:'Cinzel',serif;font-size:10px;letter-spacing:.1em;text-transform:uppercase;border-radius:3px;cursor:pointer;transition:background .15s,color .15s;}
+.btn-p:hover{background:var(--gold);color:var(--bg);}
+.btn-e{background:var(--evil-d);border:1px solid var(--evil);color:#e08080;padding:9px 18px;font-family:'Cinzel',serif;font-size:10px;letter-spacing:.1em;text-transform:uppercase;border-radius:3px;cursor:pointer;}
+.btn-e:hover{background:var(--evil);color:#fff;}
+.btn-g{background:var(--good-d);border:1px solid var(--good);color:#80b4d4;padding:9px 18px;font-family:'Cinzel',serif;font-size:10px;letter-spacing:.1em;text-transform:uppercase;border-radius:3px;cursor:pointer;}
+.btn-g:hover{background:var(--good);color:#fff;}
+.btn-del{background:#3a1010;border:1px solid #7a2020;color:#e06060;font-family:'Cinzel',serif;font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:7px 14px;border-radius:3px;cursor:pointer;}
+.btn-del:hover{background:#7a2020;color:#fff;}
+
+/* INPUTS */
+input[type=text],input[type=password],input[type=number],select{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:7px 10px;border-radius:3px;width:100%;}
+input:focus,select:focus{outline:none;border-color:var(--gold-d);}
+label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase;}
+
+/* PLAYER GRID */
+#playerGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:6px;}
+.pci{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px 10px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:border-color .15s,background .15s;user-select:none;}
+.pci:hover{border-color:var(--border2);}
+.pci.on{border-color:var(--gold-d);background:#1f1b12;}
+.pci input{width:14px;height:14px;cursor:pointer;flex-shrink:0;accent-color:var(--gold);}
+.pci-name{flex:1;font-size:14px;}
+.pci-elo{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--gold);}
+
+/* BALANCE RESULT */
+.teams{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:.75rem;}
+@media(max-width:580px){.teams{grid-template-columns:1fr;}}
+.tpanel{border-radius:4px;padding:1rem;border:1px solid;}
+.tpanel.evil{background:#160e0e;border-color:var(--evil-d);}
+.tpanel.good{background:#0e1319;border-color:var(--good-d);}
+.tlabel{font-family:'Cinzel',serif;font-size:11px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:.75rem;display:flex;justify-content:space-between;align-items:center;}
+.tlabel.evil{color:var(--evil);}
+.tlabel.good{color:var(--good);}
+.arow{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:3px;margin-bottom:4px;background:rgba(0,0,0,.2);cursor:pointer;transition:background .15s;}
+.arow:hover{background:rgba(255,255,255,.04);}
+.arow.sel{background:rgba(201,168,76,.12);outline:1px solid var(--gold-d);}
+.aname{flex:1;font-size:15px;}
+.aciv{font-size:12px;color:var(--dim);}
+.aelo{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--gold);}
+.gap-badge{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:12px;padding:3px 10px;border-radius:2px;}
+.gap-badge.tight{background:#1a2e1a;color:#5a9a5a;border:1px solid #2a4a2a;}
+.gap-badge.mid{background:#2e2a10;color:#c9a84c;border:1px solid #4a4020;}
+.gap-badge.wide{background:#2e1010;color:#c04848;border:1px solid #4a2020;}
+
+/* HISTORY */
+.hi{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1rem 1.25rem;margin-bottom:.6rem;}
+.hi-top{display:flex;align-items:center;gap:.75rem;margin-bottom:.6rem;}
+.hbadge{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.12em;text-transform:uppercase;padding:4px 9px;border-radius:2px;white-space:nowrap;}
+.hbadge.evil{background:var(--evil-d);color:#e08080;border:1px solid var(--evil);}
+.hbadge.good{background:var(--good-d);color:#80b4d4;border:1px solid var(--good);}
+.hbadge.auto{background:#1a2a1a;color:#5a8a5a;border:1px solid #2a4a2a;}
+.hi-meta{font-size:12px;color:var(--dim);margin-left:auto;white-space:nowrap;}
+.hi-teams{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;}
+@media(max-width:600px){.hi-teams{grid-template-columns:1fr;}}
+.hi-tl{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.1em;color:var(--muted);margin-bottom:.25rem;}
+.hi-pl{font-size:14px;line-height:1.7;}
+
+/* PLAYERS TABLE */
+.ptable{width:100%;border-collapse:collapse;}
+.ptable th{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding:8px 12px;border-bottom:1px solid var(--border);text-align:left;cursor:pointer;white-space:nowrap;}
+.ptable th:hover{color:var(--dim);}
+.ptable td{padding:9px 12px;border-bottom:1px solid var(--border);font-size:15px;}
+.ptable tr:hover td{background:var(--bg3);}
+.mono{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--gold);}
+.pid{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);}
+
+/* CIV ELO BARS */
+.civbars{display:flex;gap:3px;align-items:flex-end;}
+.cvbar{width:16px;border-radius:1px 1px 0 0;transition:height .3s;cursor:pointer;position:relative;}
+.cvbar.evil{background:var(--evil-d);}
+.cvbar.good{background:var(--good-d);}
+.cvbar:hover{filter:brightness(1.4);}
+
+/* LEADERBOARD */
+.lbrow{display:flex;align-items:center;gap:1rem;padding:10px 1rem;border-bottom:1px solid var(--border);}
+.lbrank{font-family:'Cinzel',serif;font-size:11px;color:var(--muted);width:2rem;flex-shrink:0;}
+.lbname{flex:1;font-size:16px;}
+.lbelo{font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--gold);width:4rem;text-align:right;}
+.lbwl{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim);width:5.5rem;text-align:right;}
+.lbwr{font-size:13px;color:var(--dim);width:3.5rem;text-align:right;}
+
+/* ADMIN */
+.apr{display:flex;align-items:center;gap:.75rem;padding:8px 0;border-bottom:1px solid var(--border);}
+.apr:last-child{border-bottom:none;}
+.ilog{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim);margin-top:.75rem;max-height:180px;overflow-y:auto;line-height:1.9;}
+.ilog span{display:block;}
+.ilog .ok{color:var(--green);}
+.ilog .warn{color:var(--gold);}
+.ilog .err{color:var(--evil);}
+
+/* MODALS */
+.mo{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:200;align-items:center;justify-content:center;}
+.mo.on{display:flex;}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:6px;padding:1.5rem;width:90%;max-width:480px;max-height:90vh;overflow-y:auto;}
+.modal.wide{max-width:600px;}
+.mtitle{font-family:'Cinzel',serif;font-size:13px;letter-spacing:.12em;color:var(--gold);margin-bottom:1rem;}
+.mclose{float:right;cursor:pointer;color:var(--muted);font-size:20px;line-height:1;}
+.mclose:hover{color:var(--text);}
+
+/* CIV EDITOR GRID */
+.civ-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;}
+.civ-edit{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:.6rem .75rem;}
+.civ-edit-label{font-size:11px;font-family:'Cinzel',serif;letter-spacing:.07em;margin-bottom:4px;}
+.civ-edit-label.evil{color:var(--evil);}
+.civ-edit-label.good{color:var(--good);}
+.civ-edit input{background:var(--bg);border:1px solid var(--border2);color:var(--gold);font-family:'JetBrains Mono',monospace;font-size:14px;padding:4px 8px;border-radius:2px;width:100%;text-align:center;}
+.civ-edit input:focus{outline:none;border-color:var(--gold-d);}
+
+/* TOAST */
+.toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(2rem);background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:9px 20px;border-radius:3px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:300;}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+/* PROFILE */
+.profile-header{display:flex;align-items:center;gap:1.5rem;margin-bottom:1.5rem;flex-wrap:wrap;}
+.profile-avatar{width:56px;height:56px;border-radius:50%;background:var(--bg3);border:2px solid var(--gold-d);display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:22px;color:var(--gold);flex-shrink:0;}
+.profile-name{font-family:'Cinzel',serif;font-size:22px;color:var(--gold);}
+.profile-sub{font-size:13px;color:var(--dim);margin-top:2px;}
+.pstat{text-align:center;min-width:60px;}
+.pstat-val{font-family:'JetBrains Mono',monospace;font-size:18px;color:var(--text);}
+.pstat-lbl{font-size:9px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.1em;text-transform:uppercase;display:block;margin-top:2px;}
+.civ-wl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:.6rem;}
+.civ-wl-card{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:.75rem;}
+.civ-wl-name{font-size:11px;font-family:'Cinzel',serif;letter-spacing:.07em;margin-bottom:.5rem;}
+.civ-wl-name.evil{color:var(--evil);}
+.civ-wl-name.good{color:var(--good);}
+.civ-wl-bar{height:5px;border-radius:3px;background:var(--bg2);overflow:hidden;margin:.3rem 0;}
+.civ-wl-fill{height:100%;border-radius:3px;transition:width .5s;}
+.h2h-row{display:flex;align-items:center;gap:.75rem;padding:8px 1rem;border-bottom:1px solid var(--border);cursor:pointer;}
+.h2h-row:hover td,.h2h-row:hover{background:var(--bg3);}
+.h2h-name{flex:1;font-size:15px;}
+.h2h-rec{font-family:'JetBrains Mono',monospace;font-size:13px;}
+.back-btn{font-family:'Cinzel',serif;font-size:10px;letter-spacing:.1em;color:var(--dim);cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;margin-bottom:1.25rem;background:none;border:none;padding:0;}
+.back-btn:hover{color:var(--gold);}
+.elo-chart{width:100%;height:160px;}
+/* FAV/AVOID */
+.fav-avoid{display:flex;gap:4px;margin-left:auto;}
+.fa-btn{font-size:14px;cursor:pointer;opacity:.35;transition:opacity .15s,transform .15s;background:none;border:none;padding:0 2px;line-height:1;}
+.fa-btn:hover{opacity:.8;}
+.fa-btn.active{opacity:1;transform:scale(1.2);}
+/* STREAK */
+.streak-badge{font-size:11px;font-family:'Cinzel',serif;padding:2px 6px;border-radius:2px;margin-left:6px;}
+.fun-card{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:.85rem 1rem;display:flex;flex-direction:column;gap:4px;}
+.fun-emoji{font-size:22px;line-height:1;margin-bottom:2px;}
+.fun-title{font-size:10px;font-family:'Cinzel',serif;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+.fun-winner{font-size:15px;color:var(--gold);font-weight:bold;}
+.fun-detail{font-size:12px;color:var(--dim);}
+.streak-w{background:#1a2e1a;color:#5a9a5a;border:1px solid #2a4a2a;}
+.streak-l{background:#2e1010;color:#c04848;border:1px solid #4a2020;}
+/* SUGGESTIONS */
+.suggest-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-top:.75rem;}
+@media(max-width:700px){.suggest-grid{grid-template-columns:1fr;}}
+.suggest-card{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:.75rem;cursor:pointer;transition:border-color .15s;}
+.suggest-card:hover{border-color:var(--gold-d);}
+.suggest-card.selected{border-color:var(--gold);background:#1f1b12;}
+/* WIN ODDS */
+.bulk-row{display:flex;align-items:center;gap:.75rem;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--bg2);cursor:grab;user-select:none;transition:background .15s;}
+.bulk-row:hover{background:var(--bg3);}
+.bulk-row.dragging{opacity:.4;cursor:grabbing;}
+.bulk-row.drag-over{border-top:2px solid var(--gold);}
+.bulk-rank{font-family:'Cinzel',serif;font-size:10px;color:var(--muted);width:1.5rem;text-align:center;flex-shrink:0;}
+.bulk-name{flex:1;font-size:14px;}
+.bulk-elo{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--gold);width:50px;text-align:right;flex-shrink:0;}
+.drag-handle{color:var(--muted);font-size:16px;cursor:grab;flex-shrink:0;}
+.odds-bar{height:10px;border-radius:5px;overflow:hidden;background:var(--bg3);margin:.5rem 0;display:flex;}
+.odds-evil{background:var(--evil);transition:width .5s;}
+.odds-good{background:var(--good);transition:width .5s;}
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="brand">⚔ Hobbit Balancer</span>
+  <button class="tab active" onclick="go('balance')">Balance</button>
+  <button class="tab" onclick="go('history')">History</button>
+  <button class="tab" onclick="go('players')">Players</button>
+  <button class="tab" onclick="go('leaderboard')">Leaderboard</button>
+  <button class="tab" onclick="go('stats')">Stats</button>
+  <button class="tab" onclick="go('admin')">Admin</button>
+  <button class="tab" id="liveTab" onclick="go('live')">Live <span id="liveDot" style="display:none;width:7px;height:7px;border-radius:50%;background:#e08080;display:inline-block;vertical-align:middle;margin-left:4px;animation:pulse .8s infinite"></span></button>
+  <span class="spacer"></span>
+  <div class="sync" id="sync" title="Firebase sync"></div>
+</nav>
+
+<!-- ══ BALANCE ══ -->
+<div class="page on" id="page-balance">
+  <div class="ph"><h1>Team Balancer</h1><p>Select 8 players — teams are balanced using each player's individual civ Elo.</p></div>
+
+  <div class="card">
+    <div class="ct">Select Players</div>
+    <input type="text" id="psearch" placeholder="Search…" style="max-width:260px;margin-bottom:.75rem" oninput="renderGrid()">
+    <div id="playerGrid"></div>
+    <p id="selCount" style="font-size:13px;color:var(--dim);margin-top:.5rem">0 / 8 selected</p>
+    <hr>
+    <div class="row">
+      <button class="btn-p" id="balBtn" onclick="runBalance()" disabled>⚖ Balance Teams</button>
+      <button class="btn" onclick="runRandom()">↻ Random Split</button>
+    </div>
+  </div>
+
+  <div id="result" style="display:none">
+    <div style="margin-bottom:.5rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+      <div id="gapBadge"></div>
+      <div id="oddsBadge"></div>
+    </div>
+    <div id="oddsBar" style="display:none;margin-bottom:.75rem">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-bottom:3px">
+        <span style="color:var(--evil)">⚔ Evil</span>
+        <span style="color:var(--good)">Good ✦</span>
+      </div>
+      <div class="odds-bar"><div class="odds-evil" id="oddsEvil"></div><div class="odds-good" id="oddsGood"></div></div>
+    </div>
+    <div class="teams">
+      <div class="tpanel evil" id="tEvil"></div>
+      <div class="tpanel good" id="tGood"></div>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:.6rem">Click any row to swap players between teams or swap civs within a team.</p>
+    <div id="suggestSection" style="display:none;margin-top:1rem">
+      <div class="ct">Top 3 Balanced Splits — click one to use it</div>
+      <div class="suggest-grid" id="suggestGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ HISTORY ══ -->
+<div class="page" id="page-history">
+  <div class="ph sb">
+    <div><h1>Match History</h1><p>Auto-populated from matches.json · add manually if needed</p></div>
+    <div class="row">
+      <button class="btn" id="checkBtn" onclick="triggerCheck()">↻ Check Now</button>
+    </div>
+  </div>
+  <p id="checkStatus" style="font-size:12px;color:var(--muted);margin-bottom:.75rem"></p>
+  <div style="margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+    <input type="text" id="histSearch" placeholder="Search player…" style="max-width:220px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:7px 10px;border-radius:3px" oninput="renderHist()">
+    <span id="histSearchCount" style="font-size:12px;color:var(--muted)"></span>
+  </div>
+  <div id="histList"></div>
+</div>
+
+<!-- ══ PLAYERS ══ -->
+<div class="page" id="page-players">
+  <div class="ph"><h1>Players</h1><p>Individual civ Elos shown as bars. Click a row to edit.</p></div>
+  <div class="card" style="padding:.75rem 1rem .5rem">
+    <div class="row" style="margin-bottom:.75rem;gap:.5rem">
+      <input type="text" id="playerSearch" placeholder="Search player…" style="max-width:220px" oninput="renderPTable()">
+      <select id="civFilter" onchange="pSortDir=-1;renderPTable()" style="max-width:200px">
+        <option value="">All civs</option>
+        <option value="p1">P1 Dol Guldur</option>
+        <option value="p2">P2 Dol Guldur</option>
+        <option value="p3">P3 Azog's Host</option>
+        <option value="p4">P4 Goblin</option>
+        <option value="p5">P5 Blue Mountains</option>
+        <option value="p6">P6 Northmen</option>
+        <option value="p7">P7 Elves</option>
+        <option value="p8">P8 Iron Hills</option>
+      </select>
+    </div>
+    <table class="ptable">
+      <thead><tr>
+        <th onclick="sortP('name')">Player</th>
+        <th onclick="sortP('elo')">Overall Elo</th>
+        <th>Civ Elos (P1–P8)</th>
+        <th onclick="sortP('wins')">W</th>
+        <th onclick="sortP('losses')">L</th>
+        <th>Profile ID</th>
+      </tr></thead>
+      <tbody id="ptbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ LEADERBOARD ══ -->
+<div class="page" id="page-leaderboard">
+  <div class="ph"><h1>Leaderboard</h1><p>Ranked by overall Elo (average of all 8 civ Elos).</p></div>
+
+  <div class="card" style="margin-bottom:1rem">
+    <div class="ct">Community Win Rates</div>
+    <div id="winRateStats" style="display:flex;gap:2rem;align-items:center;flex-wrap:wrap">
+      <p style="color:var(--dim);font-size:14px">Loading…</p>
+    </div>
+  </div>
+
+  <div class="card" style="padding:.75rem 1rem .5rem;margin-bottom:.5rem">
+    <div class="row" style="gap:.5rem">
+      <input type="text" id="lbSearch" placeholder="Search player…" style="max-width:220px" oninput="renderLB()">
+      <select id="lbCivFilter" onchange="renderLB()" style="max-width:200px">
+        <option value="">Sort by Overall Elo</option>
+        <option value="p1">Sort by P1 Dol Guldur</option>
+        <option value="p2">Sort by P2 Dol Guldur</option>
+        <option value="p3">Sort by P3 Azog's Host</option>
+        <option value="p4">Sort by P4 Goblin</option>
+        <option value="p5">Sort by P5 Blue Mountains</option>
+        <option value="p6">Sort by P6 Northmen</option>
+        <option value="p7">Sort by P7 Elves</option>
+        <option value="p8">Sort by P8 Iron Hills</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="card" style="padding:0"><div id="lbList"></div></div>
+</div>
+
+<!-- ══ PROFILE ══ -->
+<div class="page" id="page-profile">
+  <button class="back-btn" onclick="goBack()">← Back</button>
+  <div id="profileContent"></div>
+</div>
+
+<!-- ══ STATS ══ -->
+<div class="page" id="page-stats">
+  <div class="ph"><h1>Community Stats</h1><p>Aggregated statistics across all recorded matches.</p></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;margin-bottom:1rem">
+    <div class="card" style="grid-column:1/-1">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem">
+        <div class="ct" style="margin-bottom:0">Games Per Day</div>
+        <div style="display:flex;gap:4px">
+          <button id="gpd14" onclick="setGpdRange(14)" style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:3px;cursor:pointer;border:1px solid var(--border2);background:var(--bg3);color:var(--dim)">14D</button>
+          <button id="gpd30" onclick="setGpdRange(30)" style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:3px;cursor:pointer;border:1px solid var(--border2);background:var(--bg3);color:var(--dim)">30D</button>
+          <button id="gpd60" onclick="setGpdRange(60)" style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:3px;cursor:pointer;border:1px solid var(--gold-d);background:var(--bg3);color:var(--gold)">60D</button>
+          <button id="gpdAll" onclick="setGpdRange(0)" style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:3px;cursor:pointer;border:1px solid var(--border2);background:var(--bg3);color:var(--dim)">All</button>
+        </div>
+      </div>
+      <canvas id="gamesPerDayChart" style="width:100%;height:220px"></canvas>
+    </div>
+    <div class="card"><div class="ct">Player Streaks</div><div id="streakList"></div></div>
+    <div class="card"><div class="ct">Community Records</div><div id="communityRecords"></div></div>
+  </div>
+  <div class="card" style="margin-bottom:1rem">
+    <div class="ct">🎭 Fun Stats</div>
+    <div id="funStats" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.75rem;margin-top:.5rem"></div>
+  </div>
+</div>
+
+<!-- ══ MATCH DETAIL MODAL ══ -->
+<div class="mo" id="mMatchDetail">
+  <div class="modal wide">
+    <span class="mclose" onclick="closeModal('mMatchDetail')">×</span>
+    <div id="matchDetailContent"></div>
+  </div>
+</div>
+
+<!-- ══ MATCH EDITOR MODAL ══ -->
+<div class="mo" id="mEditMatch">
+  <div class="modal wide">
+    <span class="mclose" onclick="closeModal('mEditMatch')">×</span>
+    <div class="mtitle">Edit Match Result</div>
+    <div id="editMatchContent"></div>
+    <div class="row" style="margin-top:1rem">
+      <button class="btn" onclick="closeModal('mEditMatch')">Cancel</button>
+      <button class="btn-e" onclick="saveMatchEdit('evil')">⚔ Evil Win</button>
+      <button class="btn-g" onclick="saveMatchEdit('good')">✦ Good Win</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ADMIN ══ -->
+<div class="page" id="page-admin">
+  <div id="adminGate">
+    <div class="ph"><h1>Admin Panel</h1></div>
+    <div class="card" style="max-width:340px">
+      <div class="ct">Admin Access</div>
+      <label>Password</label>
+      <input type="password" id="adminPass" placeholder="Password" style="margin-bottom:.75rem">
+      <p id="adminErr" style="display:none;font-size:13px;color:var(--evil);margin-bottom:.75rem">Incorrect password.</p>
+      <button class="btn-p" onclick="checkAdmin()">Unlock</button>
+    </div>
+  </div>
+
+  <div id="adminPanel" style="display:none">
+    <div class="ph sb"><h1>Admin Panel</h1><button class="btn" onclick="lockAdmin()">🔒 Lock</button></div>
+
+    <div class="card">
+      <div class="ct">Bulk Elo Seeder</div>
+      <p style="font-size:14px;color:var(--dim);margin-bottom:1rem">Drag players to rank them by skill. Elos are auto-assigned from top to bottom across a range you set.</p>
+      <button class="btn-p" onclick="openModal('mBulkElo')">⇅ Open Bulk Seeder</button>
+    </div>
+
+    <div class="card">
+      <div class="ct">Ratings &amp; History</div>
+      <p style="font-size:14px;color:var(--dim);margin-bottom:1rem">Two tools to manage ratings. Use <b>Recalculate</b> after fixing history records. Use <b>Full Reset</b> to wipe everything and start fresh.</p>
+
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:1rem;margin-bottom:.75rem">
+        <div style="font-size:13px;font-family:'Cinzel',serif;letter-spacing:.05em;margin-bottom:.4rem">⟳ Recalculate Elos from History</div>
+        <p style="font-size:13px;color:var(--dim);margin-bottom:.75rem">Replays all recorded matches oldest→newest. Resets to seeded Elos first, then rebuilds civElo, civWins, civLosses, wins, losses from scratch. Run this any time ratings look wrong.</p>
+        <div id="recalcStatus" style="font-size:12px;color:var(--muted);margin-bottom:.5rem;min-height:16px"></div>
+        <button class="btn-p" onclick="recalcAllElos()">⟳ Recalculate All Elos</button>
+      </div>
+
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:1rem;margin-bottom:.75rem">
+        <div style="font-size:13px;font-family:'Cinzel',serif;letter-spacing:.05em;margin-bottom:.4rem">📥 Import from matches.json</div>
+        <p style="font-size:13px;color:var(--dim);margin-bottom:.75rem">Reads all matches from <code style="font-size:12px;color:var(--gold)">matches.json</code> and replays every game to compute ratings. Use for first-time setup or after the scraper adds new matches.</p>
+        <div style="margin-bottom:.75rem">
+          <label style="display:flex;align-items:center;gap:.5rem;font-size:13px;color:var(--dim);cursor:pointer">
+            <input type="checkbox" id="importReset" checked style="accent-color:var(--gold)">
+            Reset all ratings before import
+          </label>
+        </div>
+        <button class="btn-p" id="importBtn" onclick="runImport()">▶ Run Import</button>
+        <div id="ilog" class="ilog" style="display:none"></div>
+      </div>
+
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:1rem">
+        <div style="font-size:13px;font-family:'Cinzel',serif;letter-spacing:.05em;margin-bottom:.4rem;color:var(--evil)">⚠ Full Reset</div>
+        <p style="font-size:13px;color:var(--dim);margin-bottom:.75rem">Wipes all match history AND resets every player to seeded Elos. Cannot be undone. Only use to start completely fresh.</p>
+        <button class="btn-del" onclick="openModal('mReset')">Reset Everything</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ct">Players</div>
+      <div style="margin-bottom:.75rem"><button class="btn" onclick="openModal('mAddPlayer')">+ Add Player</button></div>
+      <div id="apList"></div>
+    </div>
+
+    <div class="card">
+      <div class="ct">Change Password</div>
+      <div class="row">
+        <input type="password" id="newPass" placeholder="New password" style="max-width:220px">
+        <button class="btn" onclick="savePass()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ BULK ELO MODAL ══ -->
+<div class="mo" id="mBulkElo">
+  <div class="modal wide" style="max-width:560px">
+    <span class="mclose" onclick="closeModal('mBulkElo')">×</span>
+    <div class="mtitle">Bulk Elo Seeder</div>
+    <p style="font-size:13px;color:var(--dim);margin-bottom:1rem">Drag to rank players best→worst. Set the Elo range and apply.</p>
+    <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap">
+      <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Top Elo</label><input type="number" id="bulkEloTop" value="1400" style="width:90px" oninput="updateBulkPreview()"></div>
+      <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Bottom Elo</label><input type="number" id="bulkEloBottom" value="1050" style="width:90px" oninput="updateBulkPreview()"></div>
+      <div style="flex:1;font-size:12px;color:var(--muted)" id="bulkEloPreview"></div>
+    </div>
+    <div id="bulkEloList" style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:3px"></div>
+    <div class="row" style="margin-top:1rem">
+      <button class="btn" onclick="closeModal('mBulkElo')">Cancel</button>
+      <button class="btn-p" onclick="applyBulkElo()">✓ Apply to All Players</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODALS ══ -->
+<div class="mo" id="mReset">
+  <div class="modal">
+    <div class="mtitle">Confirm Reset</div>
+    <p style="font-size:14px;color:var(--dim);margin-bottom:1.25rem">Wipes all match history and resets every player to their seeded Elo. Cannot be undone.</p>
+    <div class="row">
+      <button class="btn" onclick="closeModal('mReset')">Cancel</button>
+      <button class="btn-del" onclick="confirmReset()">Reset Everything</button>
+    </div>
+  </div>
+</div>
+
+
+
+<div class="mo" id="mAddPlayer">
+  <div class="modal">
+    <span class="mclose" onclick="closeModal('mAddPlayer')">×</span>
+    <div class="mtitle">Add Player</div>
+    <label>Name</label>
+    <input type="text" id="apName" style="margin-bottom:.75rem">
+    <label>AoE2 Profile ID <span style="color:var(--muted)">(for auto-recording)</span></label>
+    <input type="number" id="apPid" style="margin-bottom:1rem">
+    <button class="btn-p" onclick="addPlayer()">Add Player</button>
+  </div>
+</div>
+
+<div class="mo" id="mEditPlayer">
+  <div class="modal wide">
+    <span class="mclose" onclick="closeModal('mEditPlayer')">×</span>
+    <div class="mtitle" id="epTitle">Edit Player</div>
+    <input type="hidden" id="epId">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1rem">
+      <div><label>Name</label><input type="text" id="epName"></div>
+      <div><label>Profile ID</label><input type="number" id="epPid"></div>
+    </div>
+    <div style="margin-bottom:1rem">
+      <label>Alt Profile IDs <span style="font-size:11px;color:var(--muted)">(comma separated — for players with multiple accounts)</span></label>
+      <input type="text" id="epAltPids" placeholder="e.g. 1234567, 7654321" style="width:100%;margin-top:4px">
+    </div>
+    <div class="ct" style="margin-bottom:.6rem">Favourite & Avoid Civs</div>
+    <div id="favAvoidGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin-bottom:1rem"></div>
+    <div class="ct" style="margin-bottom:.6rem">Individual Civ Elos</div>
+    <div class="civ-grid" id="civGrid"></div>
+    <div class="sb" style="margin-top:1.1rem">
+      <button class="btn-del" onclick="deletePlayer()">Delete Player</button>
+      <button class="btn-p" onclick="savePlayer()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ LIVE ══ -->
+<div class="page" id="page-live">
+  <div class="ph sb">
+    <div><h1>Live</h1><p>Auto-detects community lobbies · switches to in-progress when game starts</p></div>
+    <button class="btn" onclick="livePollNow()">↻ Check Now</button>
+  </div>
+  <p id="liveStatus" style="font-size:12px;color:var(--muted);margin-bottom:1rem">Last checked: never</p>
+
+  <!-- IDLE -->
+  <div id="liveIdle">
+    <div class="card" style="text-align:center;padding:2.5rem 1rem">
+      <div style="font-size:32px;margin-bottom:.75rem;opacity:.4">⚔</div>
+      <p style="font-size:15px;color:var(--dim);margin-bottom:.5rem">Watching for community lobbies every 30s</p>
+      <p style="font-size:13px;color:var(--muted)">When 2+ community members join a LOTR/Hobbit lobby, this tab activates automatically.</p>
+    </div>
+  </div>
+
+  <!-- LOBBY DETECTED -->
+  <div id="liveLobby" style="display:none">
+    <div class="card" style="text-align:center;padding:1.25rem;margin-bottom:1rem">
+      <div style="font-family:'Cinzel',serif;font-size:10px;letter-spacing:.15em;color:var(--gold);margin-bottom:.4rem">LOBBY DETECTED</div>
+      <div id="lobbyName" style="font-family:'Cinzel',serif;font-size:18px;color:var(--text)"></div>
+      <div id="lobbyInfo" style="font-size:13px;color:var(--dim);margin-top:.3rem"></div>
+      <div id="lobbyBalanceBtn" style="display:none;margin-top:.75rem">
+        <button class="btn-p" onclick="balanceLobbyPlayers()" style="font-size:11px;padding:8px 20px">⚖ Balance These Players</button>
+      </div>
+    </div>
+    <div class="teams">
+      <div class="tpanel evil">
+        <div class="tlabel evil">⚔ Evil Forces<span id="lobbyEvilElo" style="font-family:'JetBrains Mono',monospace;font-size:12px"></span></div>
+        <div id="lobbyEvil"></div>
+      </div>
+      <div class="tpanel good">
+        <div class="tlabel good">✦ Free Peoples<span id="lobbyGoodElo" style="font-family:'JetBrains Mono',monospace;font-size:12px"></span></div>
+        <div id="lobbyGood"></div>
+      </div>
+    </div>
+  <div id="lobbyOdds" style="margin-top:.75rem;padding:0 .25rem"></div>
+  </div>
+
+  <!-- IN PROGRESS -->
+  <div id="liveInProgress" style="display:none">
+    <div class="card" style="text-align:center;padding:1.5rem 1rem;margin-bottom:1rem">
+      <div style="font-family:'Cinzel',serif;font-size:10px;letter-spacing:.15em;color:var(--evil);margin-bottom:.5rem">⚔ MATCH IN PROGRESS</div>
+      <div id="liveTimer" style="font-family:'Cinzel',serif;font-size:40px;color:var(--text);letter-spacing:.05em">00:00</div>
+      <div id="progressStatus" style="font-size:12px;color:var(--muted);margin-top:.4rem"></div>
+      <button class="btn" onclick="forceEndGame()" style="margin-top:1rem;font-size:9px;opacity:.6">✕ End Game / Reset</button>
+    </div>
+    <div id="ipOdds" style="margin-bottom:.75rem"></div>
+    <div class="teams">
+      <div class="tpanel evil">
+        <div class="tlabel evil">⚔ Evil Forces<span id="evilElo" style="font-family:'JetBrains Mono',monospace;font-size:12px"></span></div>
+        <div id="ipEvil"></div>
+      </div>
+      <div class="tpanel good">
+        <div class="tlabel good">✦ Free Peoples<span id="goodElo" style="font-family:'JetBrains Mono',monospace;font-size:12px"></span></div>
+        <div id="ipGood"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Navigation defined outside module so it works even if Firebase fails to load -->
+<script>
+function go(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  const page=document.getElementById('page-'+name);
+  if(page) page.classList.add('on');
+  document.querySelectorAll('.tab').forEach(t=>{
+    if(t.getAttribute('onclick')===`go('${name}')`) t.classList.add('active');
+  });
+}
+</script>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc, query, orderBy, limit, writeBatch, runTransaction, increment } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+// ─────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────
+const FB = {
+  apiKey:"AIzaSyDDrsJEQ0OOESWLYmyNJWGaWhFAm0fDUVg",
+  authDomain:"lotr-9a2f2.firebaseapp.com",
+  projectId:"lotr-9a2f2",
+  storageBucket:"lotr-9a2f2.firebasestorage.app",
+  messagingSenderId:"348198417891",
+  appId:"1:348198417891:web:70334fb06dacf508ee1cd6"
+};
+
+const CIVS = [
+  {id:'p1', name:'P1 Dol Guldur',  side:'evil', teamid:5 },
+  {id:'p2', name:'P2 Dol Guldur',  side:'evil', teamid:6 },
+  {id:'p3', name:"P3 Azog's Host", side:'evil', teamid:7 },
+  {id:'p4', name:'P4 Goblin',      side:'evil', teamid:8 },
+  {id:'p5', name:'P5 Blue Mountains',    side:'good', teamid:9 },
+  {id:'p6', name:'P6 Northmen',    side:'good', teamid:10},
+  {id:'p7', name:'P7 Elves',       side:'good', teamid:11},
+  {id:'p8', name:'P8 Iron Hills',  side:'good', teamid:12},
+];
+const EVIL_CIVS = CIVS.filter(c=>c.side==='evil');
+const GOOD_CIVS = CIVS.filter(c=>c.side==='good');
+// Map teamid → evil/good side (5-8=evil, 9-12=good)
+const TEAMID_MAP = Object.fromEntries(CIVS.map(c=>[c.teamid, c.id]));
+// Map race_id from matchhistoryreportresults → scenario civ (this IS the station)
+const RACE_MAP = {4:'p1',38:'p2',17:'p3',25:'p4',12:'p5',32:'p6',9:'p7',22:'p8'};
+const DEFAULT_ELO = 900;
+const LOTR_KW = ['hobbit','lotr','lord of the ring','the shire','middle earth'];
+
+// Normalize old civ names to current names (for existing Firestore records)
+const CIV_NAME_MAP={'P5 Blue Mts':'P5 Blue Mountains','Blue Mts':'Blue Mountains'};
+function normCivName(n){ return CIV_NAME_MAP[n]||n; }
+const LOTR_MAPS = ['the_hobbit','hobbit','lotr']; // known scenario mapnames
+function isLotrMatch(match){
+  const desc=(match.description||match.mapname||'').toLowerCase();
+  const map=(match.mapname||'').toLowerCase();
+  return LOTR_KW.some(k=>desc.includes(k)) || LOTR_MAPS.some(k=>map.includes(k));
+}
+const DEFAULT_PASS = 'admin123';
+
+function fmtDuration(s){
+  if(!s) return '—';
+  if(s>=3600){
+    const h=Math.floor(s/3600);
+    const m=Math.floor((s%3600)/60);
+    const sec=s%60;
+    return `${h}h${String(m).padStart(2,'0')}m${String(sec).padStart(2,'0')}s`;
+  }
+  return `${Math.floor(s/60)}m${String(s%60).padStart(2,'0')}s`;
+}
+
+// ─────────────────────────────────────────
+// MULTI-ACCOUNT HELPERS
+// A player can have a primary profileId + altProfileIds array
+// ─────────────────────────────────────────
+function playerProfileIds(p){
+  // Returns all profile IDs for a player as Numbers
+  const ids=[];
+  if(p.profileId) ids.push(Number(p.profileId));
+  (p.altProfileIds||[]).forEach(id=>{ if(id) ids.push(Number(id)); });
+  return ids;
+}
+function buildCommIds(playerList){
+  const set=new Set();
+  playerList.forEach(p=>playerProfileIds(p).forEach(id=>set.add(id)));
+  return set;
+}
+function buildProfMap(playerList){
+  // Maps every profile ID (primary + alt) → player
+  const map={};
+  playerList.forEach(p=>playerProfileIds(p).forEach(id=>{ map[id]=p; }));
+  return map;
+}
+
+// ─────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────
+let db, players=[], history=[];
+let adminPass=DEFAULT_PASS, adminUnlocked=false;
+let selected=new Set(), lastBal=null, swapSrc=null;
+let pSortKey='elo', pSortDir=-1;
+let importing=false;
+let autoRecording=false;
+let fullHistory=[];
+
+// ─────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────
+// ── ELO HELPERS ─────────────────────────────────────────────────────────────
+// civElo: stored civ Elo from Firestore (floor 100)
+// ── ELO CORE ─────────────────────────────────────────────────────────────────
+
+// civElo: stored Elo for a specific civ from Firestore (floor 100, default to seed)
+const civElo = (p,cid) => Math.max(100, p.civElo?.[cid] ?? DEFAULT_ELO);
+
+// overallElo: THE single source of truth for a player's rating.
+// Averages only civs the player has actually played (civWins+civLosses > 0).
+// Falls back to all civs for brand-new players with no data yet.
+// Used on leaderboard, players page, profile header, balance page — everywhere.
+const overallElo = p => {
+  const played = CIVS.filter(c => (p.civWins?.[c.id]||0)+(p.civLosses?.[c.id]||0) > 0);
+  const pool   = played.length ? played : CIVS;
+  return Math.round(pool.reduce((s,c) => s+civElo(p,c.id), 0) / pool.length);
+};
+
+// effCivElo: used only for balancing assignments.
+// Played civs → actual civ Elo. Unplayed civs → player's overall Elo as estimate.
+const effCivElo = (p,cid) => {
+  const hasPlayed = (p.civWins?.[cid]||0)+(p.civLosses?.[cid]||0) > 0;
+  return hasPlayed ? civElo(p,cid) : overallElo(p);
+};
+
+// kFactor: K=200 for first 5 games on a civ (provisional),
+//          K=128 for first 20 total games, K=64 up to 40, K=32 after.
+function kFactor(totalGames, civGames){
+  if(civGames < 5)    return 200;
+  if(totalGames < 20) return 128;
+  if(totalGames < 40) return 64;
+  return 32;
+}
+const sync    = s           => document.getElementById('sync').className='sync '+s;
+const toast   = (m,t='ok') => {
+  const el=document.getElementById('toast');
+  el.textContent=m; el.style.borderColor=t==='err'?'var(--evil)':'var(--border2)';
+  el.classList.add('on'); setTimeout(()=>el.classList.remove('on'),2800);
+};
+
+function calcElo(elo, oppAvg, won, totalGames, civGames){
+  const K = kFactor(totalGames, civGames ?? 99);
+  const E = 1/(1+Math.pow(10,(oppAvg-elo)/400));
+  return Math.max(100, Math.round(elo + K*((won?1:0)-E)));
+}
+
+function* permutations(arr){
+  if(arr.length<=1){yield arr;return;}
+  for(let i=0;i<arr.length;i++){
+    const rest=[...arr.slice(0,i),...arr.slice(i+1)];
+    for(const p of permutations(rest)) yield [arr[i],...p];
+  }
+}
+
+function bestAssign(players, civs){
+  // Build each player's recent civ history (last 3 games) and unplayed civs
+  const recentCivs={}; // playerId → [civId, civId, civId] newest first
+  const playedCivs={}; // playerId → Set of civIds ever played on this side
+  for(const p of players){
+    const myMatches=history
+      .filter(h=>[...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>a.name===p.name))
+      .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
+    recentCivs[p.id]=[];
+    playedCivs[p.id]=new Set();
+    for(const h of myMatches){
+      const a=[...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name);
+      if(!a?.civName) continue;
+      const civ=CIVS.find(c=>normCivName(c.name)===normCivName(a.civName));
+      if(!civ) continue;
+      // Only track civs on the same side (evil/good) as current assignment pool
+      if(civs.some(c=>c.id===civ.id)){
+        if(recentCivs[p.id].length<3) recentCivs[p.id].push(civ.id);
+        playedCivs[p.id].add(civ.id);
+      }
+    }
+  }
+
+  const adjElo=(p,cid)=>{
+    let e=effCivElo(p,cid);
+    // Fav/avoid modifiers
+    if((p.favCivs||[]).includes(cid))   e=Math.round(e*1.15);
+    if((p.avoidCivs||[]).includes(cid)) e=Math.round(e*0.60);
+    // Rotation penalties — stronger for more recent play
+    const recent=recentCivs[p.id]||[];
+    if(recent[0]===cid) e=Math.round(e*0.65); // last game: -35%
+    else if(recent[1]===cid) e=Math.round(e*0.80); // 2 games ago: -20%
+    else if(recent[2]===cid) e=Math.round(e*0.90); // 3 games ago: -10%
+    // Bonus for civs never played — encourages variety
+    if(!(playedCivs[p.id]||new Set()).has(cid)) e=Math.round(e*1.10);
+    return e;
+  };
+
+  let best=null, bestScore=-Infinity;
+  for(const perm of permutations(civs.map(c=>c.id))){
+    const score=players.reduce((s,p,i)=>s+adjElo(p,perm[i]),0);
+    if(score>bestScore){bestScore=score;best=perm;}
+  }
+  return players.map((p,i)=>({player:p,civId:best[i],civName:CIVS.find(c=>c.id===best[i]).name,effElo:effCivElo(p,best[i])}));
+}
+
+// ─────────────────────────────────────────
+// POSITION MATCHUP WEIGHTS
+// Based on who fights whom most in the scenario:
+// P4 vs P5 (main fight), P1 vs P8 (early), P2 vs P8 (mid-late),
+// P3 vs P6 (fight each other), P7 vs P2/P4 (early pressure)
+// ─────────────────────────────────────────
+const MATCHUPS = [
+  { evil:'p4', good:'p5', weight:2.0 }, // main direct fight all game
+  { evil:'p2', good:'p8', weight:1.8 }, // mid-late main fight
+  { evil:'p3', good:'p6', weight:1.5 }, // fight each other a lot
+  { evil:'p1', good:'p8', weight:1.2 }, // early fight
+  { evil:'p1', good:'p7', weight:0.8 }, // P7 pressures evil early
+  { evil:'p4', good:'p7', weight:0.8 }, // P7 attacks P4 early
+];
+
+function matchupScore(evilAssign, goodAssign){
+  // Returns a penalty score — higher = worse matchup balance
+  // For each matchup pair, compute Elo difference between the two positions
+  let penalty = 0;
+  const evilByPos = Object.fromEntries(evilAssign.map(a=>([a.civId, a.effElo])));
+  const goodByPos = Object.fromEntries(goodAssign.map(a=>([a.civId, a.effElo])));
+  for(const {evil, good, weight} of MATCHUPS){
+    const eElo = evilByPos[evil] || 0;
+    const gElo = goodByPos[good] || 0;
+    if(!eElo || !gElo) continue;
+    penalty += Math.abs(eElo - gElo) * weight;
+  }
+  return penalty;
+}
+async function init(){
+  sync('spin');
+  const app=initializeApp(FB); db=getFirestore(app);
+  try{ const s=await getDoc(doc(db,'settings','main')); if(s.exists()) adminPass=s.data().adminPass||DEFAULT_PASS; }catch(_){}
+  onSnapshot(collection(db,'players'),snap=>{
+    players=[]; snap.forEach(d=>players.push({id:d.id,...d.data()}));
+    players.sort((a,b)=>overallElo(b)-overallElo(a));
+    renderGrid(); renderPTable(); renderLB(); sync('ok');
+    // Re-subscribe WebSocket to updated player list
+    if(lobbyWs&&lobbyWs.readyState===WebSocket.OPEN){
+      const pids=players.filter(p=>p.profileId).map(p=>String(p.profileId));
+      if(pids.length) lobbyWs.send(JSON.stringify({action:'subscribe',type:'players',context:'lobby',ids:pids}));
+    }
+  });
+  onSnapshot(query(collection(db,'history'),orderBy('timestamp','desc'),limit(100)),snap=>{
+    // limit(100) — only used for autoRecord deduplication, not for display
+    history=[]; snap.forEach(d=>history.push({id:d.id,...d.data()}));
+    renderWinRate();
+  });
+  // Second listener — no limit — keeps fullHistoryCache permanently live in real-time
+  // This means History page and search always reflect latest data instantly, no getDocs needed
+  onSnapshot(query(collection(db,'history'),orderBy('timestamp','desc')),snap=>{
+    fullHistoryCache=[]; snap.forEach(d=>fullHistoryCache.push({id:d.id,...d.data()}));
+    // Only re-render DOM if history page is visible — otherwise cache update alone is enough
+    if(document.getElementById('page-history')?.classList.contains('on')) renderHist();
+  });
+  setTimeout(autoRecord, 30000);           // first run after 30s (let onSnapshot settle)
+  setInterval(autoRecord, 5*60*1000);      // then every 5 minutes
+}
+
+async function savePl(p){
+  sync('spin');
+  const{id,...data}=p;
+  for(let i=3;i>0;i--){
+    try{await setDoc(doc(db,'players',String(id)),data);sync('ok');return;}
+    catch(e){if(i>1) await new Promise(r=>setTimeout(r,1000));}
+  }
+  sync('err'); toast('Save failed','err');
+}
+
+// ─────────────────────────────────────────
+// NAVIGATION
+// ─────────────────────────────────────────
+window.go=function(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  const page=document.getElementById('page-'+name);
+  if(page) page.classList.add('on');
+  document.querySelectorAll('.tab').forEach(t=>{
+    if(t.getAttribute('onclick')===`go('${name}')`) t.classList.add('active');
+  });
+  if(name==='admin') renderAdminList();
+  if(name==='stats') setTimeout(renderStats,50);
+  if(name==='history'){
+    if(fullHistoryCache.length > 0){
+      renderHist(); // cache already warm
+    } else {
+      // Cache not ready yet (first load / mobile) — fetch immediately
+      document.getElementById('histList').innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">Loading…</p>';
+      getDocs(query(collection(db,'history'),orderBy('timestamp','desc'))).then(snap=>{
+        fullHistoryCache=[];
+        snap.forEach(d=>fullHistoryCache.push({id:d.id,...d.data()}));
+        renderHist();
+      }).catch(()=>renderHist());
+    }
+  }
+};
+
+// ─────────────────────────────────────────
+// PLAYER SELECTION GRID
+// ─────────────────────────────────────────
+function renderGrid(){
+  const el=document.getElementById('playerGrid'); if(!el) return;
+  const q=(document.getElementById('psearch')?.value||'').toLowerCase();
+  const list=[...players].sort((a,b)=>a.name.localeCompare(b.name)).filter(p=>p.name.toLowerCase().includes(q));
+  el.innerHTML='';
+  list.forEach(p=>{
+    const d=document.createElement('div');
+    d.className='pci'+(selected.has(p.id)?' on':'');
+    d.dataset.id=p.id;
+    d.innerHTML=`<input type="checkbox" ${selected.has(p.id)?'checked':''} onchange="toggle('${p.id}')">
+      <span class="pci-name">${p.name}</span>
+      <span class="pci-elo">${overallElo(p)}</span>`;
+    d.onclick=e=>{if(e.target.tagName!=='INPUT') toggle(p.id);};
+    el.appendChild(d);
+  });
+  updateSel();
+}
+window.renderGrid=renderGrid;
+
+window.toggle=function(id){
+  if(selected.has(id)) selected.delete(id);
+  else{ if(selected.size>=8){toast('Max 8 players','err');return;} selected.add(id); }
+  document.querySelectorAll('.pci').forEach(el=>{
+    el.classList.toggle('on',selected.has(el.dataset.id));
+    el.querySelector('input').checked=selected.has(el.dataset.id);
+  });
+  updateSel();
+};
+
+function updateSel(){
+  const n=selected.size;
+  document.getElementById('selCount').textContent=`${n} / 8 selected`;
+  document.getElementById('balBtn').disabled=n!==8;
+}
+
+// ─────────────────────────────────────────
+// BALANCER
+// ─────────────────────────────────────────
+function doBalance(random=false){
+  const sel=[...selected].map(id=>players.find(p=>p.id===id)).filter(Boolean);
+  if(sel.length!==8){toast('Need exactly 8 players','err');return null;}
+  const splits=[];
+  for(let m=0;m<256;m++) if(m.toString(2).split('').filter(b=>b==='1').length===4) splits.push(m);
+  if(random){
+    const m=splits[Math.floor(Math.random()*splits.length)];
+    const ep=sel.filter((_,i)=>(m>>i)&1), gp=sel.filter((_,i)=>!((m>>i)&1));
+    const ea=bestAssign(ep,EVIL_CIVS), ga=bestAssign(gp,GOOD_CIVS);
+    const et=ea.reduce((s,a)=>s+a.effElo,0), gt=ga.reduce((s,a)=>s+a.effElo,0);
+    return{evilAssign:ea,goodAssign:ga,evilTotal:et,goodTotal:gt,gap:Math.abs(et-gt)};
+  }
+  // Collect all splits, score by team gap + matchup balance
+  const results=[];
+  for(const m of splits){
+    const ep=sel.filter((_,i)=>(m>>i)&1), gp=sel.filter((_,i)=>!((m>>i)&1));
+    const ea=bestAssign(ep,EVIL_CIVS), ga=bestAssign(gp,GOOD_CIVS);
+    const et=ea.reduce((s,a)=>s+a.effElo,0), gt=ga.reduce((s,a)=>s+a.effElo,0);
+    const gap=Math.abs(et-gt);
+    const mScore=matchupScore(ea,ga);
+    // Combined score: gap is primary, matchup penalty is secondary (weighted 30%)
+    const score=gap + mScore * 0.3;
+    results.push({evilAssign:ea,goodAssign:ga,evilTotal:et,goodTotal:gt,gap,matchupScore:mScore,score});
+  }
+  results.sort((a,b)=>a.score-b.score);
+  // Deduplicate by player set
+  const top3=[], seen=new Set();
+  for(const r of results){
+    const key=[...r.evilAssign.map(a=>a.player.id)].sort().join(',');
+    if(!seen.has(key)){seen.add(key);top3.push(r);}
+    if(top3.length>=3) break;
+  }
+  return{...top3[0], suggestions:top3};
+}
+
+function calcWinOdds(r){
+  // Win probability using scaled Elo formula — divisor 2000 (not 400) because
+  // these are 4-player team totals ~5000-6000, not individual 1v1 ratings.
+  // A 500-pt team gap = ~64% vs 96% with the standard 400 divisor.
+  const diff=r.evilTotal-r.goodTotal;
+  const evilPct=Math.round(100/(1+Math.pow(10,-diff/2000)));
+  return{evil:evilPct, good:100-evilPct};
+}
+
+window.runBalance=function(){
+  swapSrc=null;
+  const r=doBalance(false);
+  if(r){
+    lastBal=r;
+    renderResult(r);
+    renderSuggestions(r.suggestions||[r]);
+  }
+};
+window.runRandom=function(){swapSrc=null;const r=doBalance(true); if(r){lastBal=r;renderResult(r);}};
+
+function renderSuggestions(suggestions){
+  const sec=document.getElementById('suggestSection');
+  const grid=document.getElementById('suggestGrid');
+  if(!suggestions||suggestions.length<2){sec.style.display='none';return;}
+  sec.style.display='block';
+  grid.innerHTML=suggestions.map((r,i)=>`
+    <div class="suggest-card ${i===0?'selected':''}" onclick="selectSuggestion(${i})">
+      <div style="display:flex;justify-content:space-between;margin-bottom:.5rem">
+        <span style="font-family:'Cinzel',serif;font-size:9px;color:var(--muted)">#${i+1}</span>
+        <span class="gap-badge ${r.gap<100?'tight':r.gap<300?'mid':'wide'}" style="font-size:10px;padding:2px 6px">Gap: ${r.gap}</span>
+      </div>
+      <div style="font-size:12px;color:var(--evil);margin-bottom:2px">⚔ ${r.evilAssign.map(a=>a.player.name).join(', ')}</div>
+      <div style="font-size:12px;color:var(--good);margin-bottom:.4rem">✦ ${r.goodAssign.map(a=>a.player.name).join(', ')}</div>
+      <div style="font-size:10px;color:var(--muted)">Matchup balance: <span style="color:${(r.matchupScore||0)<300?'var(--green)':(r.matchupScore||0)<600?'var(--gold)':'var(--evil)'}">${r.matchupScore?Math.round(r.matchupScore):'—'}</span></div>
+    </div>`).join('');
+  window._suggestions=suggestions;
+}
+
+window.selectSuggestion=function(idx){
+  const r=window._suggestions[idx];
+  lastBal=r; renderResult(r);
+  document.querySelectorAll('.suggest-card').forEach((el,i)=>el.classList.toggle('selected',i===idx));
+};
+
+function renderResult(r){
+  document.getElementById('result').style.display='block';
+  const cls=r.gap<100?'tight':r.gap<300?'mid':'wide';
+  const lbl=r.gap<100?'Well balanced':r.gap<300?'Moderate gap':'Large gap';
+  document.getElementById('gapBadge').innerHTML=`<span class="gap-badge ${cls}">Gap: ${r.gap} Elo — ${lbl}</span>`;
+  // Win odds
+  const odds=calcWinOdds(r);
+  document.getElementById('oddsBadge').innerHTML=`<span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted)">⚔ ${odds.evil}% · ✦ ${odds.good}%</span>`;
+  const bar=document.getElementById('oddsBar');
+  bar.style.display='block';
+  document.getElementById('oddsEvil').style.width=odds.evil+'%';
+  document.getElementById('oddsGood').style.width=odds.good+'%';
+  renderTeam('tEvil',r.evilAssign,'evil',r.evilTotal);
+  renderTeam('tGood',r.goodAssign,'good',r.goodTotal);
+}
+
+function renderTeam(id,assign,side,total){
+  const el=document.getElementById(id);
+  const icon=side==='evil'?'⚔':'✦', label=side==='evil'?'Evil Forces':'Free Peoples';
+  el.innerHTML=`<div class="tlabel ${side}">${icon} ${label}<span style="font-family:JetBrains Mono,monospace;font-size:12px">${total}</span></div>`;
+  assign.forEach((a,i)=>{
+    const row=document.createElement('div');
+    row.className='arow'+(swapSrc?.side===side&&swapSrc?.i===i?' sel':'');
+    row.onclick=()=>doSwap(side,i);
+    row.innerHTML=`<span class="aname">${a.player.name}</span>
+      <span class="aciv">${normCivName(a.civName)}${(a.player.favCivs||[]).includes(a.civId)?' ⭐':''}</span>
+      <span class="aelo">${a.effElo}</span>`;
+    el.appendChild(row);
+  });
+}
+
+function doSwap(side,idx){
+  if(!swapSrc){swapSrc={side,i:idx};renderResult(lastBal);return;}
+  const a=swapSrc,b={side,i:idx};
+  if(a.side===b.side&&a.i===b.i){swapSrc=null;renderResult(lastBal);return;}
+
+  if(a.side===b.side){
+    // swap civs within team — recalculate effElo for each player with their new civ
+    const arr=lastBal[a.side+'Assign'];
+    const aCivId=arr[a.i].civId, bCivId=arr[b.i].civId;
+    const aPlayer=arr[a.i].player,  bPlayer=arr[b.i].player;
+    arr[a.i].civId   = bCivId;
+    arr[a.i].civName = CIVS.find(c=>c.id===bCivId)?.name||'';
+    arr[a.i].effElo  = effCivElo(aPlayer, bCivId);
+    arr[b.i].civId   = aCivId;
+    arr[b.i].civName = CIVS.find(c=>c.id===aCivId)?.name||'';
+    arr[b.i].effElo  = effCivElo(bPlayer, aCivId);
+  } else {
+    // swap players across teams — keep civ slots, recalculate effElo
+    const aArr=lastBal[a.side+'Assign'], bArr=lastBal[b.side+'Assign'];
+    const aCiv=aArr[a.i].civId, bCiv=bArr[b.i].civId;
+    const aP=aArr[a.i].player, bP=bArr[b.i].player;
+    aArr[a.i]={player:bP, civId:aCiv, civName:CIVS.find(c=>c.id===aCiv)?.name||'', effElo:effCivElo(bP,aCiv)};
+    bArr[b.i]={player:aP, civId:bCiv, civName:CIVS.find(c=>c.id===bCiv)?.name||'', effElo:effCivElo(aP,bCiv)};
+  }
+
+  // Recalculate totals and gap
+  lastBal.evilTotal=lastBal.evilAssign.reduce((s,a)=>s+a.effElo,0);
+  lastBal.goodTotal=lastBal.goodAssign.reduce((s,a)=>s+a.effElo,0);
+  lastBal.gap=Math.abs(lastBal.evilTotal-lastBal.goodTotal);
+  swapSrc=null; renderResult(lastBal);
+}
+
+// ─────────────────────────────────────────
+// RECORD RESULT (from balance page)
+// ─────────────────────────────────────────
+window.recordResult=async function(winner){
+  closeModal('mRecord');
+  if(!lastBal){toast('No balance to record','err');return;}
+  const winA=winner==='evil'?lastBal.evilAssign:lastBal.goodAssign;
+  const loseA=winner==='evil'?lastBal.goodAssign:lastBal.evilAssign;
+  await applyResult(winA,loseA,winner,null,null,null,'manual');
+  toast('Match recorded!'); go('history');
+};
+
+// Core: update ratings and save to history
+async function applyResult(winA,loseA,winner,evilTotal,goodTotal,date,source,gameId){
+  // Only use community players (with stored Elo) for avgWin/avgLose calculation
+  const commWinPlayers=winA.filter(a=>a.player&&a.player.id);
+  const commLosePlayers=loseA.filter(a=>a.player&&a.player.id);
+  const avgWin =commWinPlayers.length ?commWinPlayers.reduce((s,a)=>s+overallElo(a.player),0)/commWinPlayers.length :DEFAULT_ELO;
+  const avgLose=commLosePlayers.length?commLosePlayers.reduce((s,a)=>s+overallElo(a.player),0)/commLosePlayers.length:DEFAULT_ELO;
+  for(const a of winA){
+    if(!a.player||!a.player.id) continue;
+    const p=a.player, g=(p.wins||0)+(p.losses||0);
+    p.civElo=p.civElo||{};
+    if(a.civId){
+      const curCivElo=civElo(p,a.civId);
+      const cgW=(p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0);
+      p.civElo[a.civId]=calcElo(curCivElo, avgLose, true, g, cgW);
+      p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1;
+    }
+    p.wins=(p.wins||0)+1;
+    await savePl(p);
+  }
+  for(const a of loseA){
+    if(!a.player||!a.player.id) continue;
+    const p=a.player, g=(p.wins||0)+(p.losses||0);
+    p.civElo=p.civElo||{};
+    if(a.civId){
+      const curCivElo=civElo(p,a.civId);
+      const cgL=(p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0);
+      p.civElo[a.civId]=calcElo(curCivElo, avgWin, false, g, cgL);
+      p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1;
+    }
+    p.losses=(p.losses||0)+1;
+    await savePl(p);
+  }
+  const d=date||new Date().toLocaleDateString('en-CA');
+  const et=evilTotal??winA.reduce((s,a)=>s+a.effElo,0);
+  const gt=goodTotal??loseA.reduce((s,a)=>s+a.effElo,0);
+  const entry={
+    date:d, winner, evilTotal:et, goodTotal:gt, gap:Math.abs(et-gt),
+    timestamp:Date.now(), source:source||'manual',
+    evilAssign:winA.map(a=>({name:a.player?.name||`Player ${a.player?.id||'?'}`,civName:a.civName||'',effElo:a.effElo})),
+    goodAssign:loseA.map(a=>({name:a.player?.name||`Player ${a.player?.id||'?'}`,civName:a.civName||'',effElo:a.effElo})),
+  };
+  if(gameId) entry.gameId=gameId;
+  // Use gameId as document ID so concurrent writes are idempotent (no duplicates)
+  const docRef = gameId ? doc(db,'history',String(gameId)) : doc(collection(db,'history'));
+  await setDoc(docRef, entry);
+}
+
+// ─────────────────────────────────────────
+// HISTORY
+// ─────────────────────────────────────────
+let fullHistoryCache = []; // full history for the history page — loaded once per tab visit
+
+function loadAndRenderHist(){
+  // fullHistoryCache is kept live by onSnapshot — just render immediately
+  renderHist();
+}
+
+function renderHist(){
+  const el=document.getElementById('histList'); if(!el) return;
+  // Use fullHistoryCache if loaded (full Firestore fetch), otherwise live cache
+  const src = fullHistoryCache.length > 0 ? fullHistoryCache : history;
+  if(!src.length){el.innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">No matches yet.</p>';return;}
+  // Simple synchronous filter — same pattern as leaderboard search
+  const q=(document.getElementById('histSearch')?.value||'').toLowerCase().trim();
+  const filtered = q
+    ? src.filter(h=>[...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>(a.name||'').toLowerCase().includes(q)))
+    : src;
+  const countEl=document.getElementById('histSearchCount');
+  if(countEl) countEl.textContent=q?`${filtered.length} match${filtered.length!==1?'es':''} found`:'';
+  if(!filtered.length){el.innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">No matches found for "'+q+'".</p>';return;}
+  el.innerHTML=filtered.map(h=>{
+    const w=h.winner||'evil';
+    const fmtPlayer=(a,side)=>{
+      // Highlight matched query in player name — same visual feedback as leaderboard search
+      const rawName = a.name||'?';
+      const nameHtml = (q && rawName.toLowerCase().includes(q))
+        ? rawName.replace(new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),
+            '<span style="color:var(--gold);font-weight:600">$1</span>')
+        : rawName;
+      // If civName is missing (old records), derive it from profileId→teamid via match members
+      let civName = a.civName||'';
+      if(!civName && a.profileId){
+        // Look up this player in the match members to find their teamid
+        const allMembers=[...(h.evilAssign||[]),...(h.goodAssign||[])];
+        // Use position index within their side to guess civ (P1-P4 evil, P5-P8 good)
+        const sideArr=side==='evil'?(h.evilAssign||[]):(h.goodAssign||[]);
+        const idx=sideArr.indexOf(a);
+        if(idx>=0){
+          const civs=side==='evil'?['P1 Dol Guldur','P2 Dol Guldur',"P3 Azog's Host",'P4 Goblin']:['P5 Blue Mountains','P6 Northmen','P7 Elves','P8 Iron Hills'];
+          civName=civs[idx]||'';
+        }
+      }
+      const civHtml = civName?` <span style="font-size:12px;color:var(--muted)">— ${normCivName(civName)}</span>`:'';
+      const isUnknown = !a.isCommunity && a.profileId;
+      const addHint  = isUnknown?` <button onclick="promptAddPlayer('${a.name}','${a.profileId}')" style="font-size:10px;font-family:'Cinzel',serif;letter-spacing:.08em;background:var(--gold-d);border:1px solid var(--gold);color:var(--gold);padding:2px 7px;border-radius:2px;cursor:pointer;margin-left:4px" title="Add ${a.name} to your community">＋ Add ${a.name}</button>`:'';
+      return nameHtml+civHtml+addHint;
+    };
+    const eP=(h.evilAssign||[]).map(a=>fmtPlayer(a,'evil')).join('<br>');
+    const gP=(h.goodAssign||[]).map(a=>fmtPlayer(a,'good')).join('<br>');
+    return `<div class="hi" onclick="openMatchDetail('${h.id}')" style="cursor:pointer" onmouseover="this.style.borderColor='var(--border2)'" onmouseout="this.style.borderColor=''">
+      <div class="hi-top">
+        <span class="hbadge ${w}">${w==='evil'?'⚔ Evil Win':'✦ Good Win'}</span>
+        ${h.source==='auto'?'<span class="hbadge auto">AUTO</span>':''}
+        <span class="hi-meta">${h.date||''} · Gap: ${h.gap!=null?h.gap:'?'}${h.duration?` · ${fmtDuration(h.duration)}`:''}</span>
+        ${adminUnlocked?`<button class="btn" style="font-size:9px;padding:3px 8px;margin-left:auto" onclick="openMatchEditor('${h.id}')">✎ Edit</button>`:''}
+        <button class="btn" style="font-size:9px;padding:3px 8px;${adminUnlocked?'':'margin-left:auto'}" onclick="delHist('${h.id}')">✕</button>
+      </div>
+      <div class="hi-teams">
+        <div><div class="hi-tl">Evil (${h.evilTotal||''})</div><div class="hi-pl">${eP||'—'}</div></div>
+        <div><div class="hi-tl">Good (${h.goodTotal||''})</div><div class="hi-pl">${gP||'—'}</div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.promptAddPlayer=function(name, profileId){
+  if(!adminUnlocked){
+    toast('Unlock Admin first to add players','err');
+    // Still open admin page so they can unlock
+    go('admin');
+    return;
+  }
+  document.getElementById('apName').value=name||'';
+  document.getElementById('apPid').value=profileId||'';
+  openModal('mAddPlayer');
+};
+
+window.delHist=async function(id){
+  if(!adminUnlocked){toast('Admin required','err');return;}
+  await deleteDoc(doc(db,'history',String(id)));
+};
+
+
+// ─────────────────────────────────────────
+// AUTO-RECORD FROM matches.json
+// ─────────────────────────────────────────
+window.triggerCheck=async function(){
+  const btn=document.getElementById('checkBtn');
+  btn.disabled=true;
+  await autoRecord();
+  btn.disabled=false;
+};
+
+async function autoRecord(){
+  if(autoRecording) return;
+  autoRecording=true;
+  try{
+    const resp=await fetch('matches.json?_='+Date.now(),{signal:AbortSignal.timeout(8000)});
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    const data=await resp.json();
+    const matches=(data.matches||[]).sort((a,b)=>(a.completiontime||0)-(b.completiontime||0));
+    // Use local history cache kept live by onSnapshot — avoids a Firestore read every poll
+    // Use fullHistoryCache (all games) not history (capped at 100) for dedup
+    const known=new Set(fullHistoryCache.map(h=>String(h.gameId)).filter(Boolean));
+    const commIds=buildCommIds(players);
+    const profMap=buildProfMap(players);
+    if(!commIds.size) return;
+    let added=0;
+
+    for(const match of matches){
+      const gid=String(match.match_id||match.id);
+      if(known.has(gid)) continue;
+      const members=match.matchhistorymember||match.matchhistoryreportresults||[];
+      if(!members.length) continue;
+      if(members.length<8) continue;  // dropped/incomplete matches have fewer than 8 players
+
+      // Skip very short games (under 10 min) — likely dropped/restored before real play
+      const durCheck=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
+      if(durCheck!==null && durCheck<600) continue;
+
+      // Skip if exact same players in exact same civ positions — rehost/restore detection
+      // Uses civ position (e.g. p1@P1 Dol Guldur) so same players with different civs are NOT duplicates
+      const mkLineup=arr=>arr.map(m=>({pid:String(m.profile_id),pos:m.civ_position||String(m.teamid||'')}))
+        .filter(x=>x.pid).sort((a,b)=>a.pid.localeCompare(b.pid)).map(x=>x.pid+'@'+x.pos).join('|');
+      const matchLineup=mkLineup(members);
+      const isDuplicate=matchLineup.length>0&&history.some(h=>{
+        const hLineup=[...(h.evilAssign||[]),...(h.goodAssign||[])]
+          .filter(a=>a.profileId).map(a=>({pid:String(a.profileId),pos:a.civName||''}))
+          .sort((a,b)=>a.pid.localeCompare(b.pid)).map(x=>x.pid+'@'+x.pos).join('|');
+        return hLineup===matchLineup;
+      });
+      if(isDuplicate){ console.log('[autoRecord] Skipping exact duplicate lineup (rehost/restore):', gid); continue; }
+      // No description filter — rely on matchtype_id=0 + maxplayers=8 + 4+ community players
+      // (mapname is always "my map" for custom scenarios in the API)
+      const comm=members.filter(m=>commIds.has(Number(m.profile_id)));
+      if(comm.length<4) continue;
+      if(!comm.some(m=>m.resulttype!==0)) continue;
+
+      const groups={};
+      members.forEach(m=>{ const t=String(m.teamid??0); (groups[t]=groups[t]||[]).push(m); });
+      const tids=Object.keys(groups); if(tids.length<2) continue;
+
+      // Use civ_position (p1-p4=evil, p5-p8=good) if available, else fall back to teamid
+      const EVIL_POS=new Set(['p1','p2','p3','p4']);
+      const GOOD_POS=new Set(['p5','p6','p7','p8']);
+      const hasCivPos=members.some(m=>m.civ_position);
+
+      const isEvil=m=> hasCivPos
+        ? EVIL_POS.has(m.civ_position)
+        : (Number(m.teamid??0)>=5&&Number(m.teamid??0)<=8);
+      const isGood=m=> hasCivPos
+        ? GOOD_POS.has(m.civ_position)
+        : (Number(m.teamid??0)>=9&&Number(m.teamid??0)<=12);
+
+      // Winner = whichever side has resulttype=1
+      let evilWins=0, goodWins=0;
+      members.forEach(m=>{
+        if(m.resulttype===1){ if(isEvil(m)) evilWins++; else if(isGood(m)) goodWins++; }
+      });
+      const winner=evilWins>=goodWins?'evil':'good';
+
+      // Build a profileId → civId map from lobby slot data if we have it
+      // colorId in AoE2 custom scenarios = player slot position (0-indexed)
+      // Slot 0-3 = Evil (P1-P4), Slot 4-7 = Good (P5-P8)
+      // colorId is the most reliable field — it's the actual in-game color/slot assignment
+      const lobbySlots = liveLobbyMatch?._slots || [];
+      // Use position_label from ScenarioPlayerIndex (set by scraper metaData decode)
+      // This is the definitive position — p1 through p8
+      const lobbyByCiv = {};
+      if(lobbySlots.length>0){
+        lobbySlots.forEach(s=>{
+          if(!s.profileId) return;
+          // position_label set by scraper via ScenarioPlayerIndex
+          if(s.position_label) lobbyByCiv[String(s.profileId)]=s.position_label;
+        });
+        console.log('[autoRecord] Using ScenarioPlayerIndex slot data:', lobbyByCiv);
+      }
+
+      // Split by civ_position (p1-p4=evil, p5-p8=good) when available, else teamid
+      const civSortOrder=['p1','p2','p3','p4','p5','p6','p7','p8'];
+      const evilMembers=members.filter(isEvil).sort((a,b)=>civSortOrder.indexOf(a.civ_position)-civSortOrder.indexOf(b.civ_position));
+      const goodMembers=members.filter(isGood).sort((a,b)=>civSortOrder.indexOf(a.civ_position)-civSortOrder.indexOf(b.civ_position));
+
+      const buildA=tid=>groups[tid].map(m=>{
+        const p=profMap[Number(m.profile_id)]||null;
+        const cid=m.civ_position||lobbyByCiv[String(m.profile_id)]||TEAMID_MAP[Number(m.teamid)]||null;
+        const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
+        const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
+        const name=p?p.name:`Player ${m.profile_id}`;
+        return {player:p,civId:cid,civName,effElo,isCommunity:!!p,name};
+      });
+
+      const buildSide=mems=>mems.map(m=>{
+        const p=profMap[Number(m.profile_id)]||null;
+        const cid=m.civ_position||lobbyByCiv[String(m.profile_id)]||null;
+        const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
+        const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
+        const name=p?p.name:(m.name||`Player ${m.profile_id}`);
+        const isCommunity=p?true:(m.is_community||false);
+        return {player:p,civId:cid,civName,effElo,isCommunity,name,profileId:m.profile_id};
+      });
+
+      // Members already sorted by civ_position above
+      const evilA=buildSide(evilMembers), goodA=buildSide(goodMembers);
+      const winA=winner==='evil'?evilA:goodA;
+      const loseA=winner==='evil'?goodA:evilA;
+
+      const commWin=winA.filter(a=>a.isCommunity&&a.player);
+      const commLose=loseA.filter(a=>a.isCommunity&&a.player);
+      const avgWin=commWin.length?commWin.reduce((s,a)=>s+overallElo(a.player),0)/commWin.length:DEFAULT_ELO;
+      const avgLose=commLose.length?commLose.reduce((s,a)=>s+overallElo(a.player),0)/commLose.length:DEFAULT_ELO;
+
+      // MULTI-TAB FIX: Use a Firestore transaction so concurrent tabs can't both record the same game.
+      // The transaction atomically checks if this gameId already exists and writes W/L in one operation.
+      const histRef = doc(db,'history',gid);
+      let alreadyRecorded = false;
+      await runTransaction(db, async (tx) => {
+        const existing = await tx.get(histRef);
+        if (existing.exists()) { alreadyRecorded = true; return; }
+
+        const ts=(match.completiontime||match.startgametime||0)*1000;
+        const date=ts?new Date(ts).toLocaleDateString('en-CA'):new Date().toLocaleDateString('en-CA');
+        const durationSec=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
+        const et=winA.reduce((s,a)=>s+a.effElo,0);
+        const gt=loseA.reduce((s,a)=>s+a.effElo,0);
+
+        // Claim this gameId inside the transaction — only one tab will win
+        tx.set(histRef,{
+          date,winner,evilTotal:winner==='evil'?et:gt,goodTotal:winner==='evil'?gt:et,
+          gap:Math.abs(et-gt),timestamp:ts||Date.now(),source:'auto',gameId:gid,
+          duration:durationSec,
+          evilAssign:(winner==='evil'?winA:loseA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
+          goodAssign:(winner==='evil'?loseA:winA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
+        });
+
+        // Use atomic increment() so even if two tabs somehow both pass the exists() check,
+        // W/L counters can never be double-incremented
+        for(const a of [...commWin,...commLose]){
+          const p=a.player, won=commWin.includes(a), g=(p.wins||0)+(p.losses||0);
+          const pRef=doc(db,'players',String(p.id));
+          const updates={};
+          p.civElo=p.civElo||{};
+          if(a.civId){
+            const cg1=(p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0);
+            const newCivElo=calcElo(civElo(p,a.civId), won?avgLose:avgWin, won, g, cg1);
+            updates['civElo.'+a.civId]=newCivElo;
+            p.civElo[a.civId]=newCivElo;
+            if(won){ updates['civWins.'+a.civId]=increment(1); p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1; }
+            else   { updates['civLosses.'+a.civId]=increment(1); p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1; }
+          }
+          if(won){ updates.wins=increment(1); p.wins=(p.wins||0)+1; }
+          else   { updates.losses=increment(1); p.losses=(p.losses||0)+1; }
+          tx.update(pRef, updates);
+        }
+      });
+
+      if(alreadyRecorded){ console.log('[autoRecord] Already recorded by another tab, skipping:',gid); continue; }
+      known.add(gid); added++;
+      console.log('[AUTO]',gid,winner);
+    }
+    const st=document.getElementById('checkStatus');
+    if(st){
+      const t=new Date().toLocaleTimeString();
+      st.textContent=added>0?`✓ ${added} new match${added>1?'es':''} recorded at ${t}`:`Last checked: ${t} — no new matches`;
+    }
+  } catch(e){
+    const st=document.getElementById('checkStatus');
+    if(st) st.textContent='Could not read matches.json — check GitHub Action';
+    console.warn('[autoRecord]',e.message);
+  } finally{
+    autoRecording=false;
+  }
+}
+
+// ─────────────────────────────────────────
+// PLAYERS TABLE
+// ─────────────────────────────────────────
+function renderPTable(){
+  const tb=document.getElementById('ptbody'); if(!tb) return;
+  const q=(document.getElementById('playerSearch')?.value||'').toLowerCase();
+  const civF=document.getElementById('civFilter')?.value||'';
+  let list=[...players];
+  // Search filter
+  if(q) list=list.filter(p=>p.name.toLowerCase().includes(q));
+  // Sort
+  list.sort((a,b)=>{
+    if(civF) return civElo(b,civF)-civElo(a,civF);  // always descending by civ elo
+    if(pSortKey==='name') return pSortDir*a.name.localeCompare(b.name);
+    const va=pSortKey==='elo'?overallElo(a):(a[pSortKey]||0);
+    const vb=pSortKey==='elo'?overallElo(b):(b[pSortKey]||0);
+    return pSortDir*(vb-va);
+  });
+  tb.innerHTML=list.map(p=>{
+    const ov=overallElo(p);
+    const bars=CIVS.map(c=>{
+      const e=civElo(p,c.id);
+      const h=Math.round((e/2400)*32);
+      const highlight=civF===c.id?';outline:1px solid var(--gold)':'';
+      return `<div class="cvbar ${c.side}" style="height:${Math.max(2,h)}px${highlight}" title="${c.name}: ${e}"></div>`;
+    }).join('');
+    const w=civF?(p.civWins?.[civF]||0):(p.wins||0);
+    const l=civF?(p.civLosses?.[civF]||0):(p.losses||0);
+    return `<tr onclick="${adminUnlocked?`editPlayer('${p.id}')`:`openProfile('${p.id}')`}" style="cursor:pointer">
+      <td><span onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color=''" style="transition:color .15s">${p.name}</span></td>
+      <td><span class="mono">${civF?`<span style="color:var(--gold)">${civElo(p,civF)}</span> <span style="color:var(--muted);font-size:12px">(${ov})</span>`:ov}</span></td>
+      <td><div class="civbars">${bars}</div></td>
+      <td style="color:var(--green)">${w}</td>
+      <td style="color:var(--evil)">${l}</td>
+      <td><span class="pid">${p.profileId||'—'}</span></td>
+    </tr>`;
+  }).join('');
+}
+window.renderPTable=renderPTable;
+window.renderLB=renderLB;
+window.sortP=function(k){
+  pSortDir=(pSortKey===k)?-pSortDir:(k==='name'?1:-1);
+  pSortKey=k; renderPTable();
+};
+
+// ─────────────────────────────────────────
+// LEADERBOARD
+// ─────────────────────────────────────────
+function renderWinRate(){
+  const el=document.getElementById('winRateStats'); if(!el) return;
+  if(!history.length){
+    el.innerHTML='<p style="color:var(--dim);font-size:14px">No matches recorded yet.</p>';
+    return;
+  }
+  const total    = history.length;
+  const evilWins = history.filter(h=>h.winner==='evil').length;
+  const goodWins = total - evilWins;
+  const evilPct  = Math.round(evilWins/total*100);
+  const goodPct  = 100 - evilPct;
+  const barW     = Math.max(2, Math.min(98, evilPct));
+  el.innerHTML =
+    '<div style="flex:1;min-width:220px">' +
+      '<div style="display:flex;justify-content:space-between;margin-bottom:6px">' +
+        '<span style="font-family:Cinzel,serif;font-size:11px;color:var(--evil)">⚔ Evil Forces</span>' +
+        '<span style="font-family:JetBrains Mono,monospace;font-size:13px;color:var(--evil)">' + evilWins + 'W · ' + evilPct + '%</span>' +
+      '</div>' +
+      '<div style="height:8px;border-radius:4px;background:var(--bg3);overflow:hidden;position:relative">' +
+        '<div style="position:absolute;left:0;top:0;height:100%;width:' + barW + '%;background:var(--evil);border-radius:4px;transition:width .6s ease"></div>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;margin-top:6px">' +
+        '<span style="font-family:Cinzel,serif;font-size:11px;color:var(--good)">✦ Free Peoples</span>' +
+        '<span style="font-family:JetBrains Mono,monospace;font-size:13px;color:var(--good)">' + goodWins + 'W · ' + goodPct + '%</span>' +
+      '</div>' +
+    '</div>' +
+    '<div style="color:var(--dim);font-size:13px;white-space:nowrap">' + total + ' game' + (total!==1?'s':'') + ' recorded</div>';
+}
+
+
+function renderLB(){
+  const el=document.getElementById('lbList'); if(!el) return;
+  renderWinRate();
+  const q=(document.getElementById('lbSearch')?.value||'').toLowerCase();
+  const civF=document.getElementById('lbCivFilter')?.value||'';
+  let list=[...players];
+  if(q) list=list.filter(p=>p.name.toLowerCase().includes(q));
+  list.sort((a,b)=>civF?civElo(b,civF)-civElo(a,civF):overallElo(b)-overallElo(a));
+  // Calculate streaks from history
+  const streaks=calcStreaks();
+  el.innerHTML=list.map((p,i)=>{
+    const ov=overallElo(p);
+    const displayElo=civF?civElo(p,civF):ov;
+    const subElo=civF?`<span style="font-size:11px;color:var(--muted);margin-left:4px">(${ov})</span>`:'';
+    const w=p.wins||0, l=p.losses||0, tot=w+l;
+    const wr=tot?Math.round(w/tot*100)+'%':'—';
+    const streak=streaks[p.name];
+    const streakHtml=streak&&streak.count>1?`<span class="streak-badge ${streak.type==='w'?'streak-w':'streak-l'}">${streak.type==='w'?'🔥':'❄'} ${streak.count}${streak.type.toUpperCase()}</span>`:'';
+    return `<div class="lbrow">
+      <span class="lbrank">${i+1}</span>
+      <span class="lbname" onclick="openProfile('${p.id}')" style="cursor:pointer" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color=''">${p.name}${streakHtml}</span>
+      <span class="lbelo">${displayElo}${subElo}</span>
+      <span class="lbwl">${w}W / ${l}L</span>
+      <span class="lbwr">${wr}</span>
+    </div>`;
+  }).join('');
+}
+
+function calcStreaks(){
+  // For each player, find their current win/loss streak from most recent matches
+  const streaks={};
+  const sorted=[...history].sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
+  players.forEach(p=>{
+    let count=0, type=null;
+    for(const h of sorted){
+      const onEvil=(h.evilAssign||[]).some(a=>a.name===p.name);
+      const onGood=(h.goodAssign||[]).some(a=>a.name===p.name);
+      if(!onEvil&&!onGood) continue;
+      const won=(onEvil&&h.winner==='evil')||(onGood&&h.winner==='good');
+      const t=won?'w':'l';
+      if(type===null) type=t;
+      if(t===type) count++;
+      else break;
+    }
+    if(count>0) streaks[p.name]={type,count};
+  });
+  return streaks;
+}
+
+// ─────────────────────────────────────────
+// EDIT PLAYER
+// ─────────────────────────────────────────
+window.editPlayer=function(id){
+  if(!adminUnlocked){ toast('Admin required to edit players','err'); return; }
+  const p=players.find(pl=>pl.id===id); if(!p) return;
+  document.getElementById('epTitle').textContent=p.name;
+  document.getElementById('epId').value=id;
+  document.getElementById('epName').value=p.name;
+  document.getElementById('epPid').value=p.profileId||'';
+  document.getElementById('epAltPids').value=(p.altProfileIds||[]).join(', ');
+  // Fav/Avoid grid
+  const favs=new Set(p.favCivs||[]);
+  const avoids=new Set(p.avoidCivs||[]);
+  document.getElementById('favAvoidGrid').innerHTML=CIVS.map(c=>`
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:5px 8px;display:flex;align-items:center;gap:4px">
+      <span style="font-size:11px;flex:1;color:${c.side==='evil'?'var(--evil)':'var(--good)'}">${c.name}</span>
+      <button class="fa-btn ${favs.has(c.id)?'active':''}" id="fav_${c.id}" onclick="toggleFavAvoid('${c.id}','fav')" title="Favourite">⭐</button>
+      <button class="fa-btn ${avoids.has(c.id)?'active':''}" id="avoid_${c.id}" onclick="toggleFavAvoid('${c.id}','avoid')" title="Avoid">🚫</button>
+    </div>`).join('');
+  document.getElementById('civGrid').innerHTML=CIVS.map(c=>`
+    <div class="civ-edit">
+      <div class="civ-edit-label ${c.side}">${c.name}</div>
+      <input type="number" id="ce_${c.id}" value="${civElo(p,c.id)}" min="100" max="3000">
+    </div>`).join('');
+  openModal('mEditPlayer');
+};
+
+// Toggle fav/avoid buttons in edit modal (mutually exclusive)
+window.toggleFavAvoid=function(civId, type){
+  const favBtn=document.getElementById('fav_'+civId);
+  const avoidBtn=document.getElementById('avoid_'+civId);
+  if(type==='fav'){
+    favBtn.classList.toggle('active');
+    if(favBtn.classList.contains('active')) avoidBtn.classList.remove('active');
+  } else {
+    avoidBtn.classList.toggle('active');
+    if(avoidBtn.classList.contains('active')) favBtn.classList.remove('active');
+  }
+};
+
+window.savePlayer=async function(){
+  if(!adminUnlocked){ toast('Admin required','err'); return; }
+  const id=document.getElementById('epId').value;
+  const p=players.find(pl=>pl.id===id); if(!p) return;
+  p.name=document.getElementById('epName').value.trim();
+  const pid=document.getElementById('epPid').value;
+  p.profileId=pid?Number(pid):null;
+  const altRaw=document.getElementById('epAltPids').value;
+  p.altProfileIds=altRaw.split(',').map(s=>s.trim()).filter(Boolean).map(Number).filter(n=>n&&n!==p.profileId);
+  p.civElo=p.civElo||{};
+  CIVS.forEach(c=>{ p.civElo[c.id]=Math.max(100,Number(document.getElementById('ce_'+c.id).value)||DEFAULT_ELO); });
+  // Save fav/avoid
+  p.favCivs=CIVS.filter(c=>document.getElementById('fav_'+c.id)?.classList.contains('active')).map(c=>c.id);
+  p.avoidCivs=CIVS.filter(c=>document.getElementById('avoid_'+c.id)?.classList.contains('active')).map(c=>c.id);
+  await savePl(p); closeModal('mEditPlayer'); toast('Saved');
+};
+
+window.deletePlayer=async function(){
+  if(!adminUnlocked){ toast('Admin required','err'); return; }
+  const id=document.getElementById('epId').value;
+  if(!confirm('Delete this player?')) return;
+  await deleteDoc(doc(db,'players',String(id)));
+  closeModal('mEditPlayer'); toast('Deleted');
+};
+
+// ─────────────────────────────────────────
+// ADMIN
+// ─────────────────────────────────────────
+window.checkAdmin=function(){
+  if(document.getElementById('adminPass').value===adminPass){
+    adminUnlocked=true;
+    document.getElementById('adminGate').style.display='none';
+    document.getElementById('adminPanel').style.display='block';
+    renderAdminList();
+    renderPTable(); // update cursor style
+  } else document.getElementById('adminErr').style.display='block';
+};
+window.lockAdmin=function(){
+  adminUnlocked=false;
+  document.getElementById('adminGate').style.display='block';
+  document.getElementById('adminPanel').style.display='none';
+  renderPTable(); // update cursor style
+  go('balance');
+};
+window.savePass=async function(){
+  const v=document.getElementById('newPass').value.trim();
+  if(!v){toast('Enter a password','err');return;}
+  adminPass=v; await setDoc(doc(db,'settings','main'),{adminPass}); toast('Password updated');
+};
+
+function renderAdminList(){
+  const el=document.getElementById('apList'); if(!el) return;
+  el.innerHTML=[...players].sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`
+    <div class="apr">
+      <span style="flex:1;font-size:15px">${p.name}</span>
+      <span class="pid">${p.profileId?'ID: '+p.profileId:'no ID'}</span>
+      <button class="btn" style="font-size:9px;padding:4px 10px" onclick="editPlayer('${p.id}')">Edit</button>
+    </div>`).join('');
+}
+
+window.addPlayer=async function(){
+  const name=document.getElementById('apName').value.trim();
+  const pid=document.getElementById('apPid').value;
+  if(!name){toast('Enter a name','err');return;}
+  const np={name,profileId:pid?Number(pid):null,civElo:{},wins:0,losses:0};
+  CIVS.forEach(c=>{np.civElo[c.id]=DEFAULT_ELO;});
+  await addDoc(collection(db,'players'),np);
+  document.getElementById('apName').value='';
+  document.getElementById('apPid').value='';
+  closeModal('mAddPlayer'); toast('Player added');
+};
+
+window.confirmReset=async function(){
+  closeModal('mReset'); sync('spin');
+  // Delete history in batches of 400 (Firestore writeBatch limit is 500)
+  let deleted=0;
+  while(true){
+    const hSnap=await getDocs(query(collection(db,'history'),limit(400)));
+    if(hSnap.empty) break;
+    const batch=writeBatch(db);
+    hSnap.forEach(d=>batch.delete(d.ref));
+    await batch.commit();
+    deleted+=hSnap.size;
+    toast(`Deleting... ${deleted} removed`);
+    if(hSnap.size<400) break;
+  }
+
+  // Load saved bulk order + Elo range to reset to seeded values instead of 1200
+  let seededElos={}; // playerId → elo
+  try{
+    const s=await getDoc(doc(db,'settings','bulkOrder'));
+    if(s.exists()){
+      const order=s.data().order||[];
+      const top=s.data().top||DEFAULT_ELO;
+      const bot=s.data().bot||DEFAULT_ELO;
+      const n=order.length;
+      order.forEach((id,i)=>{
+        seededElos[id]=n===1?top:Math.round(top-(top-bot)*(i/(n-1)));
+      });
+    }
+  }catch(e){}
+
+  for(const p of players){
+    const elo=seededElos[p.id]||DEFAULT_ELO;
+    p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=elo;}); p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
+    await savePl(p);
+  }
+  sync('ok'); toast(`Reset complete — ${deleted} matches deleted${Object.keys(seededElos).length?', Elos restored from seed':''}`);
+};
+
+// ── RECALCULATE ALL ELOS ─────────────────────────────────────────────────────
+// Replays all stored matches oldest→newest, using the same kFactor() as calcElo().
+// Resets players to seeded Elos first, then replays every match to produce
+// correct civElo, civWins, civLosses, wins, losses in Firestore.
+// ── RECALCULATE ALL ELOS ─────────────────────────────────────────────────────
+window.recalcAllElos=async function(){
+  if(!adminUnlocked){toast('Admin required','err');return;}
+  const log=s=>{const el=document.getElementById('recalcStatus');if(el)el.textContent=s;};
+  log('Loading…');
+
+  // ── Step 1: Deduplicate history in Firestore by gameId ──────────────────
+  // Fetch all history docs and delete true duplicates (same gameId)
+  log('Checking for duplicate matches in Firestore…');
+  const allSnap=await getDocs(collection(db,'history'));
+  const seenGameIds=new Map(); // gameId → docRef (keep first)
+  const dupeRefs=[];
+  allSnap.forEach(d=>{
+    const gid=String(d.data().gameId||d.id);
+    if(seenGameIds.has(gid)){
+      dupeRefs.push(d.ref); // mark as duplicate
+    } else {
+      seenGameIds.set(gid,d.ref);
+    }
+  });
+  if(dupeRefs.length>0){
+    log(`Removing ${dupeRefs.length} duplicate records…`);
+    for(let i=0;i<dupeRefs.length;i+=400){
+      const batch=writeBatch(db);
+      dupeRefs.slice(i,i+400).forEach(r=>batch.delete(r));
+      await batch.commit();
+    }
+    log(`Removed ${dupeRefs.length} duplicates.`);
+  }
+
+  // ── Step 2: Load clean history oldest→newest ────────────────────────────
+  // Use the full Firestore snapshot from Step 1 (not the live cache which is capped at 100)
+  const allDocs=[];
+  allSnap.forEach(d=>{ if(!dupeRefs.includes(d.ref)) allDocs.push({id:d.id,...d.data()}); });
+  const sorted=allDocs
+    .filter((h,i,arr)=>arr.findIndex(x=>String(x.gameId||x.id)===String(h.gameId||h.id))===i)
+    .sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
+  if(!sorted.length){log('No history found.');return;}
+  log(`${sorted.length} unique matches to replay.`);
+
+  // ── Step 3: Load seeded Elos ─────────────────────────────────────────────
+  const snap=await getDoc(doc(db,'settings','bulkOrder'));
+  const seededElos={};
+  if(snap.exists()){
+    const order=snap.data().order||[];
+    const top=snap.data().top||DEFAULT_ELO;
+    const bot=snap.data().bot||DEFAULT_ELO;
+    const n=order.length;
+    order.forEach((id,i)=>{ seededElos[id]=n===1?top:Math.round(top-(top-bot)*(i/(n-1))); });
+  }
+
+  // ── Step 4: Reset all players ────────────────────────────────────────────
+  for(const p of players){
+    const seed=seededElos[p.id]||DEFAULT_ELO;
+    p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=seed;});
+    p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
+  }
+
+  // ── Step 5: Replay oldest→newest ─────────────────────────────────────────
+  const findPlayer=a=>players.find(pl=>
+    pl.name===a.name||(a.profileId&&String(a.profileId)===String(pl.profileId)));
+
+  let done=0;
+  for(const h of sorted){
+    const winA =(h.winner==='evil'?h.evilAssign:h.goodAssign)||[];
+    const loseA=(h.winner==='evil'?h.goodAssign:h.evilAssign)||[];
+
+    // Pre-game team averages
+    const commWin =winA.map(a=>findPlayer(a)).filter(Boolean);
+    const commLose=loseA.map(a=>findPlayer(a)).filter(Boolean);
+    const avgWin =commWin.length?commWin.reduce((s,p)=>s+overallElo(p),0)/commWin.length:DEFAULT_ELO;
+    const avgLose=commLose.length?commLose.reduce((s,p)=>s+overallElo(p),0)/commLose.length:DEFAULT_ELO;
+
+    // Each player processed exactly once per match
+    const seen=new Set();
+    for(const [arr,won,opp] of [[winA,true,avgLose],[loseA,false,avgWin]]){
+      for(const a of arr){
+        const p=findPlayer(a); if(!p||seen.has(p.id)) continue;
+        seen.add(p.id);
+        const g=(p.wins||0)+(p.losses||0);
+        const civName=normCivName(a.civName||'');
+        const civ=CIVS.find(c=>normCivName(c.name)===civName);
+        if(civ){
+          const cg=(p.civWins?.[civ.id]||0)+(p.civLosses?.[civ.id]||0);
+          p.civElo[civ.id]=calcElo(civElo(p,civ.id),opp,won,g,cg);
+          if(won){p.civWins=p.civWins||{};p.civWins[civ.id]=(p.civWins[civ.id]||0)+1;}
+          else   {p.civLosses=p.civLosses||{};p.civLosses[civ.id]=(p.civLosses[civ.id]||0)+1;}
+        }
+        if(won)p.wins=(p.wins||0)+1; else p.losses=(p.losses||0)+1;
+      }
+    }
+    done++;
+    if(done%10===0) log(`Replayed ${done}/${sorted.length}…`);
+  }
+
+  // ── Step 6: Save all players ──────────────────────────────────────────────
+  log(`Saving ${players.length} players…`);
+  for(const p of players) await savePl(p);
+  log(`✓ Done — ${sorted.length} matches, ${dupeRefs.length} duplicates removed.`);
+  toast('Elos recalculated!');
+  renderLB(); renderPTable();
+};
+
+// ─────────────────────────────────────────
+// HISTORICAL IMPORT
+// ─────────────────────────────────────────
+let ilogLines=[];
+function ilog(msg,cls=''){
+  ilogLines.push({msg,cls});
+  const el=document.getElementById('ilog'); if(!el) return;
+  el.innerHTML=ilogLines.slice(-100).map(l=>`<span class="${l.cls}">${l.msg}</span>`).join('');
+  el.scrollTop=el.scrollHeight;
+}
+
+
+window.runImport=async function(){
+  if(importing){toast('Already running','err');return;}
+  importing=true; ilogLines=[];
+  const logEl=document.getElementById('ilog');
+  logEl.style.display='block'; logEl.innerHTML='';
+  document.getElementById('importBtn').disabled=true;
+  try{
+    ilog('Fetching matches.json…');
+    const resp=await fetch('matches.json?_='+Date.now(),{signal:AbortSignal.timeout(15000)});
+    if(!resp.ok){ilog('HTTP '+resp.status,'err');return;}
+    const data=await resp.json();
+    const matches=(data.matches||[]).sort((a,b)=>(a.completiontime||0)-(b.completiontime||0));
+    const doReset=document.getElementById('importReset')?.checked!==false;
+
+    // Load seeded Elos (same as recalcAllElos uses)
+    const seedSnap=await getDoc(doc(db,'settings','bulkOrder'));
+    const importSeeds={};
+    if(seedSnap.exists()){
+      const order=seedSnap.data().order||[];
+      const top=seedSnap.data().top||DEFAULT_ELO;
+      const bot=seedSnap.data().bot||DEFAULT_ELO;
+      const n=order.length;
+      order.forEach((id,i)=>{ importSeeds[id]=n===1?top:Math.round(top-(top-bot)*(i/(n-1))); });
+    }
+
+    if(doReset){
+      ilog(`Found ${matches.length} matches. Resetting all ratings to seeded Elos…`,'warn');
+      for(const p of players){
+        const seed=importSeeds[p.id]||DEFAULT_ELO;
+        p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=seed;}); p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
+      }
+      const hSnap=await getDocs(collection(db,'history'));
+      const batch=writeBatch(db); hSnap.forEach(d=>batch.delete(d.ref)); await batch.commit();
+      ilog('Ratings reset. Processing oldest→newest…');
+    } else {
+      ilog(`Found ${matches.length} matches. Keeping current Elos — processing oldest→newest…`,'warn');
+      for(const p of players){ p.wins=0; p.losses=0; }
+      const hSnap=await getDocs(collection(db,'history'));
+      const batch=writeBatch(db); hSnap.forEach(d=>batch.delete(d.ref)); await batch.commit();
+      ilog('W/L reset, history cleared. Processing…');
+    }
+
+    const commIds=buildCommIds(players);
+    const profMap=buildProfMap(players);
+    // Build set of gameIds already in Firestore to avoid re-applying Elo
+    const alreadyDone=new Set();
+    if(!doReset){
+      const snap=await getDocs(collection(db,'history'));
+      snap.forEach(d=>{ if(d.data().gameId) alreadyDone.add(String(d.data().gameId)); });
+      ilog(`${alreadyDone.size} games already recorded — skipping those.`);
+    }
+    let done=0, skip=0;
+
+    for(const match of matches){
+      const gid=String(match.match_id||match.id);
+      if(alreadyDone.has(gid)){skip++;continue;} // already in Firestore, skip
+      // No description filter — rely on matchtype_id=0 + maxplayers=8 + 4+ community
+      const members=match.matchhistorymember||match.matchhistoryreportresults||[];
+      if(members.length<8){skip++;continue;}  // dropped/incomplete match
+
+      // Skip very short games (under 10 min)
+      const mDur=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
+      if(mDur!==null && mDur<600){skip++;continue;}
+
+      const comm=members.filter(m=>commIds.has(Number(m.profile_id)));
+      if(comm.length<4){skip++;continue;}
+      if(!comm.some(m=>m.resulttype!==0)){skip++;continue;}
+
+      const groups={};
+      members.forEach(m=>{ const t=String(m.teamid??0); (groups[t]=groups[t]||[]).push(m); });
+      if(Object.keys(groups).length<2){skip++;continue;}
+
+      // Use civ_position (p1-p4=evil, p5-p8=good) when available, else teamid
+      const EVIL_POS_I=new Set(['p1','p2','p3','p4']);
+      const GOOD_POS_I=new Set(['p5','p6','p7','p8']);
+      const hasCivPosI=members.some(m=>m.civ_position);
+      const isEvilI=m=>hasCivPosI?EVIL_POS_I.has(m.civ_position):(Number(m.teamid??0)>=5&&Number(m.teamid??0)<=8);
+      const isGoodI=m=>hasCivPosI?GOOD_POS_I.has(m.civ_position):(Number(m.teamid??0)>=9&&Number(m.teamid??0)<=12);
+
+      let evilWinsI=0, goodWinsI=0;
+      members.forEach(m=>{
+        if(m.resulttype===1){ if(isEvilI(m)) evilWinsI++; else if(isGoodI(m)) goodWinsI++; }
+      });
+      const winner=evilWinsI>=goodWinsI?'evil':'good';
+
+      const civOrder=['p1','p2','p3','p4','p5','p6','p7','p8'];
+      const buildSideI=mems=>mems.map(m=>{
+        const p=profMap[Number(m.profile_id)]||null;
+        const cid=m.civ_position||null;
+        const civName=cid?CIVS.find(c=>c.id===cid)?.name||'':'';
+        const effElo=p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO;
+        const name=p?p.name:(m.name||`Player ${m.profile_id}`);
+        const isCommunity=p?true:(m.is_community||false);
+        return {player:p,civId:cid,civName,effElo,isCommunity,name,profileId:m.profile_id};
+      });
+
+      const evilMembersI=members.filter(isEvilI).sort((a,b)=>civOrder.indexOf(a.civ_position)-civOrder.indexOf(b.civ_position));
+      const goodMembersI=members.filter(isGoodI).sort((a,b)=>civOrder.indexOf(a.civ_position)-civOrder.indexOf(b.civ_position));
+      const evilAI=buildSideI(evilMembersI), goodAI=buildSideI(goodMembersI);
+      const winA=winner==='evil'?evilAI:goodAI;
+      const loseA=winner==='evil'?goodAI:evilAI;
+
+      const commWin=winA.filter(a=>a.isCommunity&&a.player);
+      const commLose=loseA.filter(a=>a.isCommunity&&a.player);
+      const avgWin=commWin.length?commWin.reduce((s,a)=>s+overallElo(a.player),0)/commWin.length:DEFAULT_ELO;
+      const avgLose=commLose.length?commLose.reduce((s,a)=>s+overallElo(a.player),0)/commLose.length:DEFAULT_ELO;
+
+      const seenI=new Set(); // prevent double-counting if same player appears on both sides
+      for(const a of [...commWin,...commLose]){
+        const p=a.player, won=commWin.includes(a);
+        if(seenI.has(p.id)) continue; seenI.add(p.id);
+        const g=(p.wins||0)+(p.losses||0);
+        p.civElo=p.civElo||{};
+        if(a.civId){
+          const cg2=(p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0);
+          p.civElo[a.civId]=calcElo(civElo(p,a.civId),won?avgLose:avgWin,won,g,cg2);
+          if(won){ p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1; }
+          else   { p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1; }
+        }
+        if(won) p.wins=(p.wins||0)+1; else p.losses=(p.losses||0)+1;
+      }
+
+      const ts=(match.completiontime||match.startgametime||0)*1000;
+      const date=ts?new Date(ts).toLocaleDateString('en-CA'):'unknown';
+      const durationSecI=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
+      const et=winA.reduce((s,a)=>s+a.effElo,0);
+      const gt=loseA.reduce((s,a)=>s+a.effElo,0);
+      await setDoc(doc(db,'history',gid),{
+        date,winner,
+        evilTotal:winner==='evil'?et:gt,goodTotal:winner==='evil'?gt:et,
+        gap:Math.abs(et-gt),timestamp:ts||Date.now(),source:'auto',gameId:gid,
+        duration:durationSecI,
+        evilAssign:(winner==='evil'?winA:loseA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
+        goodAssign:(winner==='evil'?loseA:winA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
+      });
+      done++;
+      const names=[...commWin,...commLose].map(a=>a.player.name).join(', ');
+      ilog(`✓ [${date}] ${winner.toUpperCase()} WIN — ${names}`,'ok');
+    }
+
+    ilog(`\nDone: ${done} recorded, ${skip} skipped. Saving…`,'ok');
+    for(const p of players) await savePl(p);
+    ilog(`✓ All ratings saved!`,'ok');
+
+  }catch(e){ilog('Error: '+e.message,'err');}
+  finally{
+    importing=false;
+    document.getElementById('importBtn').disabled=false;
+  }
+};
+
+// ─────────────────────────────────────────
+// MODALS
+// ─────────────────────────────────────────
+window.openModal =id=>document.getElementById(id).classList.add('on');
+window.closeModal=id=>document.getElementById(id).classList.remove('on');
+document.querySelectorAll('.mo').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('on');}));
+
+// ─────────────────────────────────────────
+// LIVE TAB
+// ─────────────────────────────────────────
+// Reads lobby.json (updated by GitHub Action every 2 min)
+// State: idle → lobby → inprogress
+const LIVE_INTERVAL_MS  = 15000;  // lobby.json poll every 15s
+const RESULT_INTERVAL_MS = 45000; // result poll
+
+let liveState = 'idle';       // 'idle' | 'lobby' | 'inprogress'
+let liveTimerInterval = null;
+let liveResultInterval = null;
+let liveGameStart = null;
+let liveLobbyStart = null;  // tracks when lobby was opened for accurate timer
+let liveKnownGameId = null;
+let liveLobbyMatch = null;    // raw lobby match object
+let liveTeams = null;         // {evil:[player,...], good:[player,...]}
+
+// Decode slotinfo (base64+zlib) → full slot objects with ScenarioPlayerIndex-based position
+async function decodeSlotinfo(b64){
+  if(!b64) return [];
+  try{
+    const bin=atob(b64);
+    const bytes=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+    let decompressed=null;
+    for(const wbits of [15, 47, -15]){ // zlib, gzip, raw deflate
+      try{
+        const ds=new DecompressionStream(wbits===47?'gzip':'deflate'+(wbits<0?'-raw':''));
+        const writer=ds.writable.getWriter();
+        const reader=ds.readable.getReader();
+        writer.write(bytes); writer.close();
+        const chunks=[];
+        while(true){ const{done,value}=await reader.read(); if(done) break; chunks.push(value); }
+        const total=chunks.reduce((s,c)=>s+c.length,0);
+        const out=new Uint8Array(total); let off=0;
+        for(const c of chunks){out.set(c,off);off+=c.length;}
+        decompressed=out; break;
+      }catch(e){ continue; }
+    }
+    if(!decompressed) return [];
+    const text=new TextDecoder().decode(decompressed);
+    const start=text.indexOf('['); const end=text.lastIndexOf(']');
+    if(start===-1||end===-1) return [];
+    const slots=JSON.parse(text.slice(start,end+1));
+    return slots.map((s,i)=>({
+      slot_index:   i,
+      profileId:    Number(s?.profileInfo?.id||s?.profileid||s?.profile_id||0),
+      position_label: null, // ScenarioPlayerIndex requires metaData decode — done server-side
+      raw: s,
+    }));
+  }catch(e){ return []; }
+}
+
+function slotProfileIds(slots){ return slots.map(s=>s.profileId).filter(Boolean); }
+
+function setLiveState(s){
+  liveState=s;
+  document.getElementById('liveIdle').style.display        = s==='idle'       ?'block':'none';
+  document.getElementById('liveLobby').style.display       = s==='lobby'      ?'block':'none';
+  document.getElementById('liveInProgress').style.display  = s==='inprogress' ?'block':'none';
+  // Pulse dot on nav tab
+  const dot=document.getElementById('liveDot');
+  if(dot) dot.style.display = s!=='idle'?'inline-block':'none';
+}
+
+async function pollLobby(){
+  try{
+    const resp=await fetch('lobby.json?_='+Date.now(),{signal:AbortSignal.timeout(8000)});
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    const data=await resp.json();
+    const matches=data.matches||[];
+
+    const commIds=buildCommIds(players);
+    const profMap=buildProfMap(players);
+
+    const now=new Date().toLocaleTimeString();
+    const st=document.getElementById('liveStatus');
+    // Show staleness warning if lobby.json hasn't been updated in >10 minutes
+    const updated=data.updated||(data.matches?.[0]?.completiontime||0);
+    const ageMin=updated?Math.round((Date.now()/1000-updated)/60):null;
+    const staleWarn=ageMin&&ageMin>10?` ⚠ lobby.json ${ageMin}m old`:'';
+    if(st) st.textContent=`Last checked: ${now} · ${matches.length} lobbies · ${matches.filter(m=>m.matchtype_id===0&&m.maxplayers===8).length} custom 8-player${staleWarn}`;
+
+    // Don't re-detect if game already started
+    if(liveState==='inprogress') return;
+
+    for(const match of matches){
+      // Only 8-player custom games (matchtype_id=0, maxplayers=8)
+      // NOTE: isLotrMatch is NOT used here — AoE2 API always returns "my map" as mapname
+      // for custom scenarios so keyword matching never works. Community player ID match is
+      // the only reliable signal for live detection.
+      if(match.matchtype_id!==0) continue;
+      if(match.maxplayers!==8) continue;
+
+      // Collect all player IDs: host + matchmembers + slotinfo
+      const allIds=new Set();
+      allIds.add(Number(match.host_profile_id));
+      (match.matchmembers||[]).forEach(m=>allIds.add(Number(m.profile_id)));
+      const slots=await decodeSlotinfo(match.slotinfo);
+      slotProfileIds(slots).forEach(id=>allIds.add(id));
+
+      const found=[...allIds].filter(id=>commIds.has(id));
+      // For LOTR lobbies, 1 community member is enough to flag it
+      if(found.length>=1){
+        match._slots=slots;
+        activateLobby(match, found.map(id=>profMap[id]).filter(Boolean));
+        return;
+      }
+    }
+
+    // No community lobby found
+    if(liveState==='lobby'){
+      // Lobby disappeared → game started
+      activateInProgress();
+    } else {
+      // Check matches.json for a very recent game (started < 3 hours ago, not in history)
+      await checkRecentInProgress();
+      if(liveState==='idle') setLiveState('idle');
+    }
+  }catch(e){
+    const st=document.getElementById('liveStatus');
+    if(st) st.textContent=`lobby.json unavailable — check GitHub Action`;
+  }
+}
+
+function activateLobby(match, foundPlayers){
+  liveLobbyMatch=match;
+  setLiveState('lobby');
+
+  // Build profileId → position_label map from slot data
+  const slots=match._slots||[];
+  console.log('[lobby] Activating with',foundPlayers.length,'players,',slots.length,'slots, slotinfo='+(match.slotinfo?'yes':'no'));
+  const slotByPid={};
+  slots.forEach(s=>{ if(s.profileId) slotByPid[s.profileId]=s; });
+
+  // Split players into evil (p1-p4) and good (p5-p8) using slot position_label
+  const EVIL_POS=new Set(['p1','p2','p3','p4']);
+  const GOOD_POS=new Set(['p5','p6','p7','p8']);
+  const civSortOrder=['p1','p2','p3','p4','p5','p6','p7','p8'];
+
+  // If we have slot data, use it for correct side + civ assignment
+  if(slots.length>0 && foundPlayers.some(p=>slotByPid[p.id||Number(Object.keys(slotByPid).find(k=>profMap?.[k]?.id===p.id))])){
+    const evilSlots=slots.filter(s=>s.position_label&&EVIL_POS.has(s.position_label)).sort((a,b)=>civSortOrder.indexOf(a.position_label)-civSortOrder.indexOf(b.position_label));
+    const goodSlots=slots.filter(s=>s.position_label&&GOOD_POS.has(s.position_label)).sort((a,b)=>civSortOrder.indexOf(a.position_label)-civSortOrder.indexOf(b.position_label));
+    liveTeams={evil:evilSlots.map(s=>players.find(p=>p.id===String(s.profileId)||Number(p.profileId)===s.profileId)).filter(Boolean),
+               good:goodSlots.map(s=>players.find(p=>playerProfileIds(p).includes(Number(s.profileId)))).filter(Boolean)};
+  } else if(lastBal){
+    liveTeams={evil:lastBal.evilAssign.map(a=>a.player),good:lastBal.goodAssign.map(a=>a.player)};
+  } else {
+    liveTeams={evil:foundPlayers.slice(0,4),good:foundPlayers.slice(4)};
+  }
+
+  document.getElementById('lobbyName').textContent=match.description||'Community Lobby';
+  document.getElementById('lobbyInfo').textContent=
+    `${foundPlayers.length} community player${foundPlayers.length!==1?'s':''} in lobby · waiting for game to start`;
+
+  // Render with actual civ names from slot data
+  const renderLobbyWithCivs=(elId, slotList, fallbackTeam, fallbackCivs)=>{
+    const el=document.getElementById(elId); if(!el) return;
+    const rows=[];
+    if(slotList.length>0){
+      slotList.slice(0,4).forEach(s=>{
+        const p=players.find(pl=>playerProfileIds(pl).includes(Number(s.profileId)));
+        const civName=CIVS.find(c=>c.id===s.position_label)?.name||s.position_label||'—';
+        rows.push(`<div class="arow" style="cursor:${p?'pointer':'default'}" ${p?`onclick="openProfile('${p.id}')"`:''}>          <span class="aname">${p?p.name:`Player ${s.profileId}`}</span>          <span class="aciv">${normCivName(civName)}</span>          <span class="aelo">${p?overallElo(p):''}</span>        </div>`);
+      });
+    } else {
+      fallbackTeam.slice(0,4).forEach((p,i)=>{
+        rows.push(`<div class="arow" style="cursor:default">
+          <span class="aname">${p.name}</span>
+          <span class="aciv">${fallbackCivs[i]?.name||'—'}</span>
+          <span class="aelo">${overallElo(p)}</span>
+        </div>`);
+      });
+    }
+    for(let i=rows.length;i<4;i++) rows.push(`<div class="arow" style="cursor:default;opacity:.35"><span class="aname">Empty slot</span></div>`);
+    el.innerHTML=rows.join('');
+  };
+
+  const evilSlots=slots.filter(s=>s.position_label&&EVIL_POS.has(s.position_label)).sort((a,b)=>civSortOrder.indexOf(a.position_label)-civSortOrder.indexOf(b.position_label));
+  const goodSlots=slots.filter(s=>s.position_label&&GOOD_POS.has(s.position_label)).sort((a,b)=>civSortOrder.indexOf(a.position_label)-civSortOrder.indexOf(b.position_label));
+  renderLobbyWithCivs('lobbyEvil', evilSlots, liveTeams.evil, EVIL_CIVS);
+  renderLobbyWithCivs('lobbyGood', goodSlots, liveTeams.good, GOOD_CIVS);
+
+  // Show Elo totals and win odds in lobby view
+  const evilEloTotal=liveTeams.evil.filter(Boolean).reduce((s,p)=>s+overallElo(p),0);
+  const goodEloTotal=liveTeams.good.filter(Boolean).reduce((s,p)=>s+overallElo(p),0);
+  const elEl=document.getElementById('lobbyEvilElo');
+  const glEl=document.getElementById('lobbyGoodElo');
+  if(elEl) elEl.textContent=evilEloTotal?` ${evilEloTotal}`:'';
+  if(glEl) glEl.textContent=goodEloTotal?` ${goodEloTotal}`:'';
+  if(evilEloTotal&&goodEloTotal){
+    const odds=Math.round(100/(1+Math.pow(10,-(evilEloTotal-goodEloTotal)/2000)));
+    const oddsEl=document.getElementById('lobbyOdds');
+    if(oddsEl) oddsEl.innerHTML=`
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-bottom:3px">
+        <span style="color:var(--evil)">⚔ Evil ${odds}%</span>
+        <span style="color:var(--good)">${100-odds}% Good ✦</span>
+      </div>
+      <div class="odds-bar"><div class="odds-evil" style="width:${odds}%"></div><div class="odds-good" style="width:${100-odds}%"></div></div>`;
+  }
+
+  // Show "Balance These Players" button only when lobby is full (8 players)
+  const allLobbyPlayers=[...liveTeams.evil,...liveTeams.good].filter(Boolean);
+  const btnEl=document.getElementById('lobbyBalanceBtn');
+  if(btnEl) btnEl.style.display=allLobbyPlayers.length>=8?'block':'none';
+
+  // Store lobby start time so the timer is accurate when game begins
+  liveLobbyStart=match.startgametime?match.startgametime*1000:Date.now();
+}
+
+// Pre-select lobby players on balance page and navigate there
+window.balanceLobbyPlayers=function(){
+  if(!liveTeams) return;
+  const lobbyPlayers=[...liveTeams.evil,...liveTeams.good].filter(Boolean);
+  if(lobbyPlayers.length<8){ toast('Need 8 players in lobby','err'); return; }
+  // Clear current selection and select lobby players
+  selected.clear();
+  lobbyPlayers.forEach(p=>{ if(p?.id) selected.add(p.id); });
+  go('balance');
+  renderGrid();
+  updateSel();
+  toast('8 lobby players selected — click Balance Teams!');
+};
+
+function renderLobbySlots(elId, team, civs){
+  const el=document.getElementById(elId); if(!el) return;
+  const filled=team.slice(0,4);
+  const rows=filled.map((p,i)=>`
+    <div class="arow" style="cursor:default">
+      <span class="aname">${p.name}</span>
+      <span class="aciv">${civs[i]?.name||'—'}</span>
+      <span class="aelo">${overallElo(p)}</span>
+    </div>`);
+  // Empty slots
+  for(let i=filled.length;i<4;i++){
+    rows.push(`<div class="arow" style="cursor:default;opacity:.35">
+      <span class="aname">Empty slot</span>
+      <span class="aciv">${civs[i]?.name||''}</span>
+    </div>`);
+  }
+  el.innerHTML=rows.join('');
+}
+
+function activateInProgress(){
+  setLiveState('inprogress');
+  // Use lobby start time if available so timer is accurate even if lobby detection was delayed
+  liveGameStart=liveLobbyStart||Date.now();
+  liveKnownGameId=null;
+
+  // Use teams from lobby if available, otherwise from lastBalance
+  if(!liveTeams){
+    if(lastBal){
+      liveTeams={
+        evil:lastBal.evilAssign.map(a=>a.player),
+        good:lastBal.goodAssign.map(a=>a.player),
+      };
+    } else { liveTeams={evil:[],good:[]}; }
+  }
+
+  renderInProgress();
+  startTimer();
+
+  if(liveResultInterval) clearInterval(liveResultInterval);
+  liveResultInterval=setInterval(pollForResult, RESULT_INTERVAL_MS);
+  pollForResult();
+}
+
+function renderInProgress(){
+  if(!liveTeams) return;
+  const {evil,good}=liveTeams;
+
+  const getCivName=(p,side)=>{
+    if(lastBal){
+      const assign=side==='evil'?lastBal.evilAssign:lastBal.goodAssign;
+      const a=assign.find(a=>a.player?.id===p.id);
+      if(a?.civName) return normCivName(a.civName);
+    }
+    return '';
+  };
+
+  const et=evil.filter(Boolean).reduce((s,p)=>s+overallElo(p),0);
+  const gt=good.filter(Boolean).reduce((s,p)=>s+overallElo(p),0);
+  const odds=et&&gt?Math.round(100/(1+Math.pow(10,-(et-gt)/2000))):50;
+
+  document.getElementById('evilElo').textContent=` ${et}`;
+  document.getElementById('goodElo').textContent=` ${gt}`;
+
+  const row=(p,side)=>{
+    if(!p) return `<div class="arow" style="cursor:default;opacity:.35"><span class="aname">Unknown</span></div>`;
+    const civ=getCivName(p,side);
+    return `<div class="arow" style="cursor:pointer" onclick="openProfile('${p.id}')">
+      <span class="aname">${p.name}</span>
+      ${civ?`<span class="aciv">${civ}</span>`:''}
+      <span class="aelo">${overallElo(p)}</span>
+    </div>`;
+  };
+  document.getElementById('ipEvil').innerHTML=evil.map(p=>row(p,'evil')).join('');
+  document.getElementById('ipGood').innerHTML=good.map(p=>row(p,'good')).join('');
+
+  const oddsEl=document.getElementById('ipOdds');
+  if(oddsEl) oddsEl.innerHTML=`
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-bottom:3px">
+      <span style="color:var(--evil)">⚔ Evil ${odds}%</span>
+      <span style="color:var(--good)">${100-odds}% Good ✦</span>
+    </div>
+    <div class="odds-bar"><div class="odds-evil" style="width:${odds}%"></div><div class="odds-good" style="width:${100-odds}%"></div></div>`;
+}
+
+function startTimer(){
+  if(liveTimerInterval) clearInterval(liveTimerInterval);
+  liveTimerInterval=setInterval(()=>{
+    const s=Math.floor((Date.now()-liveGameStart)/1000);
+    const mm=String(Math.floor(s/60)).padStart(2,'0');
+    const ss=String(s%60).padStart(2,'0');
+    const el=document.getElementById('liveTimer');
+    if(el) el.textContent=`${mm}:${ss}`;
+  },1000);
+}
+
+// Check matches.json for a game started recently that isn't yet in history
+async function checkRecentInProgress(){
+  try{
+    const resp=await fetch('matches.json?_='+Date.now(),{signal:AbortSignal.timeout(5000)});
+    if(!resp.ok) return;
+    const data=await resp.json();
+    const matches=(data.matches||[]);
+    const now=Date.now()/1000;
+    const knownIds=new Set(history.map(h=>h.gameId).filter(Boolean));
+    const commIds=buildCommIds(players);
+    const profMap=buildProfMap(players);
+
+    for(const match of matches){
+      const gid=String(match.match_id||match.id);
+      if(knownIds.has(gid)) continue; // already recorded
+      const start=match.startgametime||0;
+      const completion=match.completiontime||0;
+      if(now-start>3*3600) continue; // more than 3 hours ago
+      // Only show as in-progress if the game hasn't completed yet
+      // (completiontime=0 or in the future means still running)
+      if(completion>0 && completion<=now) continue;
+      // Check if this match has community members
+      const members=match.matchhistorymember||[];
+      const commCount=members.filter(m=>commIds.has(Number(m.profile_id))).length;
+      if(commCount<4) continue;
+
+      // Found a recent unrecorded game — show as in-progress
+      const evilM=members.filter(m=>{ const t=Number(m.teamid); return t>=5&&t<=8; });
+      const goodM=members.filter(m=>{ const t=Number(m.teamid); return t>=9&&t<=12; });
+      liveTeams={
+        evil:evilM.map(m=>profMap[Number(m.profile_id)]).filter(Boolean),
+        good:goodM.map(m=>profMap[Number(m.profile_id)]).filter(Boolean),
+      };
+      // Use actual game start time for accurate timer
+      liveGameStart=start>0?start*1000:Date.now();
+      liveLobbyStart=liveGameStart;
+      setLiveState('inprogress');
+      renderInProgress();
+      startTimer();
+      if(liveResultInterval) clearInterval(liveResultInterval);
+      liveResultInterval=setInterval(pollForResult, RESULT_INTERVAL_MS);
+      return;
+    }
+  }catch(e){}
+}
+
+async function pollForResult(){
+  try{
+    const resp=await fetch('matches.json?_='+Date.now(),{signal:AbortSignal.timeout(8000)});
+    if(!resp.ok) return;
+    const data=await resp.json();
+    const matches=(data.matches||[]).sort((a,b)=>(b.completiontime||0)-(a.completiontime||0));
+    const known=new Set(history.map(h=>String(h.gameId)).filter(Boolean));
+    const commIds=buildCommIds(players);
+
+    for(const match of matches.slice(0,15)){
+      const gid=String(match.match_id||match.id);
+      if(gid===liveKnownGameId) return; // already processing
+      if(known.has(gid)) continue;       // already recorded
+
+      const members=match.matchhistorymember||match.matchhistoryreportresults||[];
+      if(members.length<8) continue;  // dropped/incomplete match
+      const comm=members.filter(m=>commIds.has(Number(m.profile_id)));
+      if(comm.length<4) continue;
+      if(!comm.some(m=>m.resulttype!==0)) continue;
+
+      liveKnownGameId=gid;
+      if(liveResultInterval){ clearInterval(liveResultInterval); liveResultInterval=null; }
+      if(liveTimerInterval){  clearInterval(liveTimerInterval);  liveTimerInterval=null; }
+
+      const ps=document.getElementById('progressStatus');
+      if(ps) ps.textContent='Result detected — recording…';
+
+      await autoRecord();
+
+      setTimeout(()=>{ liveTeams=null; liveLobbyMatch=null; liveKnownGameId=null; setLiveState('idle'); }, 4000);
+      toast('Match recorded automatically!');
+      return;
+    }
+
+    // Update status
+    const ps=document.getElementById('progressStatus');
+    if(ps) ps.textContent=`Checking every 45s · last: ${new Date().toLocaleTimeString()}`;
+  }catch(e){}
+}
+
+window.livePollNow=function(){ pollLobby(); pollLobbyDirect(); };
+
+window.forceEndGame=function(){
+  if(liveResultInterval){ clearInterval(liveResultInterval); liveResultInterval=null; }
+  if(liveTimerInterval){  clearInterval(liveTimerInterval);  liveTimerInterval=null; }
+  liveTeams=null; liveLobbyMatch=null; liveKnownGameId=null; liveLobbyStart=null;
+  setLiveState('idle');
+  toast('Live view reset');
+};
+
+// Start polling on page load
+setInterval(pollLobby, LIVE_INTERVAL_MS);       // lobby.json every 15s
+setTimeout(pollLobby, 5000);
+// WebSocket for real-time lobby detection
+setTimeout(connectLobbyWs, 3000);
+// Direct API poll every 30s regardless of WebSocket — don't depend on scraper
+setInterval(()=>{ if(liveState!=='inprogress') pollLobbyHttp(); }, 30000);
+setTimeout(pollLobbyHttp, 8000); // first check after 8s
+
+// Poll match history directly — every 2 minutes, regardless of tab visibility
+setInterval(autoRecordDirect, 2*60*1000);
+setTimeout(autoRecordDirect, 45000); // first check after 45s
+
+// DIRECT LOBBY API POLL (browser-side via corsproxy.io)
+async function fetchWithProxy(aoeUrl, timeout=12000){
+  // corsproxy.io - try with x-cors-api-key header for better reliability
+  const proxyUrl=`https://corsproxy.io/?url=${encodeURIComponent(aoeUrl)}`;
+  try{
+    const resp=await fetch(proxyUrl,{
+      signal:AbortSignal.timeout(timeout),
+      headers:{'x-requested-with':'XMLHttpRequest'}
+    });
+    if(resp.ok){
+      const text=await resp.text();
+      if(text.startsWith('<')){ throw new Error('Got HTML instead of JSON'); }
+      return JSON.parse(text);
+    }
+    console.warn('[proxy] HTTP',resp.status);
+  }catch(e){ console.warn('[proxy] Error:',e.message); }
+  throw new Error('Proxy failed');
+}
+
+// ─────────────────────────────────────────
+// aoe2lobby.com WebSocket — real-time lobby updates
+// ─────────────────────────────────────────
+let lobbyWs=null;
+let lobbyWsReconnectTimer=null;
+let lobbyWsAlive=false;
+
+function connectLobbyWs(){
+  if(lobbyWs&&(lobbyWs.readyState===WebSocket.OPEN||lobbyWs.readyState===WebSocket.CONNECTING)) return;
+  try{
+    lobbyWs=new WebSocket('wss://data.aoe2lobby.com/ws/');
+    lobbyWs.onopen=()=>{
+      lobbyWsAlive=true;
+      console.log('[ws] Connected to aoe2lobby.com');
+      // Subscribe to all lobby matches
+      lobbyWs.send(JSON.stringify({action:'subscribe',type:'matches',context:'lobby'}));
+      // Also subscribe to our specific community player IDs for instant notifications
+      const pids=players.filter(p=>p.profileId).map(p=>String(p.profileId));
+      if(pids.length) lobbyWs.send(JSON.stringify({action:'subscribe',type:'players',context:'lobby',ids:pids}));
+      const st=document.getElementById('liveStatus');
+      if(st) st.textContent='Live — connected to aoe2lobby.com WebSocket';
+    };
+    lobbyWs.onmessage=async(e)=>{
+      try{
+        const msg=JSON.parse(e.data);
+        // Player status update — one of our community members changed status
+        if(msg.player_status){
+          const commIds=buildCommIds(players);
+          for(const[pid,status]of Object.entries(msg.player_status)){
+            if(!commIds.has(Number(pid))) continue;
+            if(!status||!status.status) continue; // ignore null/initial snapshots
+            console.log('[ws] Player update:',pid,status.status);
+            if(status.status==='lobby'&&liveState!=='lobby'&&liveState!=='inprogress'){
+              // A community player entered a lobby — fetch it
+              setTimeout(()=>pollLobbyHttp(), 1000);
+            } else if(status.status==='ingame'&&liveState==='lobby'){
+              activateInProgress();
+            } else if(status.status==='offline'||status.status==='menu'){
+              // ignore
+            }
+          }
+        }
+        // Full match update — check for LOTR community match
+        if(msg.matches){
+          const commIds=buildCommIds(players);
+          if(liveState==='inprogress') return;
+          for(const match of (Array.isArray(msg.matches)?msg.matches:Object.values(msg.matches))){
+            if(!match||typeof match!=='object') continue;
+            if(match.matchtype_id!==0||match.maxplayers!==8) continue;
+            // isLotrMatch skipped — mapname is always "my map" for custom scenarios
+            const allIds=new Set();
+            if(match.host_profile_id) allIds.add(Number(match.host_profile_id));
+            (match.matchmembers||[]).forEach(m=>allIds.add(Number(m.profile_id)));
+            const found=[...allIds].filter(id=>commIds.has(id));
+            if(found.length>=1){
+              console.log('[ws] LOTR lobby with',found.length,'community members — fetching full data');
+              // Always fetch full data from API to get slotinfo for civ positions
+              setTimeout(()=>pollLobbyHttp(), 500);
+              return;
+            }
+          }
+        }
+      }catch(err){ console.warn('[ws] parse error',err.message); }
+    };
+    lobbyWs.onerror=()=>{ console.warn('[ws] Error'); lobbyWsAlive=false; };
+    lobbyWs.onclose=()=>{
+      lobbyWsAlive=false;
+      console.warn('[ws] Disconnected — reconnecting in 10s');
+      const st=document.getElementById('liveStatus');
+      if(st&&liveState==='idle') st.textContent='WebSocket disconnected — reconnecting…';
+      lobbyWsReconnectTimer=setTimeout(connectLobbyWs, 10000);
+    };
+  }catch(e){ console.warn('[ws] Failed to connect:',e.message); }
+}
+
+// HTTP fallback — used when WebSocket finds a community player in a lobby
+// but we need full match details
+const LOBBY_API_URL='https://aoe-api.worldsedgelink.com/community/advertisement/findAdvertisements?title=age2&count=200';
+let lastLobbyApiCheck=0;
+
+async function pollLobbyHttp(){
+  if(liveState==='inprogress') return;
+  if(Date.now()-lastLobbyApiCheck<3000) return;
+  lastLobbyApiCheck=Date.now();
+  try{
+    const data=await fetchWithProxy(LOBBY_API_URL);
+    const lobbies=data.matches||[];
+    const commIds=buildCommIds(players);
+    const profMap=buildProfMap(players);
+    // Update status with direct API result
+    const st=document.getElementById('liveStatus');
+    const now=new Date().toLocaleTimeString();
+    if(st&&liveState==='idle') st.textContent=`Last checked: ${now} · ${lobbies.length} lobbies · ${lobbies.filter(m=>m.matchtype_id===0&&m.maxplayers===8).length} custom 8-player (direct API)`;
+    for(const match of lobbies){
+      if(match.matchtype_id!==0||match.maxplayers!==8) continue;
+      // isLotrMatch skipped — mapname is always "my map" for custom scenarios in the API
+      const allIds=new Set();
+      allIds.add(Number(match.host_profile_id));
+      (match.matchmembers||[]).forEach(m=>allIds.add(Number(m.profile_id)));
+      const slots=await decodeSlotinfo(match.slotinfo||'');
+      slotProfileIds(slots).forEach(id=>allIds.add(id));
+      const found=[...allIds].filter(id=>commIds.has(id));
+      if(found.length>=1){
+        match._slots=slots;
+        activateLobby(match,found.map(id=>profMap[id]).filter(Boolean));
+        return;
+      }
+    }
+    if(liveState==='lobby') activateInProgress();
+  }catch(e){ console.warn('[lobbyHttp]',e.message); }
+}
+
+async function pollLobbyDirect(){
+  // Kept for compatibility — now just runs the HTTP poll
+  await pollLobbyHttp();
+}
+
+// DIRECT MATCH HISTORY POLL
+// Polls AoE2 API directly every 3 min — no scraper needed for same-day games
+let lastDirectMatchCheck=0;
+let directPollRunning=false;
+
+// ─────────────────────────────────────────
+// BACKGROUND MATCH POLLER
+// Polls player history directly every 2 min — no scraper dependency
+// Runs regardless of tab visibility so games are captured even if site is open on another tab
+// ─────────────────────────────────────────
+async function autoRecordDirect(){
+  if(directPollRunning||autoRecording) return;
+  if(Date.now()-lastDirectMatchCheck < 110000) return; // min 1min50s between calls
+  directPollRunning=true;
+  lastDirectMatchCheck=Date.now();
+
+  try{
+    const commIds=buildCommIds(players);
+    const profMap=buildProfMap(players);
+    if(!commIds.size){ directPollRunning=false; return; }
+
+    const pids=players.filter(p=>p.profileId).map(p=>p.profileId);
+    if(!pids.length){ directPollRunning=false; return; }
+
+    // Batch into groups of 10 to avoid 413 URL too large
+    const BATCH=10;
+    const allMatches=[];
+    for(let i=0;i<pids.length;i+=BATCH){
+      const batch=pids.slice(i,i+BATCH);
+      try{
+        const aoeUrl=`https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=${encodeURIComponent(JSON.stringify(batch))}`;
+        const data=await fetchWithProxy(aoeUrl,15000);
+        allMatches.push(...(data.matchHistoryStats||[]));
+      }catch(e){ console.warn('[poll] Batch failed:',e.message); }
+    }
+    // Deduplicate by match ID
+    const seen=new Set();
+    const matches=allMatches.filter(m=>{ const id=String(m.id||m.match_id); return seen.has(id)?false:(seen.add(id),true); });
+    console.log(`[poll] ${matches.length} unique matches from ${pids.length} players`);
+
+    const known=new Set(history.map(h=>String(h.gameId)).filter(Boolean));
+    const EVIL_TEAMS=new Set([5,6,7,8]);
+    const GOOD_TEAMS=new Set([9,10,11,12]);
+    let added=0;
+
+    for(const match of matches){
+      const gid=String(match.id||match.match_id);
+      if(known.has(gid)) continue;
+
+      // Basic filters
+      if(match.matchtype_id!==0||match.maxplayers!==8) continue;
+      if(!isLotrMatch(match)){ console.log(`[poll] Skip ${gid}: not LOTR (desc=${match.description})`); continue; }
+      const dur=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
+      if(dur!==null&&dur<600) continue;
+
+      // Need 4+ community members
+      const members=match.matchhistorymember||match.matchhistoryreportresults||[];
+      const commMembers=members.filter(m=>commIds.has(Number(m.profile_id)));
+      if(commMembers.length<4){ console.log(`[poll] Skip ${gid}: ${commMembers.length} community`); continue; }
+
+      // Winner detection: resulttype 1=win, 2=loss
+      let evilW=0, goodW=0;
+      for(const rt of [1,2]){
+        members.forEach(m=>{
+          if(m.resulttype===rt){
+            const isEvil=EVIL_TEAMS.has(Number(m.teamid));
+            const isGood=GOOD_TEAMS.has(Number(m.teamid));
+            if(rt===1){ if(isEvil) evilW++; else if(isGood) goodW++; }
+            else      { if(isEvil) goodW++; else if(isGood) evilW++; } // loser side → other side won
+          }
+        });
+        if(evilW||goodW) break;
+      }
+      console.log(`[poll] ${gid}: comm=${commMembers.length} evil=${evilW} good=${goodW}`);
+      const winner=evilW>goodW?'evil':goodW>evilW?'good':null;
+      if(!winner) continue;
+
+      // Build team assignments using teamid for civ mapping
+      const evilM=members.filter(m=>EVIL_TEAMS.has(Number(m.teamid)));
+      const goodM=members.filter(m=>GOOD_TEAMS.has(Number(m.teamid)));
+      if(!evilM.length||!goodM.length) continue;
+
+      const mkAssign=arr=>arr.map(m=>{
+        const p=profMap[Number(m.profile_id)]||null;
+        const cid=m.civ_position||TEAMID_MAP[Number(m.teamid)]||null;
+        console.log(`[poll] player=${p?.name||m.profile_id} teamid=${m.teamid} civ_position=${m.civ_position} → civId=${cid}`);
+        return{
+          name:      p?p.name:(m.name||`Player ${m.profile_id}`),
+          civId:     cid,
+          civName:   cid?(CIVS.find(c=>c.id===cid)?.name||''):'',
+          effElo:    p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO,
+          isCommunity: commIds.has(Number(m.profile_id)),
+          profileId: String(m.profile_id),
+          player:    p,
+        };
+      });
+
+      const winA =winner==='evil'?mkAssign(evilM):mkAssign(goodM);
+      const loseA=winner==='evil'?mkAssign(goodM):mkAssign(evilM);
+      const ts=(match.completiontime||match.startgametime||0)*1000;
+      const date=ts?new Date(ts).toLocaleDateString('en-CA'):new Date().toLocaleDateString('en-CA');
+
+      // Use same transaction pattern as autoRecord — atomic check + write, no double-counting
+      const histRef2 = doc(db,'history',gid);
+      let alreadyDone = false;
+      await runTransaction(db, async (tx) => {
+        const existing = await tx.get(histRef2);
+        if(existing.exists()){ alreadyDone=true; return; }
+
+        // Compute team Elo totals for history entry
+        const et2=winA.reduce((s,a)=>s+a.effElo,0);
+        const gt2=loseA.reduce((s,a)=>s+a.effElo,0);
+        tx.set(histRef2,{
+          date, winner,
+          evilTotal:winner==='evil'?et2:gt2, goodTotal:winner==='evil'?gt2:et2,
+          gap:Math.abs(et2-gt2), timestamp:ts||Date.now(), source:'auto', gameId:gid,
+          duration:dur,
+          evilAssign:(winner==='evil'?winA:loseA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
+          goodAssign:(winner==='evil'?loseA:winA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
+        });
+
+        // Atomic increments for W/L
+        const commWin2=winA.filter(a=>a.isCommunity&&a.player);
+        const commLose2=loseA.filter(a=>a.isCommunity&&a.player);
+        const avgWin2=commWin2.length?commWin2.reduce((s,a)=>s+overallElo(a.player),0)/commWin2.length:DEFAULT_ELO;
+        const avgLose2=commLose2.length?commLose2.reduce((s,a)=>s+overallElo(a.player),0)/commLose2.length:DEFAULT_ELO;
+        const seenP=new Set();
+        for(const a of [...commWin2,...commLose2]){
+          const p=a.player, won2=commWin2.includes(a);
+          if(seenP.has(p.id)) continue; seenP.add(p.id);
+          const g=(p.wins||0)+(p.losses||0);
+          const pRef=doc(db,'players',String(p.id));
+          const upd={};
+          p.civElo=p.civElo||{};
+          if(a.civId){
+            const cg=(p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0);
+            const newCivElo=calcElo(civElo(p,a.civId),won2?avgLose2:avgWin2,won2,g,cg);
+            upd['civElo.'+a.civId]=newCivElo; p.civElo[a.civId]=newCivElo;
+            if(won2){ upd['civWins.'+a.civId]=increment(1); }
+            else    { upd['civLosses.'+a.civId]=increment(1); }
+          }
+          if(won2){ upd.wins=increment(1); p.wins=(p.wins||0)+1; }
+          else    { upd.losses=increment(1); p.losses=(p.losses||0)+1; }
+          tx.update(pRef, upd);
+        }
+      });
+      if(alreadyDone){ console.log('[poll] Already recorded by another tab, skipping:',gid); continue; }
+      known.add(gid); added++;
+      console.log('[poll] Recorded',gid,winner);
+    }
+
+    if(added>0) toast(`${added} new match${added>1?'es':''} recorded!`);
+  }catch(e){
+    console.warn('[poll] Error:',e.message);
+  }finally{
+    directPollRunning=false;
+  }
+}
+
+// PLAYER PROFILES
+let profileFromPage='leaderboard';
+window.openProfile=async function(playerId,fromPage){
+  const p=players.find(pl=>pl.id===playerId); if(!p) return;
+  profileFromPage=fromPage||'leaderboard';
+  go('profile');
+  window.history.pushState({page:'profile',id:playerId},'','#player/'+encodeURIComponent(p.name));
+  // Fetch ALL history from Firestore (not the live cache capped at 100)
+  let allHistory = [...history]; // start with cache as fast fallback
+  try {
+    const snap = await getDocs(query(collection(db,'history'), orderBy('timestamp','desc')));
+    allHistory = [];
+    snap.forEach(d => allHistory.push({id:d.id,...d.data()}));
+  } catch(e) { /* keep cache fallback */ }
+  renderProfile(p, allHistory);
+};
+window.goBack=function(){ window.history.back(); };
+window.addEventListener('popstate',e=>{
+  if(e.state&&e.state.page==='profile'){
+    const p=players.find(pl=>pl.id===e.state.id);
+    if(p){window.openProfile(p.id,profileFromPage);return;}
+  }
+  go(profileFromPage);
+  window.history.replaceState(null,'',location.pathname);
+});
+
+// ── PROFILE PAGE ─────────────────────────────────────────────────────────────
+// All display values (header, chart, civ cards) derive from a single history
+// replay via buildEloHistory. No Firestore civElo used for display here —
+// only the replay result matters so everything is internally consistent.
+// ── PROFILE RENDERING ────────────────────────────────────────────────────────
+function renderProfile(p, allHistory){
+  // Match history for this player — newest first
+  // Use passed-in allHistory (full fetch) or fall back to live cache
+  const src = (allHistory && allHistory.length >= history.length) ? allHistory : history;
+  const pm = src
+    .filter(h => [...(h.evilAssign||[]),...(h.goodAssign||[])].some(a =>
+      a.name===p.name || (a.profileId && String(a.profileId)===String(p.profileId))))
+    .sort((a,b) => (b.timestamp||0)-(a.timestamp||0));
+
+  // Overall Elo — same function used on leaderboard and everywhere else
+  const ov = overallElo(p);
+  const w = p.wins||0, l = p.losses||0, tot = w+l;
+  const wr = tot ? Math.round(w/tot*100)+'%' : '--';
+  // Chart uses forward replay - no forcing, shows natural progression
+  const ep = buildEloHistory(p, pm);
+
+  document.getElementById('profileContent').innerHTML=`
+    <div class="profile-header">
+      <div class="profile-avatar">${p.name[0].toUpperCase()}</div>
+      <div>
+        <div class="profile-name">${p.name}</div>
+        <div class="profile-sub">Profile ID: ${p.profileId||'--'}</div>
+        <div style="display:flex;gap:1.5rem;margin-top:.75rem;flex-wrap:wrap">
+          <div class="pstat"><div class="pstat-val" style="color:var(--gold)">${ov}</div><span class="pstat-lbl">Overall Elo</span></div>
+          <div class="pstat"><div class="pstat-val" style="color:var(--green)">${w}</div><span class="pstat-lbl">Wins</span></div>
+          <div class="pstat"><div class="pstat-val" style="color:var(--evil)">${l}</div><span class="pstat-lbl">Losses</span></div>
+          <div class="pstat"><div class="pstat-val">${wr}</div><span class="pstat-lbl">Win Rate</span></div>
+          <div class="pstat"><div class="pstat-val">${tot}</div><span class="pstat-lbl">Games</span></div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-bottom:1rem">
+      <div class="card">
+        <div class="ct">Elo Over Time</div>
+        ${ep.length>1
+          ? '<div style="position:relative"><canvas id="eloChart" style="width:100%;height:240px"></canvas><div id="eloTooltip" style="display:none;position:absolute;background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:5px 10px;font-size:12px;font-family:JetBrains Mono,monospace;color:var(--gold);pointer-events:none;white-space:nowrap"></div></div>'
+          : '<p style="color:var(--muted);font-size:13px">Not enough data yet.</p>'}
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+      <div class="card">
+        <div class="ct">Win Rate by Civ</div>
+        <div class="civ-wl-grid">${buildCivStats(p,pm,id=>civElo(p,id))}</div>
+      </div>
+      <div class="card" style="padding:0">
+        <div class="ct" style="padding:.75rem 1rem .25rem">Recent Matches</div>
+        ${pm.slice(0,10).map(h=>{
+          const onEvil=(h.evilAssign||[]).some(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
+          const won=(onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
+          const my=[...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
+          const mc=normCivName(my?.civName||'--');
+          const dur=h.duration?' · '+fmtDuration(h.duration):'';
+          return '<div style="display:flex;align-items:center;gap:.75rem;padding:8px 1rem;border-bottom:1px solid var(--border);cursor:pointer" onclick="openMatchDetail('+JSON.stringify(h).replace(/"/g,'&quot;')+')">'+
+            '<span style="font-family:Cinzel,serif;font-size:9px;padding:3px 8px;border-radius:2px;white-space:nowrap;'+(won?'background:var(--good-d);color:#80b4d4;border:1px solid var(--good)':'background:var(--evil-d);color:#e08080;border:1px solid var(--evil)')+'">'+(won?'WIN':'LOSS')+'</span>'+
+            '<span style="flex:1;font-size:13px;color:var(--dim)">'+mc+'</span>'+
+            '<span style="font-size:11px;color:var(--muted)">'+( h.date||'')+dur+'</span></div>';
+        }).join('')||'<p style="color:var(--muted);font-size:13px;padding:1rem">No matches yet.</p>'}
+      </div>
+    </div>
+    <div class="card" style="padding:0">
+      <div class="ct" style="padding:.75rem 1rem .25rem">Head-to-Head vs Opponents</div>
+      ${buildH2H(p,pm)}
+    </div>`;
+  if(ep.length>1) setTimeout(()=>drawEloChart(ep),60);
+}
+
+// ── ELO CHART HISTORY ────────────────────────────────────────────────────────
+// Simple forward replay for the chart. Starts from overallElo(p) reversed back
+// to approximate the starting point, then replays forward.
+// renderProfile forces the last point to match overallElo(p) exactly.
+// ── ELO CHART HISTORY ────────────────────────────────────────────────────────
+// Builds the data points for the Elo chart by replaying matches oldest→newest.
+// Uses the same kFactor() as calcElo() and recalcAllElos for consistency.
+// The overall at each point = average of civs played SO FAR (same rule as overallElo).
+// The last point is forced to match overallElo(p) so chart end = header always.
+function buildEloHistory(p, matches){
+  const sorted = [...matches].reverse(); // oldest first
+
+  // Seed civElos from Firestore, then reverse-simulate to approximate start
+  const civElos = {};
+  CIVS.forEach(c => { civElos[c.id] = civElo(p, c.id); });
+
+  for(const h of [...sorted].reverse()){
+    const allA = [...(h.evilAssign||[]),...(h.goodAssign||[])];
+    const my   = allA.find(a => a.name===p.name || (a.profileId && String(a.profileId)===String(p.profileId)));
+    if(!my) continue;
+    const onEvil = (h.evilAssign||[]).some(a => a.name===p.name || (a.profileId && String(a.profileId)===String(p.profileId)));
+    const won    = (onEvil && h.winner==='evil') || (!onEvil && h.winner==='good');
+    const civ    = CIVS.find(c => normCivName(c.name)===normCivName(my.civName||''));
+    if(!civ) continue;
+    const opp    = onEvil ? h.goodAssign : h.evilAssign;
+    const oppAvg = (opp||[]).reduce((s,a)=>s+(a.effElo||DEFAULT_ELO),0) / Math.max(1,(opp||[]).length);
+    const E      = 1/(1+Math.pow(10,(oppAvg-civElos[civ.id])/400));
+    civElos[civ.id] = Math.max(100, Math.round(civElos[civ.id] - 32*((won?1:0)-E)));
+  }
+
+  // Helper: average only played civs (same rule as overallElo)
+  const playedSoFar = new Set();
+  const avg = () => {
+    const pool = playedSoFar.size ? CIVS.filter(c=>playedSoFar.has(c.id)) : CIVS;
+    return Math.round(pool.reduce((s,c)=>s+civElos[c.id],0)/pool.length);
+  };
+
+  const pts = [{date:'Start', elo: avg()}];
+  let totalGames = 0;
+  const civGames = {};
+
+  for(const h of sorted){
+    const allA = [...(h.evilAssign||[]),...(h.goodAssign||[])];
+    const my   = allA.find(a => a.name===p.name || (a.profileId && String(a.profileId)===String(p.profileId)));
+    if(!my) continue;
+    const onEvil = (h.evilAssign||[]).some(a => a.name===p.name || (a.profileId && String(a.profileId)===String(p.profileId)));
+    const won    = (onEvil && h.winner==='evil') || (!onEvil && h.winner==='good');
+    const civ    = CIVS.find(c => normCivName(c.name)===normCivName(my.civName||''));
+    if(!civ) continue;
+    const opp    = onEvil ? h.goodAssign : h.evilAssign;
+    const oppAvg = (opp||[]).reduce((s,a)=>s+(a.effElo||DEFAULT_ELO),0) / Math.max(1,(opp||[]).length);
+    const cg     = civGames[civ.id]||0;
+    const E      = 1/(1+Math.pow(10,(oppAvg-civElos[civ.id])/400));
+    civElos[civ.id] = Math.max(100, Math.round(civElos[civ.id] + kFactor(totalGames,cg)*((won?1:0)-E)));
+    totalGames++;
+    civGames[civ.id] = cg+1;
+    playedSoFar.add(civ.id);
+    pts.push({date: h.date||'', elo: avg()});
+  }
+
+  // Force last point to match overallElo(p) so chart end always equals header
+  if(pts.length > 0) pts[pts.length-1].elo = overallElo(p);
+
+  return pts;
+}
+
+function buildCivStats(p,matches,dispElo){
+  dispElo=dispElo||(id=>civElo(p,id));
+  const st={};
+  CIVS.forEach(c=>{st[c.id]={civ:c,w:0,l:0};});
+  for(const h of matches){
+    const allA=[...(h.evilAssign||[]),...(h.goodAssign||[])];
+    const my=allA.find(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
+    if(!my) continue;
+    const onEvil=(h.evilAssign||[]).some(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
+    const won=(onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
+    const civName=normCivName(my.civName||'');
+    const civ=CIVS.find(c=>normCivName(c.name)===civName);
+    if(civ){if(won)st[civ.id].w++;else st[civ.id].l++;}
+  }
+  return CIVS.map(c=>{
+    const s=st[c.id],tot=s.w+s.l,pct=tot?Math.round(s.w/tot*100):0,elo=dispElo(c.id);
+    const unplayed=tot===0;
+    const bar='<div class="civ-wl-bar"><div class="civ-wl-fill" style="width:'+pct+'%;background:'+(c.side==='evil'?'var(--evil)':'var(--good)')+'"></div></div>';
+    return '<div class="civ-wl-card"'+(unplayed?' style="opacity:0.45"':'')+'>'+
+      '<div class="civ-wl-name '+c.side+'">'+c.name+'</div>'+
+      '<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--dim)">'+
+        '<span>'+(unplayed?'Unplayed':s.w+'W/'+s.l+'L')+'</span>'+
+        '<span style="font-family:JetBrains Mono,monospace;color:'+(unplayed?'var(--muted)':'var(--gold)')+'">'+elo+'</span>'+
+      '</div>'+bar+
+      '<div style="font-size:11px;color:var(--muted);text-align:right">'+(tot?pct+'%':'--')+'</div>'+
+    '</div>';
+  }).join('');
+}
+
+
+function buildH2H(p,matches){
+  const rec={};
+  for(const h of matches){
+    const oe=(h.evilAssign||[]).some(a=>a.name===p.name);
+    const won=(oe&&h.winner==='evil')||(!oe&&h.winner==='good');
+    const opp=oe?h.goodAssign:h.evilAssign;
+    for(const a of (opp||[])){
+      if(!rec[a.name]) rec[a.name]={w:0,l:0};
+      if(won)rec[a.name].w++;else rec[a.name].l++;
+    }
+  }
+  const sorted=Object.entries(rec).filter(([,r])=>r.w+r.l>0).sort((a,b)=>(b[1].w+b[1].l)-(a[1].w+a[1].l));
+  if(!sorted.length) return '<p style="color:var(--muted);font-size:13px;padding:1rem">No data yet.</p>';
+  return sorted.map(([name,r])=>{
+    const tot=r.w+r.l,pct=Math.round(r.w/tot*100);
+    const col=pct>=60?'var(--green)':pct<=40?'var(--evil)':'var(--gold)';
+    const op=players.find(pl=>pl.name===name);
+    return '<div class="h2h-row"'+(op?' onclick="openProfile(\''+op.id+'\',\'profile\')"':'')+'>'+
+      '<span class="h2h-name">'+name+'</span>'+
+      '<span class="h2h-rec" style="color:'+col+'">'+r.w+'W-'+r.l+'L</span>'+
+      '<span style="font-size:11px;color:var(--muted);width:3rem;text-align:right">'+pct+'%</span>'+
+    '</div>';
+  }).join('');
+}
+
+function drawEloChart(pts){
+  const canvas=document.getElementById('eloChart'); if(!canvas) return;
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.offsetWidth,H=canvas.offsetHeight||240;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  const elos=pts.map(p=>p.elo);
+  const minE=Math.min(...elos)-30,maxE=Math.max(...elos)+30;
+  const pad={t:10,r:10,b:30,l:42};
+  const cW=W-pad.l-pad.r,cH=H-pad.t-pad.b;
+  const xS=i=>pad.l+i*(cW/Math.max(1,pts.length-1));
+  const yS=e=>pad.t+cH-(e-minE)/(maxE-minE)*cH;
+  ctx.clearRect(0,0,W,H);
+
+  // Y axis grid + labels
+  for(let i=0;i<=4;i++){
+    const y=pad.t+i*(cH/4);
+    ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+cW,y); ctx.stroke();
+    ctx.fillStyle='rgba(156,136,120,0.7)'; ctx.font='10px monospace'; ctx.textAlign='right';
+    ctx.fillText(Math.round(maxE-(i/4)*(maxE-minE)),pad.l-4,y+4);
+  }
+
+  // Gradient fill
+  const grad=ctx.createLinearGradient(0,pad.t,0,pad.t+cH);
+  grad.addColorStop(0,'rgba(201,168,76,0.25)'); grad.addColorStop(1,'rgba(201,168,76,0)');
+  ctx.beginPath();
+  pts.forEach((p,i)=>i===0?ctx.moveTo(xS(i),yS(p.elo)):ctx.lineTo(xS(i),yS(p.elo)));
+  ctx.lineTo(xS(pts.length-1),pad.t+cH); ctx.lineTo(xS(0),pad.t+cH);
+  ctx.closePath(); ctx.fillStyle=grad; ctx.fill();
+
+  // Line
+  ctx.strokeStyle='#c9a84c'; ctx.lineWidth=2; ctx.lineJoin='round';
+  ctx.beginPath();
+  pts.forEach((p,i)=>i===0?ctx.moveTo(xS(i),yS(p.elo)):ctx.lineTo(xS(i),yS(p.elo)));
+  ctx.stroke();
+
+  // Dots
+  pts.forEach((p,i)=>{
+    ctx.beginPath(); ctx.arc(xS(i),yS(p.elo),4,0,Math.PI*2);
+    ctx.fillStyle='#c9a84c'; ctx.fill();
+  });
+
+  // X axis date labels
+  ctx.fillStyle='rgba(156,136,120,0.6)'; ctx.font='9px monospace'; ctx.textAlign='center';
+  const labelIndices=new Set([0,pts.length-1]);
+  const step=Math.max(1,Math.floor((pts.length-1)/5));
+  for(let i=step;i<pts.length-1;i+=step) labelIndices.add(i);
+  labelIndices.forEach(i=>{
+    const label=i===0?'Start':(pts[i].date?pts[i].date.slice(5):`G${i}`);
+    ctx.fillText(label,xS(i),pad.t+cH+14);
+  });
+
+  // X axis title
+  ctx.fillStyle='rgba(156,136,120,0.4)'; ctx.font='9px monospace'; ctx.textAlign='center';
+  ctx.fillText(`${pts.length-1} games`,W/2,H-2);
+
+  // Store points for hover detection
+  canvas._chartPts=pts.map((p,i)=>({x:xS(i),y:yS(p.elo),elo:p.elo,date:p.date,idx:i}));
+
+  // Hover tooltip
+  canvas.onmousemove=function(e){
+    const rect=canvas.getBoundingClientRect();
+    const mx=(e.clientX-rect.left)*(W/rect.width);
+    const my=(e.clientY-rect.top)*(H/rect.height);
+    const tip=document.getElementById('eloTooltip');
+    if(!tip) return;
+    // Find nearest point
+    let nearest=null, minDist=Infinity;
+    for(const pt of canvas._chartPts){
+      const d=Math.hypot(pt.x-mx,pt.y-my);
+      if(d<minDist){minDist=d;nearest=pt;}
+    }
+    if(nearest&&minDist<20){
+      const label=nearest.idx===0?'Start':(nearest.date||`Game ${nearest.idx}`);
+      tip.textContent=`${label}: ${nearest.elo} Elo`;
+      // Position tooltip — keep within bounds
+      const tipX=Math.min(e.clientX-rect.left+10, rect.width-140);
+      const tipY=Math.max(e.clientY-rect.top-30, 4);
+      tip.style.left=tipX+'px';
+      tip.style.top=tipY+'px';
+      tip.style.display='block';
+      // Highlight dot
+      ctx.clearRect(0,0,W,H);
+      drawEloChartStatic(ctx,pts,pad,cW,cH,minE,maxE,xS,yS,W,H);
+      ctx.beginPath(); ctx.arc(nearest.x,nearest.y,6,0,Math.PI*2);
+      ctx.fillStyle='#fff'; ctx.fill();
+      ctx.beginPath(); ctx.arc(nearest.x,nearest.y,4,0,Math.PI*2);
+      ctx.fillStyle='#c9a84c'; ctx.fill();
+    } else {
+      tip.style.display='none';
+    }
+  };
+  canvas.onmouseleave=function(){
+    const tip=document.getElementById('eloTooltip');
+    if(tip) tip.style.display='none';
+  };
+}
+
+function drawEloChartStatic(ctx,pts,pad,cW,cH,minE,maxE,xS,yS,W,H){
+  ctx.clearRect(0,0,W,H);
+  for(let i=0;i<=4;i++){
+    const y=pad.t+i*(cH/4);
+    ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+cW,y); ctx.stroke();
+    ctx.fillStyle='rgba(156,136,120,0.7)'; ctx.font='10px monospace'; ctx.textAlign='right';
+    ctx.fillText(Math.round(maxE-(i/4)*(maxE-minE)),pad.l-4,y+4);
+  }
+  const grad=ctx.createLinearGradient(0,pad.t,0,pad.t+cH);
+  grad.addColorStop(0,'rgba(201,168,76,0.25)'); grad.addColorStop(1,'rgba(201,168,76,0)');
+  ctx.beginPath();
+  pts.forEach((p,i)=>i===0?ctx.moveTo(xS(i),yS(p.elo)):ctx.lineTo(xS(i),yS(p.elo)));
+  ctx.lineTo(xS(pts.length-1),pad.t+cH); ctx.lineTo(xS(0),pad.t+cH);
+  ctx.closePath(); ctx.fillStyle=grad; ctx.fill();
+  ctx.strokeStyle='#c9a84c'; ctx.lineWidth=2; ctx.lineJoin='round';
+  ctx.beginPath();
+  pts.forEach((p,i)=>i===0?ctx.moveTo(xS(i),yS(p.elo)):ctx.lineTo(xS(i),yS(p.elo)));
+  ctx.stroke();
+  pts.forEach((p,i)=>{
+    ctx.beginPath(); ctx.arc(xS(i),yS(p.elo),4,0,Math.PI*2);
+    ctx.fillStyle='#c9a84c'; ctx.fill();
+  });
+  ctx.fillStyle='rgba(156,136,120,0.6)'; ctx.font='9px monospace'; ctx.textAlign='center';
+  const labelIndices=new Set([0,pts.length-1]);
+  const step=Math.max(1,Math.floor((pts.length-1)/5));
+  for(let i=step;i<pts.length-1;i+=step) labelIndices.add(i);
+  labelIndices.forEach(i=>{
+    const label=i===0?'Start':(pts[i].date?pts[i].date.slice(5):`G${i}`);
+    ctx.fillText(label,xS(i),pad.t+cH+14);
+  });
+  ctx.fillStyle='rgba(156,136,120,0.4)'; ctx.font='9px monospace'; ctx.textAlign='center';
+  ctx.fillText(`${pts.length-1} games`,W/2,H-2);
+}
+
+// ─────────────────────────────────────────
+// STATS PAGE
+// ─────────────────────────────────────────
+async function renderStats(){
+  // Fetch ALL history from Firestore (not the live cache which is capped at 100)
+  // so community stats, streaks, and records reflect every recorded game.
+  try {
+    const snap = await getDocs(query(collection(db,'history'), orderBy('timestamp','asc')));
+    fullHistory = [];
+    snap.forEach(d => fullHistory.push({id:d.id,...d.data()}));
+  } catch(e) {
+    fullHistory = [...history]; // fallback to cache if fetch fails
+  }
+  renderGamesPerDay();
+  renderStreakList();
+  renderCommunityRecords();
+  renderFunStats();
+}
+
+function renderFunStats(){
+  const el=document.getElementById('funStats'); if(!el) return;
+  if(!fullHistory.length||!players.length){el.innerHTML='<p style="color:var(--muted);font-size:13px">Not enough data yet.</p>';return;}
+
+  const stats={}; // playerId → aggregated stats
+  players.forEach(p=>{
+    stats[p.id]={name:p.name,wins:0,losses:0,evilGames:0,goodGames:0,
+      totalDuration:0,upsetWins:0,upsetLosses:0,biggestWinGap:0,biggestLossGap:0,
+      shortWins:0,shortGames:0,teammates:{}};
+  });
+
+  const funCards=[];
+
+  // Process fullHistory
+  for(const h of fullHistory){
+    const evilA=h.evilAssign||[], goodA=h.goodAssign||[];
+    const allA=[...evilA,...goodA];
+    const dur=h.duration||0;
+    const gap=h.gap||0;
+    const evilWon=h.winner==='evil';
+
+    // Determine if this was an upset (lower total Elo won)
+    const evilTotal=h.evilTotal||0, goodTotal=h.goodTotal||0;
+    const upset=(evilWon&&evilTotal<goodTotal)||(!evilWon&&goodTotal<evilTotal);
+
+    for(const a of allA){
+      const p=players.find(pl=>pl.name===a.name); if(!p||!stats[p.id]) continue;
+      const s=stats[p.id];
+      const onEvil=evilA.some(x=>x.name===a.name);
+      const won=(onEvil&&evilWon)||(!onEvil&&!evilWon);
+      if(won) s.wins++; else s.losses++;
+      if(onEvil) s.evilGames++; else s.goodGames++;
+      s.totalDuration+=dur;
+      if(won&&gap>s.biggestWinGap) s.biggestWinGap=gap;
+      if(!won&&gap>s.biggestLossGap) s.biggestLossGap=gap;
+      if(upset&&won) s.upsetWins++;
+      if(dur&&dur<1800&&won){ s.shortWins++; s.shortGames++; }
+      else if(dur&&dur<1800) s.shortGames++;
+
+      // Teammate tracking
+      const myTeam=onEvil?evilA:goodA;
+      for(const t of myTeam){
+        if(t.name===a.name) continue;
+        s.teammates[t.name]=s.teammates[t.name]||{w:0,l:0};
+        if(won) s.teammates[t.name].w++; else s.teammates[t.name].l++;
+      }
+    }
+  }
+
+  const ps=Object.values(stats).filter(s=>s.wins+s.losses>0);
+  const fmt=s=>fmtDuration(s);
+
+  const card=(emoji,title,winner,detail)=>`
+    <div class="fun-card">
+      <div class="fun-emoji">${emoji}</div>
+      <div class="fun-title">${title}</div>
+      <div class="fun-winner">${winner}</div>
+      <div class="fun-detail">${detail}</div>
+    </div>`;
+
+  // 1. Most games played
+  const mostGames=[...ps].sort((a,b)=>(b.wins+b.losses)-(a.wins+a.losses))[0];
+  funCards.push(card('🎮','Most Games Played',mostGames.name,`${mostGames.wins+mostGames.losses} games`));
+
+  // 2. Most wins
+  const mostWins=[...ps].sort((a,b)=>b.wins-a.wins)[0];
+  funCards.push(card('🏆','Most Wins',mostWins.name,`${mostWins.wins} wins`));
+
+  // 3. Most losses (suffering award)
+  const mostLosses=[...ps].sort((a,b)=>b.losses-a.losses)[0];
+  funCards.push(card('💀','The Suffering Award',mostLosses.name,`${mostLosses.losses} losses — hang in there`));
+
+  // 4. Evil loyalist (most % on evil)
+  const evilLoyal=[...ps].filter(s=>s.evilGames+s.goodGames>=5).sort((a,b)=>(b.evilGames/(b.evilGames+b.goodGames))-(a.evilGames/(a.evilGames+a.goodGames)))[0];
+  if(evilLoyal){
+    const pct=Math.round(evilLoyal.evilGames/(evilLoyal.evilGames+evilLoyal.goodGames)*100);
+    funCards.push(card('⚔️','Evil Loyalist',evilLoyal.name,`${pct}% of games on evil side`));
+  }
+
+  // 5. Good loyalist
+  const goodLoyal=[...ps].filter(s=>s.evilGames+s.goodGames>=5).sort((a,b)=>(b.goodGames/(b.evilGames+b.goodGames))-(a.goodGames/(a.evilGames+a.goodGames)))[0];
+  if(goodLoyal){
+    const pct=Math.round(goodLoyal.goodGames/(goodLoyal.evilGames+goodLoyal.goodGames)*100);
+    funCards.push(card('✦','Good Loyalist',goodLoyal.name,`${pct}% of games on good side`));
+  }
+
+  // 6. Marathon player — most total hours
+  const marathon=[...ps].sort((a,b)=>b.totalDuration-a.totalDuration)[0];
+  funCards.push(card('⏱️','Marathon Player',marathon.name,`${fmtDuration(marathon.totalDuration)} total playtime`));
+
+  // 7. Biggest upset winner
+  const upsetKing=[...ps].sort((a,b)=>b.upsetWins-a.upsetWins)[0];
+  if(upsetKing.upsetWins>0)
+    funCards.push(card('🌟','Upset King',upsetKing.name,`${upsetKing.upsetWins} wins against the odds`));
+
+  // 8. Speed demon — best win rate in games under 30 min
+  const speedsters=[...ps].filter(s=>s.shortGames>=3).sort((a,b)=>(b.shortWins/b.shortGames)-(a.shortWins/a.shortGames));
+  if(speedsters.length){
+    const s=speedsters[0];
+    funCards.push(card('⚡','Speed Demon',s.name,`${Math.round(s.shortWins/s.shortGames*100)}% win rate in games <30m`));
+  }
+
+  // 9. Biggest gap win (dominant victor)
+  const dominant=[...ps].sort((a,b)=>b.biggestWinGap-a.biggestWinGap)[0];
+  funCards.push(card('💪','Most Dominant Win',dominant.name,`Won with a ${dominant.biggestWinGap} Elo gap`));
+
+  // 10. Ghost — most registered, fewest games
+  const ghost=[...ps].filter(s=>s.wins+s.losses>0).sort((a,b)=>(a.wins+a.losses)-(b.wins+b.losses))[0];
+  funCards.push(card('👻','The Ghost',ghost.name,`Only ${ghost.wins+ghost.losses} games played`));
+
+  // 11. Best duo — two players with best win rate together (min 5 games)
+  let bestDuo=null, bestDuoRate=0;
+  for(const s of ps){
+    for(const [tname,rec] of Object.entries(s.teammates)){
+      if(rec.w+rec.l<5) continue;
+      const rate=rec.w/(rec.w+rec.l);
+      if(rate>bestDuoRate){bestDuoRate=rate;bestDuo={a:s.name,b:tname,w:rec.w,l:rec.l};}
+    }
+  }
+  if(bestDuo)
+    funCards.push(card('🤝','Best Duo',`${bestDuo.a} & ${bestDuo.b}`,`${bestDuo.w}W/${bestDuo.l}L together (${Math.round(bestDuoRate*100)}%)`));
+
+  // 12. Civ specialist — biggest gap between best and worst civ Elo
+  let biggestCivGap=0, civSpec=null;
+  for(const p of players){
+    if(!p.civElo) continue;
+    const elos=Object.values(p.civElo).filter(e=>e>0);
+    if(elos.length<2) continue;
+    const gap=Math.max(...elos)-Math.min(...elos);
+    if(gap>biggestCivGap){biggestCivGap=gap;civSpec=p;}
+  }
+  if(civSpec){
+    const best=CIVS.reduce((a,c)=>civElo(civSpec,c.id)>civElo(civSpec,a.id)?c:a,CIVS[0]);
+    const worst=CIVS.reduce((a,c)=>civElo(civSpec,c.id)<civElo(civSpec,a.id)?c:a,CIVS[0]);
+    funCards.push(card('🎭','Civ Specialist',civSpec.name,`${biggestCivGap} Elo gap: best ${best.name} (${civElo(civSpec,best.id)}), worst ${worst.name} (${civElo(civSpec,worst.id)})`));
+  }
+
+  // 13. Longest single game
+  const longestH=fullHistory.filter(h=>h.duration).sort((a,b)=>b.duration-a.duration)[0];
+  if(longestH){
+    const players_in=([...(longestH.evilAssign||[]),...(longestH.goodAssign||[])]).filter(a=>a.isCommunity).map(a=>a.name).join(', ');
+    funCards.push(card('🕰️','Longest Game Ever',fmtDuration(longestH.duration),`${longestH.date} — ${longestH.winner==='evil'?'Evil':'Good'} won`));
+  }
+
+  // 14. Shortest game
+  const shortestH=fullHistory.filter(h=>h.duration&&h.duration>600).sort((a,b)=>a.duration-b.duration)[0];
+  if(shortestH)
+    funCards.push(card('💨','Fastest Game Ever',fmtDuration(shortestH.duration),`${shortestH.date} — ${shortestH.winner==='evil'?'Evil':'Good'} won`));
+
+  el.innerHTML=funCards.join('');
+}
+
+let gpdRange=60; // days to show; 0 = all time
+
+window.setGpdRange=function(r){
+  gpdRange=r;
+  ['14','30','60','All'].forEach(k=>{
+    const btn=document.getElementById('gpd'+k);
+    if(!btn) return;
+    const active=(r===14&&k==='14')||(r===30&&k==='30')||(r===60&&k==='60')||(r===0&&k==='All');
+    btn.style.borderColor=active?'var(--gold-d)':'var(--border2)';
+    btn.style.color=active?'var(--gold)':'var(--dim)';
+  });
+  renderGamesPerDay();
+};
+
+function renderGamesPerDay(){
+  const canvas=document.getElementById('gamesPerDayChart'); if(!canvas) return;
+  const now=Date.now();
+
+  // Determine actual date range from fullHistory
+  const allDates=fullHistory.filter(h=>h.date).map(h=>h.timestamp||0).filter(Boolean);
+  const earliest=allDates.length?Math.min(...allDates):now-60*86400000;
+  const rangeDays=gpdRange>0?gpdRange:Math.ceil((now-earliest)/86400000)+1;
+
+  // Group by day or week depending on range
+  const useWeeks=rangeDays>90;
+  const counts={};
+  const now_s=Math.floor(now/1000);
+
+  fullHistory.forEach(h=>{
+    if(!h.date) return;
+    const ts=h.timestamp||0;
+    if(!ts) return;
+    const daysAgo=Math.floor((now-ts)/86400000);
+    if(gpdRange>0 && daysAgo>=gpdRange) return;
+    if(useWeeks){
+      // Group into week buckets: start of week (Monday)
+      const d=new Date(ts);
+      d.setHours(0,0,0,0);
+      d.setDate(d.getDate()-((d.getDay()+6)%7)); // Monday
+      const key=d.toLocaleDateString('en-CA');
+      counts[key]=(counts[key]||0)+1;
+    } else {
+      counts[h.date]=(counts[h.date]||0)+1;
+    }
+  });
+
+  // Build array of buckets
+  const days=[];
+  if(useWeeks){
+    // Weekly buckets
+    const nWeeks=Math.ceil(rangeDays/7)+1;
+    for(let i=nWeeks-1;i>=0;i--){
+      const d=new Date(now-i*7*86400000);
+      d.setHours(0,0,0,0);
+      d.setDate(d.getDate()-((d.getDay()+6)%7));
+      const key=d.toLocaleDateString('en-CA');
+      days.push({date:key,count:counts[key]||0,label:key.slice(5)});
+    }
+  } else {
+    for(let i=rangeDays-1;i>=0;i--){
+      const d=new Date(now-i*86400000).toLocaleDateString('en-CA');
+      days.push({date:d,count:counts[d]||0,label:d.slice(5)});
+    }
+  }
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.offsetWidth, H=canvas.offsetHeight||140;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  const max=Math.max(1,...days.map(d=>d.count));
+  const pad={t:8,r:8,b:20,l:20};
+  const cW=W-pad.l-pad.r, cH=H-pad.t-pad.b;
+  const bW=Math.max(1,cW/days.length-1);
+
+  function drawChart(hoverIdx){
+    ctx.clearRect(0,0,W,H);
+    days.forEach((d,i)=>{
+      const x=pad.l+i*(cW/days.length);
+      const bH=(d.count/max)*cH;
+      const y=pad.t+cH-bH;
+      if(i===hoverIdx && d.count){
+        ctx.fillStyle='var(--gold)';
+        ctx.fillRect(x,y,bW,bH);
+        // Tooltip box
+        const label=`${d.date}: ${d.count} game${d.count!==1?'s':''}`;
+        ctx.font='bold 11px monospace';
+        const tw=ctx.measureText(label).width;
+        const tx=Math.min(Math.max(x-tw/2,pad.l),W-pad.r-tw-8);
+        const ty=Math.max(y-8,pad.t+4);
+        ctx.fillStyle='rgba(20,18,16,0.92)';
+        ctx.strokeStyle='var(--gold)';
+        ctx.lineWidth=1;
+        const rx=tx-6, ry=ty-14, rw=tw+12, rh=20;
+        ctx.beginPath(); ctx.roundRect(rx,ry,rw,rh,3); ctx.fill(); ctx.stroke();
+        ctx.fillStyle='var(--gold)';
+        ctx.textAlign='left';
+        ctx.fillText(label,tx,ty);
+      } else {
+        ctx.fillStyle=d.count?(i===hoverIdx?'var(--gold)':'rgba(201,168,76,0.55)'):'rgba(255,255,255,0.05)';
+        if(d.count) ctx.fillStyle='rgba(201,168,76,0.55)';
+        else ctx.fillStyle='rgba(255,255,255,0.05)';
+        ctx.fillRect(x,y,bW,bH);
+      }
+    });
+    // X axis labels — adaptive spacing to prevent overlap
+    ctx.fillStyle='rgba(156,136,120,0.6)'; ctx.font='9px monospace'; ctx.textAlign='center';
+    const labelStep=Math.max(1,Math.ceil(36/(cW/days.length)));
+    days.forEach((d,i)=>{
+      if(i%labelStep!==0) return;
+      const x=pad.l+i*(cW/days.length)+bW/2;
+      ctx.fillText(d.label,x,H-4);
+    });
+  }
+
+  drawChart(-1);
+
+  // Remove old listeners by replacing the canvas clone trick
+  const newCanvas=canvas.cloneNode(true);
+  canvas.parentNode.replaceChild(newCanvas,canvas);
+  newCanvas.style.cursor='crosshair';
+
+  newCanvas.addEventListener('mousemove',e=>{
+    const rect=newCanvas.getBoundingClientRect();
+    const mx=(e.clientX-rect.left)*(W/rect.width);
+    const i=Math.floor((mx-pad.l)/(cW/days.length));
+    // Need fresh ctx after clone
+    const c2=newCanvas.getContext('2d');
+    c2.scale(dpr,dpr);
+    const max2=Math.max(1,...days.map(d=>d.count));
+    c2.clearRect(0,0,W,H);
+    days.forEach((d,j)=>{
+      const x=pad.l+j*(cW/days.length);
+      const bH=(d.count/max2)*cH;
+      const y=pad.t+cH-bH;
+      if(j===i && d.count){
+        c2.fillStyle='var(--gold)';
+        c2.fillRect(x,y,bW,bH);
+        const label=`${d.date}: ${d.count} game${d.count!==1?'s':''}`;
+        c2.font='bold 11px monospace';
+        const tw=c2.measureText(label).width;
+        const tx=Math.min(Math.max(x-tw/2,pad.l),W-pad.r-tw-8);
+        const ty=Math.max(y-8,pad.t+16);
+        c2.fillStyle='rgba(20,18,16,0.92)';
+        c2.strokeStyle='rgba(201,168,76,0.9)';
+        c2.lineWidth=1;
+        const rx=tx-6, ry=ty-14, rw=tw+12, rh=20;
+        c2.beginPath(); c2.roundRect(rx,ry,rw,rh,3); c2.fill(); c2.stroke();
+        c2.fillStyle='var(--gold)';
+        c2.textAlign='left';
+        c2.fillText(label,tx,ty);
+      } else {
+        c2.fillStyle=d.count?'rgba(201,168,76,0.55)':'rgba(255,255,255,0.05)';
+        c2.fillRect(x,y,bW,bH);
+      }
+    });
+    c2.fillStyle='rgba(156,136,120,0.6)'; c2.font='9px monospace'; c2.textAlign='center';
+    [0,10,20,30,40,50,59].forEach(k=>{
+      const x=pad.l+k*(cW/days.length)+bW/2;
+      if(k%Math.max(1,Math.ceil(36/(cW/days.length)))===0) c2.fillText(days[k].label,x,H-4);
+    });
+  });
+  newCanvas.addEventListener('mouseleave',()=>{
+    const c2=newCanvas.getContext('2d');
+    c2.clearRect(0,0,W,H);
+    // redraw without hover
+    const max2=Math.max(1,...days.map(d=>d.count));
+    days.forEach((d,i)=>{
+      const x=pad.l+i*(cW/days.length);
+      const bH=(d.count/max2)*cH;
+      const y=pad.t+cH-bH;
+      c2.fillStyle=d.count?'rgba(201,168,76,0.55)':'rgba(255,255,255,0.05)';
+      c2.fillRect(x,y,bW,bH);
+    });
+    c2.fillStyle='rgba(156,136,120,0.6)'; c2.font='9px monospace'; c2.textAlign='center';
+    const lStep=Math.max(1,Math.ceil(36/(cW/days.length)));
+    days.forEach((d,i)=>{
+      if(i%lStep!==0) return;
+      const x=pad.l+i*(cW/days.length)+bW/2;
+      c2.fillText(d.label,x,H-4);
+    });
+  });
+}
+
+function renderCivMeta(){
+  const el=document.getElementById('civMetaStats'); if(!el) return;
+  const stats={};
+  CIVS.forEach(c=>{stats[c.id]={civ:c,w:0,l:0};});
+  fullHistory.forEach(h=>{
+    [...(h.evilAssign||[]),...(h.goodAssign||[])].forEach(a=>{
+      if(!a.civName) return;
+      const civ=CIVS.find(c=>c.name===a.civName); if(!civ) return;
+      const onEvil=(h.evilAssign||[]).some(x=>x.civName===a.civName&&x.name===a.name);
+      const won=(onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
+      if(won) stats[civ.id].w++; else stats[civ.id].l++;
+    });
+  });
+  el.innerHTML=CIVS.map(c=>{
+    const s=stats[c.id], tot=s.w+s.l, pct=tot?Math.round(s.w/tot*100):0;
+    return `<div style="display:flex;align-items:center;gap:.5rem;padding:4px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:11px;color:${c.side==='evil'?'var(--evil)':'var(--good)'};width:100px;flex-shrink:0">${c.name}</span>
+      <div style="flex:1;height:5px;background:var(--bg2);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${c.side==='evil'?'var(--evil)':'var(--good)'};border-radius:3px"></div>
+      </div>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);width:60px;text-align:right">${s.w}W/${s.l}L ${tot?pct+'%':'—'}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderStreakList(){
+  const el=document.getElementById('streakList'); if(!el) return;
+  const streaks=calcStreaks();
+  const all=Object.entries(streaks).filter(([,s])=>s.count>=2);
+  const wins =all.filter(([,s])=>s.type==='w').sort((a,b)=>b[1].count-a[1].count);
+  const losses=all.filter(([,s])=>s.type==='l').sort((a,b)=>a[1].count-b[1].count);
+  const sorted=[...wins,...losses];
+  if(!sorted.length){el.innerHTML='<p style="color:var(--muted);font-size:13px">No active streaks.</p>';return;}
+  el.innerHTML=sorted.map(([name,s])=>`
+    <div style="display:flex;align-items:center;gap:.75rem;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="flex:1;font-size:14px">${name}</span>
+      <span class="streak-badge ${s.type==='w'?'streak-w':'streak-l'}">${s.type==='w'?'🔥':'❄'} ${s.count} ${s.type==='w'?'Win':'Loss'} Streak</span>
+    </div>`).join('');
+}
+
+function renderCommunityRecords(){
+  const el=document.getElementById('communityRecords'); if(!el) return;
+  if(!fullHistory.length){el.innerHTML='<p style="color:var(--muted);font-size:13px">No matches yet.</p>';return;}
+  const totalGames=fullHistory.length;
+  const avgGap=Math.round(fullHistory.reduce((s,h)=>s+(h.gap||0),0)/totalGames);
+  const longest=fullHistory.reduce((a,b)=>(b.duration||0)>(a.duration||0)?b:a,fullHistory[0]);
+  const shortest=fullHistory.filter(h=>h.duration).reduce((a,b)=>b.duration<a.duration?b:a,fullHistory.find(h=>h.duration)||fullHistory[0]);
+  const evilWins=fullHistory.filter(h=>h.winner==='evil').length;
+  const fmt=fmtDuration;
+  el.innerHTML=`
+    <div style="display:flex;flex-direction:column;gap:.5rem">
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--dim);font-size:13px">Total games</span><span style="font-family:'JetBrains Mono',monospace">${totalGames}</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--dim);font-size:13px">Avg Elo gap</span><span style="font-family:'JetBrains Mono',monospace">${avgGap}</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--dim);font-size:13px">Evil win rate</span><span style="font-family:'JetBrains Mono',monospace;color:var(--evil)">${Math.round(evilWins/totalGames*100)}%</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--dim);font-size:13px">Longest game</span><span style="font-family:'JetBrains Mono',monospace">${fmt(longest?.duration)}</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--dim);font-size:13px">Shortest game</span><span style="font-family:'JetBrains Mono',monospace">${fmt(shortest?.duration)}</span></div>
+    </div>`;
+}
+
+// ─────────────────────────────────────────
+// MATCH EDITOR
+// ─────────────────────────────────────────
+let editingMatchId=null;
+
+window.openMatchEditor=function(id){
+  if(!adminUnlocked){toast('Admin required','err');return;}
+  const h=fullHistory.find(x=>x.id===id); if(!h) return;
+  editingMatchId=id;
+  const fmt=a=>`<span style="font-size:13px">${a.name}${a.civName?' <span style="color:var(--muted)">— '+a.civName+'</span>':''}</span>`;
+  document.getElementById('editMatchContent').innerHTML=`
+    <p style="font-size:13px;color:var(--dim);margin-bottom:.75rem">${h.date} · Gap: ${h.gap||'?'}</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+      <div>
+        <div style="font-family:'Cinzel',serif;font-size:9px;color:var(--evil);letter-spacing:.1em;margin-bottom:.5rem">⚔ EVIL ${h.winner==='evil'?'(WINNER)':''}</div>
+        ${(h.evilAssign||[]).map(fmt).join('<br>')}
+      </div>
+      <div>
+        <div style="font-family:'Cinzel',serif;font-size:9px;color:var(--good);letter-spacing:.1em;margin-bottom:.5rem">✦ GOOD ${h.winner==='good'?'(WINNER)':''}</div>
+        ${(h.goodAssign||[]).map(fmt).join('<br>')}
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:1rem">Select the correct winner below. Elo will be recalculated.</p>`;
+  openModal('mEditMatch');
+};
+
+window.saveMatchEdit=async function(newWinner){
+  if(!editingMatchId) return;
+  const h=fullHistory.find(x=>x.id===editingMatchId); if(!h) return;
+  if(h.winner===newWinner){toast('Winner unchanged','err');closeModal('mEditMatch');return;}
+
+  // Reverse old Elo changes then apply new ones
+  const oldWinA=h.winner==='evil'?h.evilAssign:h.goodAssign;
+  const oldLoseA=h.winner==='evil'?h.goodAssign:h.evilAssign;
+  const newWinA=newWinner==='evil'?h.evilAssign:h.goodAssign;
+  const newLoseA=newWinner==='evil'?h.goodAssign:h.evilAssign;
+
+  const profMap=Object.fromEntries(players.map(p=>[p.name,p]));
+
+  // Reverse old result
+  for(const a of oldWinA){
+    const p=profMap[a.name]; if(!p) continue;
+    p.wins=Math.max(0,(p.wins||0)-1);
+  }
+  for(const a of oldLoseA){
+    const p=profMap[a.name]; if(!p) continue;
+    p.losses=Math.max(0,(p.losses||0)-1);
+  }
+
+  // Apply new result
+  const avgWin=newWinA.reduce((s,a)=>s+(a.effElo||1200),0)/Math.max(1,newWinA.length);
+  const avgLose=newLoseA.reduce((s,a)=>s+(a.effElo||1200),0)/Math.max(1,newLoseA.length);
+  for(const a of newWinA){
+    const p=profMap[a.name]; if(!p) continue;
+    p.wins=(p.wins||0)+1;
+    if(a.civName){
+      const civ=CIVS.find(c=>c.name===a.civName);
+      if(civ){p.civElo=p.civElo||{};const cgE=(p.civWins?.[civ.id]||0)+(p.civLosses?.[civ.id]||0); p.civElo[civ.id]=calcElo(civElo(p,civ.id),avgLose,true,(p.wins||0)+(p.losses||0),cgE);}
+    }
+    await savePl(p);
+  }
+  for(const a of newLoseA){
+    const p=profMap[a.name]; if(!p) continue;
+    p.losses=(p.losses||0)+1;
+    if(a.civName){
+      const civ=CIVS.find(c=>c.name===a.civName);
+      if(civ){p.civElo=p.civElo||{};const cgF=(p.civWins?.[civ.id]||0)+(p.civLosses?.[civ.id]||0); p.civElo[civ.id]=calcElo(civElo(p,civ.id),avgWin,false,(p.wins||0)+(p.losses||0),cgF);}
+    }
+    await savePl(p);
+  }
+
+  // Update fullHistory doc
+  await setDoc(doc(db,'history',String(editingMatchId)),{...h,winner:newWinner,id:undefined},{merge:true});
+  closeModal('mEditMatch');
+  toast('Match result updated!');
+  editingMatchId=null;
+};
+
+// ─────────────────────────────────────────
+// MATCH DETAIL
+// ─────────────────────────────────────────
+window.openMatchDetail=function(id){
+  // Check all history sources — fullHistoryCache (history page), fullHistory (stats page), live cache
+  const h=fullHistoryCache.find(x=>x.id===id)||fullHistory.find(x=>x.id===id)||history.find(x=>x.id===id);
+  if(!h) return;
+  const dur=h.duration?fmtDuration(h.duration):'—';
+  const evilTotal=h.evilTotal||0, goodTotal=h.goodTotal||0;
+  const odds=evilTotal&&goodTotal?Math.round(100/(1+Math.pow(10,-(evilTotal-goodTotal)/2000))):null;
+
+  const fmtSide=(assign,side)=>{
+    const won=h.winner===side;
+    return `<div class="tpanel ${side}" style="padding:.75rem">
+      <div class="tlabel ${side}" style="margin-bottom:.5rem">
+        ${side==='evil'?'⚔ Evil Forces':'✦ Free Peoples'}
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px">${side==='evil'?evilTotal:goodTotal}</span>
+        ${won?`<span style="font-family:'Cinzel',serif;font-size:9px;padding:2px 8px;border-radius:2px;background:${side==='evil'?'var(--evil-d)':'var(--good-d)'};border:1px solid ${side==='evil'?'var(--evil)':'var(--good)'};margin-left:4px">WINNER</span>`:''}
+      </div>
+      ${(assign||[]).map(a=>{
+        const op=players.find(pl=>pl.name===a.name);
+        return `<div class="arow" style="cursor:${op?'pointer':'default'}" onclick="${op?`openProfile('${op.id}','profile')`:''}">
+          <span class="aname">${a.name}</span>
+          <span class="aciv">${a.civName||'—'}</span>
+          <span class="aelo">${a.effElo||''}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  };
+
+  document.getElementById('matchDetailContent').innerHTML=`
+    <div class="mtitle" style="margin-bottom:.25rem">${h.winner==='evil'?'⚔ Evil Win':'✦ Good Win'}</div>
+    <div style="display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.25rem">
+      <div><span style="font-size:11px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase">Date</span><div style="font-size:14px;margin-top:2px">${h.date||'—'}</div></div>
+      <div><span style="font-size:11px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase">Duration</span><div style="font-family:'JetBrains Mono',monospace;font-size:14px;margin-top:2px">${dur}</div></div>
+      <div><span style="font-size:11px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase">Elo Gap</span><div style="font-family:'JetBrains Mono',monospace;font-size:14px;margin-top:2px">${h.gap!=null?h.gap:'—'}</div></div>
+      ${odds!=null?`<div style="min-width:160px"><span style="font-size:11px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase">Pre-game Odds</span>
+        <div style="margin-top:6px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+            <span style="color:var(--evil)">⚔ Evil ${odds}%</span>
+            <span style="color:var(--good)">${100-odds}% Good ✦</span>
+          </div>
+          <div style="height:7px;border-radius:4px;background:var(--bg3);overflow:hidden;display:flex">
+            <div style="width:${odds}%;background:var(--evil);border-radius:4px 0 0 4px;transition:width .4s"></div>
+            <div style="width:${100-odds}%;background:var(--good);border-radius:0 4px 4px 0;transition:width .4s"></div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;font-family:'Cinzel',serif;letter-spacing:.06em">
+            ${odds>50?`Evil favoured`:(odds<50?`Good favoured`:`Even match`)}
+          </div>
+        </div>
+      </div>`:''}
+      <div><span style="font-size:11px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase">Source</span><div style="font-size:14px;margin-top:2px">${h.source==='auto'?'Auto-recorded':'Manual'}</div></div>
+    </div>
+    <div class="teams">
+      ${fmtSide(h.evilAssign,'evil')}
+      ${fmtSide(h.goodAssign,'good')}
+    </div>
+    ${adminUnlocked?`<div style="margin-top:.75rem;text-align:right"><button class="btn" onclick="closeModal('mMatchDetail');openMatchEditor('${h.id}')">✎ Edit Result</button></div>`:''}`;
+
+  openModal('mMatchDetail');
+};
+
+// ─────────────────────────────────────────
+// BULK ELO SEEDER
+// ─────────────────────────────────────────
+let bulkOrder=[]; // array of player ids in ranked order
+let dragSrcIdx=null;
+
+async function loadBulkOrder(){
+  try{
+    const s=await getDoc(doc(db,'settings','bulkOrder'));
+    if(s.exists()){
+      const saved=s.data().order||[];
+      const top=s.data().top;
+      const bot=s.data().bot;
+      if(top) document.getElementById('bulkEloTop').value=top;
+      if(bot) document.getElementById('bulkEloBottom').value=bot;
+      const validSaved=saved.filter(id=>players.find(p=>p.id===id));
+      const newPlayers=players.filter(p=>!saved.includes(p.id))
+        .sort((a,b)=>overallElo(b)-overallElo(a)).map(p=>p.id);
+      bulkOrder=[...validSaved,...newPlayers];
+    } else {
+      bulkOrder=[...players].sort((a,b)=>overallElo(b)-overallElo(a)).map(p=>p.id);
+    }
+  }catch(e){
+    bulkOrder=[...players].sort((a,b)=>overallElo(b)-overallElo(a)).map(p=>p.id);
+  }
+}
+
+async function saveBulkOrder(){
+  try{
+    const top=Number(document.getElementById('bulkEloTop')?.value)||1400;
+    const bot=Number(document.getElementById('bulkEloBottom')?.value)||1050;
+    await setDoc(doc(db,'settings','bulkOrder'),{order:bulkOrder,top,bot});
+  }catch(e){ console.warn('Could not save bulk order',e); }
+}
+
+window.openBulkElo=async function(){
+  if(!adminUnlocked){toast('Admin required','err');return;}
+  openModal('mBulkElo');
+  await loadBulkOrder();
+  renderBulkList();
+  updateBulkPreview();
+};
+
+// Override the button onclick
+document.addEventListener('click',e=>{
+  if(e.target.closest('button')?.textContent.includes('Open Bulk Seeder')) openBulkElo();
+});
+
+function calcBulkElos(){
+  const top=Number(document.getElementById('bulkEloTop')?.value)||1400;
+  const bot=Number(document.getElementById('bulkEloBottom')?.value)||1050;
+  const n=bulkOrder.length;
+  return bulkOrder.map((_,i)=>n===1?top:Math.round(top-(top-bot)*(i/(n-1))));
+}
+
+function updateBulkPreview(){
+  const elos=calcBulkElos();
+  const el=document.getElementById('bulkEloPreview');
+  if(el) el.textContent=`Step: ${elos.length>1?Math.round((elos[0]-elos[elos.length-1])/(elos.length-1)):0} Elo between players`;
+  document.querySelectorAll('.bulk-elo').forEach((el,i)=>{ el.textContent=elos[i]||''; });
+  document.querySelectorAll('.bulk-rank').forEach((el,i)=>{ el.textContent='#'+(i+1); });
+}
+
+function renderBulkList(){
+  const el=document.getElementById('bulkEloList'); if(!el) return;
+  const elos=calcBulkElos();
+  el.innerHTML=bulkOrder.map((id,i)=>{
+    const p=players.find(pl=>pl.id===id); if(!p) return '';
+    return `<div class="bulk-row" draggable="true" data-idx="${i}"
+      ondragstart="bulkDragStart(${i})"
+      ondragover="bulkDragOver(event,${i})"
+      ondragleave="bulkDragLeave(event)"
+      ondrop="bulkDrop(${i})"
+      ondragend="bulkDragEnd()">
+      <span class="drag-handle">⠿</span>
+      <span class="bulk-rank">#${i+1}</span>
+      <span class="bulk-name">${p.name}</span>
+      <span class="bulk-elo">${elos[i]}</span>
+    </div>`;
+  }).join('');
+}
+
+window.bulkDragStart=function(idx){
+  dragSrcIdx=idx;
+  setTimeout(()=>document.querySelectorAll('.bulk-row')[idx]?.classList.add('dragging'),0);
+};
+window.bulkDragOver=function(e,idx){
+  e.preventDefault();
+  document.querySelectorAll('.bulk-row').forEach(r=>r.classList.remove('drag-over'));
+  document.querySelectorAll('.bulk-row')[idx]?.classList.add('drag-over');
+};
+window.bulkDragLeave=function(e){
+  e.currentTarget.classList.remove('drag-over');
+};
+window.bulkDrop=async function(toIdx){
+  if(dragSrcIdx===null||dragSrcIdx===toIdx) return;
+  const moved=bulkOrder.splice(dragSrcIdx,1)[0];
+  bulkOrder.splice(toIdx,0,moved);
+  dragSrcIdx=null;
+  renderBulkList();
+  updateBulkPreview();
+  await saveBulkOrder(); // auto-save on every drag
+};
+window.bulkDragEnd=function(){
+  document.querySelectorAll('.bulk-row').forEach(r=>{
+    r.classList.remove('dragging','drag-over');
+  });
+  dragSrcIdx=null;
+};
+
+window.applyBulkElo=async function(){
+  if(!adminUnlocked){toast('Admin required','err');return;}
+  const elos=calcBulkElos();
+  toast('Applying Elo ratings…');
+  for(let i=0;i<bulkOrder.length;i++){
+    const p=players.find(pl=>pl.id===bulkOrder[i]); if(!p) continue;
+    const elo=elos[i];
+    p.civElo=p.civElo||{};
+    CIVS.forEach(c=>{ p.civElo[c.id]=elo; });
+    await savePl(p);
+  }
+  await saveBulkOrder(); // save final order
+  closeModal('mBulkElo');
+  toast(`Applied Elo ratings to ${bulkOrder.length} players!`);
+  renderLB(); renderPTable();
+};
+
+// START
+init();
+</script>
+</body>
+</html>
