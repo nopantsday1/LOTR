@@ -2047,9 +2047,11 @@ async function pollLobby(){
 
     for(const match of matches){
       // Only 8-player custom games (matchtype_id=0, maxplayers=8)
+      // NOTE: isLotrMatch is NOT used here — AoE2 API always returns "my map" as mapname
+      // for custom scenarios so keyword matching never works. Community player ID match is
+      // the only reliable signal for live detection.
       if(match.matchtype_id!==0) continue;
       if(match.maxplayers!==8) continue;
-      if(!isLotrMatch(match)) continue;
 
       // Collect all player IDs: host + matchmembers + slotinfo
       const allIds=new Set();
@@ -2454,12 +2456,12 @@ function connectLobbyWs(){
           for(const match of (Array.isArray(msg.matches)?msg.matches:Object.values(msg.matches))){
             if(!match||typeof match!=='object') continue;
             if(match.matchtype_id!==0||match.maxplayers!==8) continue;
-            if(!isLotrMatch(match)) continue;
+            // isLotrMatch skipped — mapname is always "my map" for custom scenarios
             const allIds=new Set();
             if(match.host_profile_id) allIds.add(Number(match.host_profile_id));
             (match.matchmembers||[]).forEach(m=>allIds.add(Number(m.profile_id)));
             const found=[...allIds].filter(id=>commIds.has(id));
-            if(found.length>=2){
+            if(found.length>=1){
               console.log('[ws] LOTR lobby with',found.length,'community members — fetching full data');
               // Always fetch full data from API to get slotinfo for civ positions
               setTimeout(()=>pollLobbyHttp(), 500);
@@ -2496,7 +2498,7 @@ async function pollLobbyHttp(){
     const profMap=buildProfMap(players);
     for(const match of lobbies){
       if(match.matchtype_id!==0||match.maxplayers!==8) continue;
-      if(!isLotrMatch(match)) continue;
+      // isLotrMatch skipped — mapname is always "my map" for custom scenarios in the API
       const allIds=new Set();
       allIds.add(Number(match.host_profile_id));
       (match.matchmembers||[]).forEach(m=>allIds.add(Number(m.profile_id)));
