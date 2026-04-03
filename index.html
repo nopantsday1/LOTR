@@ -1687,7 +1687,10 @@ window.recalcAllElos=async function(){
   }
 
   // ── Step 2: Load clean history oldest→newest ────────────────────────────
-  const sorted=[...history]
+  // Use the full Firestore snapshot from Step 1 (not the live cache which is capped at 100)
+  const allDocs=[];
+  allSnap.forEach(d=>{ if(!dupeRefs.includes(d.ref)) allDocs.push({id:d.id,...d.data()}); });
+  const sorted=allDocs
     .filter((h,i,arr)=>arr.findIndex(x=>String(x.gameId||x.id)===String(h.gameId||h.id))===i)
     .sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
   if(!sorted.length){log('No history found.');return;}
