@@ -641,7 +641,7 @@ const GOOD_CIVS = CIVS.filter(c=>c.side==='good');
 const TEAMID_MAP = Object.fromEntries(CIVS.map(c=>[c.teamid, c.id]));
 // Map race_id from matchhistoryreportresults → scenario civ (this IS the station)
 const RACE_MAP = {4:'p1',38:'p2',17:'p3',25:'p4',12:'p5',32:'p6',9:'p7',22:'p8'};
-const DEFAULT_ELO = 1200;
+const DEFAULT_ELO = 900;
 const LOTR_KW = ['hobbit','lotr','lord of the ring','the shire','middle earth'];
 
 // Normalize old civ names to current names (for existing Firestore records)
@@ -1787,7 +1787,7 @@ window.runImport=async function(){
     const doReset=document.getElementById('importReset')?.checked!==false;
 
     if(doReset){
-      ilog(`Found ${matches.length} matches. Resetting all ratings to 1200…`,'warn');
+      ilog(`Found ${matches.length} matches. Resetting all ratings to seeded Elos…`,'warn');
       for(const p of players){
         p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=DEFAULT_ELO;}); p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
       }
