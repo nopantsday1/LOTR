@@ -852,6 +852,7 @@ async function init(){
   onSnapshot(query(collection(db,'history'),orderBy('timestamp','desc'),limit(100)),snap=>{
     // limit(100) keeps read costs low — enough for deduplication in autoRecord
     history=[]; snap.forEach(d=>history.push({id:d.id,...d.data()}));
+    fullHistoryCache=[]; // invalidate full cache so next history page visit re-fetches
     renderHist();
     renderWinRate();
   });
@@ -882,6 +883,7 @@ window.go=function(name){
   });
   if(name==='admin') renderAdminList();
   if(name==='stats') setTimeout(renderStats,50);
+  if(name==='history') setTimeout(loadAndRenderHist,50);
 };
 
 // ─────────────────────────────────────────
@@ -1128,13 +1130,29 @@ async function applyResult(winA,loseA,winner,evilTotal,goodTotal,date,source,gam
 // ─────────────────────────────────────────
 // HISTORY
 // ─────────────────────────────────────────
+let fullHistoryCache = []; // full unfiltered history for the history page
+
+async function loadAndRenderHist(){
+  // Fetch all history from Firestore (not the live cache capped at 100)
+  try {
+    const snap = await getDocs(query(collection(db,'history'), orderBy('timestamp','desc')));
+    fullHistoryCache = [];
+    snap.forEach(d => fullHistoryCache.push({id:d.id,...d.data()}));
+  } catch(e) {
+    fullHistoryCache = [...history]; // fallback to live cache
+  }
+  renderHist();
+}
+
 function renderHist(){
   const el=document.getElementById('histList'); if(!el) return;
-  if(!history.length){el.innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">No matches yet.</p>';return;}
+  // Use fullHistoryCache if populated (full fetch), otherwise fall back to live cache
+  const src = fullHistoryCache.length >= history.length ? fullHistoryCache : history;
+  if(!src.length){el.innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">No matches yet.</p>';return;}
   const hsq=(document.getElementById('histSearch')?.value||'').toLowerCase().trim();
   const filtered=hsq
-    ? history.filter(h=>[...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>(a.name||'').toLowerCase().includes(hsq)))
-    : history;
+    ? src.filter(h=>[...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>(a.name||'').toLowerCase().includes(hsq)))
+    : src;
   const countEl=document.getElementById('histSearchCount');
   if(countEl) countEl.textContent=hsq?`${filtered.length} match${filtered.length!==1?'es':''} found`:'';
   if(!filtered.length){el.innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">No matches found for "'+hsq+'".</p>';return;}
