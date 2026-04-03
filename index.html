@@ -611,7 +611,7 @@ function go(name){
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc, query, orderBy, limit, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc, query, orderBy, limit, writeBatch, runTransaction, increment } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // ─────────────────────────────────────────
 // CONFIG
@@ -1312,32 +1312,51 @@ async function autoRecord(){
       const avgWin=commWin.length?commWin.reduce((s,a)=>s+overallElo(a.player),0)/commWin.length:DEFAULT_ELO;
       const avgLose=commLose.length?commLose.reduce((s,a)=>s+overallElo(a.player),0)/commLose.length:DEFAULT_ELO;
 
-      for(const a of [...commWin,...commLose]){
-        const p=a.player, won=commWin.includes(a), g=(p.wins||0)+(p.losses||0);
-        p.civElo=p.civElo||{};
-        if(a.civId){
-          const cg1=(p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0);
-          p.civElo[a.civId]=calcElo(civElo(p,a.civId), won?avgLose:avgWin, won, g, cg1);
-          if(won){ p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1; }
-          else   { p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1; }
-        }
-        if(won) p.wins=(p.wins||0)+1; else p.losses=(p.losses||0)+1;
-        await savePl(p);
-      }
+      // MULTI-TAB FIX: Use a Firestore transaction so concurrent tabs can't both record the same game.
+      // The transaction atomically checks if this gameId already exists and writes W/L in one operation.
+      const histRef = doc(db,'history',gid);
+      let alreadyRecorded = false;
+      await runTransaction(db, async (tx) => {
+        const existing = await tx.get(histRef);
+        if (existing.exists()) { alreadyRecorded = true; return; }
 
-      const ts=(match.completiontime||match.startgametime||0)*1000;
-      const date=ts?new Date(ts).toLocaleDateString('en-CA'):new Date().toLocaleDateString('en-CA');
-      const durationSec=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
-      const et=winA.reduce((s,a)=>s+a.effElo,0);
-      const gt=loseA.reduce((s,a)=>s+a.effElo,0);
-      // Use gameId as document ID — concurrent writes from multiple tabs just overwrite same doc
-      await setDoc(doc(db,'history',gid),{
-        date,winner,evilTotal:winner==='evil'?et:gt,goodTotal:winner==='evil'?gt:et,
-        gap:Math.abs(et-gt),timestamp:ts||Date.now(),source:'auto',gameId:gid,
-        duration:durationSec,
-        evilAssign:(winner==='evil'?winA:loseA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
-        goodAssign:(winner==='evil'?loseA:winA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
+        const ts=(match.completiontime||match.startgametime||0)*1000;
+        const date=ts?new Date(ts).toLocaleDateString('en-CA'):new Date().toLocaleDateString('en-CA');
+        const durationSec=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
+        const et=winA.reduce((s,a)=>s+a.effElo,0);
+        const gt=loseA.reduce((s,a)=>s+a.effElo,0);
+
+        // Claim this gameId inside the transaction — only one tab will win
+        tx.set(histRef,{
+          date,winner,evilTotal:winner==='evil'?et:gt,goodTotal:winner==='evil'?gt:et,
+          gap:Math.abs(et-gt),timestamp:ts||Date.now(),source:'auto',gameId:gid,
+          duration:durationSec,
+          evilAssign:(winner==='evil'?winA:loseA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
+          goodAssign:(winner==='evil'?loseA:winA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
+        });
+
+        // Use atomic increment() so even if two tabs somehow both pass the exists() check,
+        // W/L counters can never be double-incremented
+        for(const a of [...commWin,...commLose]){
+          const p=a.player, won=commWin.includes(a), g=(p.wins||0)+(p.losses||0);
+          const pRef=doc(db,'players',String(p.id));
+          const updates={};
+          p.civElo=p.civElo||{};
+          if(a.civId){
+            const cg1=(p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0);
+            const newCivElo=calcElo(civElo(p,a.civId), won?avgLose:avgWin, won, g, cg1);
+            updates['civElo.'+a.civId]=newCivElo;
+            p.civElo[a.civId]=newCivElo;
+            if(won){ updates['civWins.'+a.civId]=increment(1); p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1; }
+            else   { updates['civLosses.'+a.civId]=increment(1); p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1; }
+          }
+          if(won){ updates.wins=increment(1); p.wins=(p.wins||0)+1; }
+          else   { updates.losses=increment(1); p.losses=(p.losses||0)+1; }
+          tx.update(pRef, updates);
+        }
       });
+
+      if(alreadyRecorded){ console.log('[autoRecord] Already recorded by another tab, skipping:',gid); continue; }
       known.add(gid); added++;
       console.log('[AUTO]',gid,winner);
     }
