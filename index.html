@@ -287,7 +287,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
   </div>
   <p id="checkStatus" style="font-size:12px;color:var(--muted);margin-bottom:.75rem"></p>
   <div style="margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-    <input type="text" id="histSearch" placeholder="Search player…" style="max-width:220px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:7px 10px;border-radius:3px" oninput="debounceHistSearch()">
+    <input type="text" id="histSearch" placeholder="Search player…" style="max-width:220px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:7px 10px;border-radius:3px" oninput="renderHist()">
     <span id="histSearchCount" style="font-size:12px;color:var(--muted)"></span>
   </div>
   <div id="histList"></div>
@@ -852,10 +852,7 @@ async function init(){
   onSnapshot(query(collection(db,'history'),orderBy('timestamp','desc'),limit(100)),snap=>{
     // limit(100) keeps read costs low — enough for deduplication in autoRecord
     history=[]; snap.forEach(d=>history.push({id:d.id,...d.data()}));
-    // Only invalidate fullHistoryCache if history page isn't open (avoid disrupting active search)
-    const histPageOpen = document.getElementById('page-history')?.classList.contains('on');
-    if(!histPageOpen) fullHistoryCache=[];
-    else { fullHistoryCache=[]; loadAndRenderHist(); } // refresh in background if open
+    fullHistoryCache=[]; // invalidate so next history page visit re-fetches
     renderHist();
     renderWinRate();
   });
@@ -1133,49 +1130,35 @@ async function applyResult(winA,loseA,winner,evilTotal,goodTotal,date,source,gam
 // ─────────────────────────────────────────
 // HISTORY
 // ─────────────────────────────────────────
-let fullHistoryCache = []; // full unfiltered history for the history page
-let histSearchTimer = null;
-
-function debounceHistSearch(){
-  clearTimeout(histSearchTimer);
-  histSearchTimer = setTimeout(renderHist, 150); // wait 150ms after typing stops
-}
+let fullHistoryCache = []; // full history for the history page — loaded once per tab visit
 
 async function loadAndRenderHist(){
-  // If cache is already warm and matches or exceeds the live cache, just render
-  if(fullHistoryCache.length >= history.length && fullHistoryCache.length > 0){
-    renderHist(); return;
-  }
-  // Show live cache immediately while full fetch loads
+  // Show live cache immediately so page isn't blank
   renderHist();
-  // Fetch all history from Firestore (not the live cache capped at 100)
+  // Then fetch all history from Firestore (not the capped 100-item live cache)
   try {
     const snap = await getDocs(query(collection(db,'history'), orderBy('timestamp','desc')));
     fullHistoryCache = [];
     snap.forEach(d => fullHistoryCache.push({id:d.id,...d.data()}));
   } catch(e) {
-    fullHistoryCache = [...history]; // fallback to live cache
+    fullHistoryCache = [...history];
   }
   renderHist();
 }
 
 function renderHist(){
   const el=document.getElementById('histList'); if(!el) return;
-  // Always use fullHistoryCache when searching — never fall back to partial live cache for search
-  const hsq=(document.getElementById('histSearch')?.value||'').toLowerCase().trim();
+  // Use fullHistoryCache if loaded (full Firestore fetch), otherwise live cache
   const src = fullHistoryCache.length > 0 ? fullHistoryCache : history;
-  // If search is active but cache isn't loaded yet, show loading indicator
-  if(hsq && fullHistoryCache.length === 0){
-    el.innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">Loading full history…</p>';
-    return;
-  }
   if(!src.length){el.innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">No matches yet.</p>';return;}
-  const filtered=hsq
-    ? src.filter(h=>[...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>(a.name||'').toLowerCase().includes(hsq)))
+  // Simple synchronous filter — same pattern as leaderboard search
+  const q=(document.getElementById('histSearch')?.value||'').toLowerCase().trim();
+  const filtered = q
+    ? src.filter(h=>[...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>(a.name||'').toLowerCase().includes(q)))
     : src;
   const countEl=document.getElementById('histSearchCount');
-  if(countEl) countEl.textContent=hsq?`${filtered.length} match${filtered.length!==1?'es':''} found`:'';
-  if(!filtered.length){el.innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">No matches found for "'+hsq+'".</p>';return;}
+  if(countEl) countEl.textContent=q?`${filtered.length} match${filtered.length!==1?'es':''} found`:'';
+  if(!filtered.length){el.innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">No matches found for "'+q+'".</p>';return;}
   el.innerHTML=filtered.map(h=>{
     const w=h.winner||'evil';
     const fmtPlayer=(a,side)=>{
@@ -2396,13 +2379,13 @@ window.forceEndGame=function(){
 };
 
 // Start polling on page load
-setInterval(pollLobby, LIVE_INTERVAL_MS);
+setInterval(pollLobby, LIVE_INTERVAL_MS);       // lobby.json every 15s
 setTimeout(pollLobby, 5000);
 // WebSocket for real-time lobby detection
 setTimeout(connectLobbyWs, 3000);
-// HTTP fallback poll every 60s (WebSocket handles real-time)
-setInterval(()=>{ if(liveState!=='inprogress'&&!lobbyWsAlive) pollLobbyHttp(); }, 60000);
-setTimeout(()=>{ if(!lobbyWsAlive) pollLobbyHttp(); }, 30000);
+// Direct API poll every 30s regardless of WebSocket — don't depend on scraper
+setInterval(()=>{ if(liveState!=='inprogress') pollLobbyHttp(); }, 30000);
+setTimeout(pollLobbyHttp, 8000); // first check after 8s
 
 // Poll match history directly — every 2 minutes, regardless of tab visibility
 setInterval(autoRecordDirect, 2*60*1000);
@@ -2509,13 +2492,17 @@ let lastLobbyApiCheck=0;
 
 async function pollLobbyHttp(){
   if(liveState==='inprogress') return;
-  if(Date.now()-lastLobbyApiCheck<8000) return;
+  if(Date.now()-lastLobbyApiCheck<3000) return;
   lastLobbyApiCheck=Date.now();
   try{
     const data=await fetchWithProxy(LOBBY_API_URL);
     const lobbies=data.matches||[];
     const commIds=buildCommIds(players);
     const profMap=buildProfMap(players);
+    // Update status with direct API result
+    const st=document.getElementById('liveStatus');
+    const now=new Date().toLocaleTimeString();
+    if(st&&liveState==='idle') st.textContent=`Last checked: ${now} · ${lobbies.length} lobbies · ${lobbies.filter(m=>m.matchtype_id===0&&m.maxplayers===8).length} custom 8-player (direct API)`;
     for(const match of lobbies){
       if(match.matchtype_id!==0||match.maxplayers!==8) continue;
       // isLotrMatch skipped — mapname is always "my map" for custom scenarios in the API
@@ -3450,7 +3437,9 @@ window.saveMatchEdit=async function(newWinner){
 // MATCH DETAIL
 // ─────────────────────────────────────────
 window.openMatchDetail=function(id){
-  const h=fullHistory.find(x=>x.id===id); if(!h) return;
+  // Check all history sources — fullHistoryCache (history page), fullHistory (stats page), live cache
+  const h=fullHistoryCache.find(x=>x.id===id)||fullHistory.find(x=>x.id===id)||history.find(x=>x.id===id);
+  if(!h) return;
   const dur=h.duration?fmtDuration(h.duration):'—';
   const evilTotal=h.evilTotal||0, goodTotal=h.goodTotal||0;
   const odds=evilTotal&&goodTotal?Math.round(100/(1+Math.pow(10,-(evilTotal-goodTotal)/400))):null;
