@@ -698,6 +698,7 @@ let selected=new Set(), lastBal=null, swapSrc=null;
 let pSortKey='elo', pSortDir=-1;
 let importing=false;
 let autoRecording=false;
+let fullHistory=[];
 
 // ─────────────────────────────────────────
 // HELPERS
@@ -2590,18 +2591,25 @@ async function autoRecordDirect(){
 
 // PLAYER PROFILES
 let profileFromPage='leaderboard';
-window.openProfile=function(playerId,fromPage){
+window.openProfile=async function(playerId,fromPage){
   const p=players.find(pl=>pl.id===playerId); if(!p) return;
   profileFromPage=fromPage||'leaderboard';
-  renderProfile(p);
   go('profile');
   window.history.pushState({page:'profile',id:playerId},'','#player/'+encodeURIComponent(p.name));
+  // Fetch ALL history from Firestore (not the live cache capped at 100)
+  let allHistory = [...history]; // start with cache as fast fallback
+  try {
+    const snap = await getDocs(query(collection(db,'history'), orderBy('timestamp','desc')));
+    allHistory = [];
+    snap.forEach(d => allHistory.push({id:d.id,...d.data()}));
+  } catch(e) { /* keep cache fallback */ }
+  renderProfile(p, allHistory);
 };
 window.goBack=function(){ window.history.back(); };
 window.addEventListener('popstate',e=>{
   if(e.state&&e.state.page==='profile'){
     const p=players.find(pl=>pl.id===e.state.id);
-    if(p){renderProfile(p);go('profile');return;}
+    if(p){window.openProfile(p.id,profileFromPage);return;}
   }
   go(profileFromPage);
   window.history.replaceState(null,'',location.pathname);
@@ -2612,9 +2620,11 @@ window.addEventListener('popstate',e=>{
 // replay via buildEloHistory. No Firestore civElo used for display here —
 // only the replay result matters so everything is internally consistent.
 // ── PROFILE RENDERING ────────────────────────────────────────────────────────
-function renderProfile(p){
+function renderProfile(p, allHistory){
   // Match history for this player — newest first
-  const pm = history
+  // Use passed-in allHistory (full fetch) or fall back to live cache
+  const src = (allHistory && allHistory.length >= history.length) ? allHistory : history;
+  const pm = src
     .filter(h => [...(h.evilAssign||[]),...(h.goodAssign||[])].some(a =>
       a.name===p.name || (a.profileId && String(a.profileId)===String(p.profileId))))
     .sort((a,b) => (b.timestamp||0)-(a.timestamp||0));
@@ -2934,7 +2944,16 @@ function drawEloChartStatic(ctx,pts,pad,cW,cH,minE,maxE,xS,yS,W,H){
 // ─────────────────────────────────────────
 // STATS PAGE
 // ─────────────────────────────────────────
-function renderStats(){
+async function renderStats(){
+  // Fetch ALL history from Firestore (not the live cache which is capped at 100)
+  // so community stats, streaks, and records reflect every recorded game.
+  try {
+    const snap = await getDocs(query(collection(db,'history'), orderBy('timestamp','asc')));
+    fullHistory = [];
+    snap.forEach(d => fullHistory.push({id:d.id,...d.data()}));
+  } catch(e) {
+    fullHistory = [...history]; // fallback to cache if fetch fails
+  }
   renderGamesPerDay();
   renderStreakList();
   renderCommunityRecords();
@@ -2943,7 +2962,7 @@ function renderStats(){
 
 function renderFunStats(){
   const el=document.getElementById('funStats'); if(!el) return;
-  if(!history.length||!players.length){el.innerHTML='<p style="color:var(--muted);font-size:13px">Not enough data yet.</p>';return;}
+  if(!fullHistory.length||!players.length){el.innerHTML='<p style="color:var(--muted);font-size:13px">Not enough data yet.</p>';return;}
 
   const stats={}; // playerId → aggregated stats
   players.forEach(p=>{
@@ -2954,8 +2973,8 @@ function renderFunStats(){
 
   const funCards=[];
 
-  // Process history
-  for(const h of history){
+  // Process fullHistory
+  for(const h of fullHistory){
     const evilA=h.evilAssign||[], goodA=h.goodAssign||[];
     const allA=[...evilA,...goodA];
     const dur=h.duration||0;
@@ -3079,14 +3098,14 @@ function renderFunStats(){
   }
 
   // 13. Longest single game
-  const longestH=history.filter(h=>h.duration).sort((a,b)=>b.duration-a.duration)[0];
+  const longestH=fullHistory.filter(h=>h.duration).sort((a,b)=>b.duration-a.duration)[0];
   if(longestH){
     const players_in=([...(longestH.evilAssign||[]),...(longestH.goodAssign||[])]).filter(a=>a.isCommunity).map(a=>a.name).join(', ');
     funCards.push(card('🕰️','Longest Game Ever',fmtDuration(longestH.duration),`${longestH.date} — ${longestH.winner==='evil'?'Evil':'Good'} won`));
   }
 
   // 14. Shortest game
-  const shortestH=history.filter(h=>h.duration&&h.duration>600).sort((a,b)=>a.duration-b.duration)[0];
+  const shortestH=fullHistory.filter(h=>h.duration&&h.duration>600).sort((a,b)=>a.duration-b.duration)[0];
   if(shortestH)
     funCards.push(card('💨','Fastest Game Ever',fmtDuration(shortestH.duration),`${shortestH.date} — ${shortestH.winner==='evil'?'Evil':'Good'} won`));
 
@@ -3098,7 +3117,7 @@ function renderGamesPerDay(){
   // Build games per day from last 60 days
   const counts={};
   const now=Date.now();
-  history.forEach(h=>{
+  fullHistory.forEach(h=>{
     if(!h.date) return;
     const daysAgo=Math.floor((now-(h.timestamp||0))/(86400000));
     if(daysAgo>60) return;
@@ -3138,7 +3157,7 @@ function renderCivMeta(){
   const el=document.getElementById('civMetaStats'); if(!el) return;
   const stats={};
   CIVS.forEach(c=>{stats[c.id]={civ:c,w:0,l:0};});
-  history.forEach(h=>{
+  fullHistory.forEach(h=>{
     [...(h.evilAssign||[]),...(h.goodAssign||[])].forEach(a=>{
       if(!a.civName) return;
       const civ=CIVS.find(c=>c.name===a.civName); if(!civ) return;
@@ -3176,12 +3195,12 @@ function renderStreakList(){
 
 function renderCommunityRecords(){
   const el=document.getElementById('communityRecords'); if(!el) return;
-  if(!history.length){el.innerHTML='<p style="color:var(--muted);font-size:13px">No matches yet.</p>';return;}
-  const totalGames=history.length;
-  const avgGap=Math.round(history.reduce((s,h)=>s+(h.gap||0),0)/totalGames);
-  const longest=history.reduce((a,b)=>(b.duration||0)>(a.duration||0)?b:a,history[0]);
-  const shortest=history.filter(h=>h.duration).reduce((a,b)=>b.duration<a.duration?b:a,history.find(h=>h.duration)||history[0]);
-  const evilWins=history.filter(h=>h.winner==='evil').length;
+  if(!fullHistory.length){el.innerHTML='<p style="color:var(--muted);font-size:13px">No matches yet.</p>';return;}
+  const totalGames=fullHistory.length;
+  const avgGap=Math.round(fullHistory.reduce((s,h)=>s+(h.gap||0),0)/totalGames);
+  const longest=fullHistory.reduce((a,b)=>(b.duration||0)>(a.duration||0)?b:a,fullHistory[0]);
+  const shortest=fullHistory.filter(h=>h.duration).reduce((a,b)=>b.duration<a.duration?b:a,fullHistory.find(h=>h.duration)||fullHistory[0]);
+  const evilWins=fullHistory.filter(h=>h.winner==='evil').length;
   const fmt=fmtDuration;
   el.innerHTML=`
     <div style="display:flex;flex-direction:column;gap:.5rem">
@@ -3200,7 +3219,7 @@ let editingMatchId=null;
 
 window.openMatchEditor=function(id){
   if(!adminUnlocked){toast('Admin required','err');return;}
-  const h=history.find(x=>x.id===id); if(!h) return;
+  const h=fullHistory.find(x=>x.id===id); if(!h) return;
   editingMatchId=id;
   const fmt=a=>`<span style="font-size:13px">${a.name}${a.civName?' <span style="color:var(--muted)">— '+a.civName+'</span>':''}</span>`;
   document.getElementById('editMatchContent').innerHTML=`
@@ -3221,7 +3240,7 @@ window.openMatchEditor=function(id){
 
 window.saveMatchEdit=async function(newWinner){
   if(!editingMatchId) return;
-  const h=history.find(x=>x.id===editingMatchId); if(!h) return;
+  const h=fullHistory.find(x=>x.id===editingMatchId); if(!h) return;
   if(h.winner===newWinner){toast('Winner unchanged','err');closeModal('mEditMatch');return;}
 
   // Reverse old Elo changes then apply new ones
@@ -3264,7 +3283,7 @@ window.saveMatchEdit=async function(newWinner){
     await savePl(p);
   }
 
-  // Update history doc
+  // Update fullHistory doc
   await setDoc(doc(db,'history',String(editingMatchId)),{...h,winner:newWinner,id:undefined},{merge:true});
   closeModal('mEditMatch');
   toast('Match result updated!');
@@ -3275,7 +3294,7 @@ window.saveMatchEdit=async function(newWinner){
 // MATCH DETAIL
 // ─────────────────────────────────────────
 window.openMatchDetail=function(id){
-  const h=history.find(x=>x.id===id); if(!h) return;
+  const h=fullHistory.find(x=>x.id===id); if(!h) return;
   const dur=h.duration?fmtDuration(h.duration):'—';
   const evilTotal=h.evilTotal||0, goodTotal=h.goodTotal||0;
   const odds=evilTotal&&goodTotal?Math.round(100/(1+Math.pow(10,-(evilTotal-goodTotal)/400))):null;
