@@ -852,8 +852,14 @@ async function init(){
   onSnapshot(query(collection(db,'history'),orderBy('timestamp','desc'),limit(100)),snap=>{
     // limit(100) keeps read costs low — enough for deduplication in autoRecord
     history=[]; snap.forEach(d=>history.push({id:d.id,...d.data()}));
-    fullHistoryCache=[]; // invalidate so next history page visit re-fetches
-    renderHist();
+    fullHistoryCache=[]; // invalidate cache
+    const histPageOpen=document.getElementById('page-history')?.classList.contains('on');
+    if(histPageOpen){
+      // History page is open — re-fetch full data immediately so search stays live and accurate
+      loadAndRenderHist();
+    } else {
+      renderHist();
+    }
     renderWinRate();
   });
   setTimeout(autoRecord, 30000);           // first run after 30s (let onSnapshot settle)
