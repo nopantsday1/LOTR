@@ -286,6 +286,10 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
     </div>
   </div>
   <p id="checkStatus" style="font-size:12px;color:var(--muted);margin-bottom:.75rem"></p>
+  <div style="margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+    <input type="text" id="histSearch" placeholder="Search player…" style="max-width:220px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:7px 10px;border-radius:3px" oninput="renderHist()">
+    <span id="histSearchCount" style="font-size:12px;color:var(--muted)"></span>
+  </div>
   <div id="histList"></div>
 </div>
 
@@ -1127,7 +1131,14 @@ async function applyResult(winA,loseA,winner,evilTotal,goodTotal,date,source,gam
 function renderHist(){
   const el=document.getElementById('histList'); if(!el) return;
   if(!history.length){el.innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">No matches yet.</p>';return;}
-  el.innerHTML=history.map(h=>{
+  const hsq=(document.getElementById('histSearch')?.value||'').toLowerCase().trim();
+  const filtered=hsq
+    ? history.filter(h=>[...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>(a.name||'').toLowerCase().includes(hsq)))
+    : history;
+  const countEl=document.getElementById('histSearchCount');
+  if(countEl) countEl.textContent=hsq?`${filtered.length} match${filtered.length!==1?'es':''} found`:'';
+  if(!filtered.length){el.innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">No matches found for "'+hsq+'".</p>';return;}
+  el.innerHTML=filtered.map(h=>{
     const w=h.winner||'evil';
     const fmtPlayer=(a,side)=>{
       const nameHtml = a.name||'?';
@@ -1786,10 +1797,22 @@ window.runImport=async function(){
     const matches=(data.matches||[]).sort((a,b)=>(a.completiontime||0)-(b.completiontime||0));
     const doReset=document.getElementById('importReset')?.checked!==false;
 
+    // Load seeded Elos (same as recalcAllElos uses)
+    const seedSnap=await getDoc(doc(db,'settings','bulkOrder'));
+    const importSeeds={};
+    if(seedSnap.exists()){
+      const order=seedSnap.data().order||[];
+      const top=seedSnap.data().top||DEFAULT_ELO;
+      const bot=seedSnap.data().bot||DEFAULT_ELO;
+      const n=order.length;
+      order.forEach((id,i)=>{ importSeeds[id]=n===1?top:Math.round(top-(top-bot)*(i/(n-1))); });
+    }
+
     if(doReset){
       ilog(`Found ${matches.length} matches. Resetting all ratings to seeded Elos…`,'warn');
       for(const p of players){
-        p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=DEFAULT_ELO;}); p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
+        const seed=importSeeds[p.id]||DEFAULT_ELO;
+        p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=seed;}); p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
       }
       const hSnap=await getDocs(collection(db,'history'));
       const batch=writeBatch(db); hSnap.forEach(d=>batch.delete(d.ref)); await batch.commit();
@@ -1867,8 +1890,11 @@ window.runImport=async function(){
       const avgWin=commWin.length?commWin.reduce((s,a)=>s+overallElo(a.player),0)/commWin.length:DEFAULT_ELO;
       const avgLose=commLose.length?commLose.reduce((s,a)=>s+overallElo(a.player),0)/commLose.length:DEFAULT_ELO;
 
+      const seenI=new Set(); // prevent double-counting if same player appears on both sides
       for(const a of [...commWin,...commLose]){
-        const p=a.player, won=commWin.includes(a), g=(p.wins||0)+(p.losses||0);
+        const p=a.player, won=commWin.includes(a);
+        if(seenI.has(p.id)) continue; seenI.add(p.id);
+        const g=(p.wins||0)+(p.losses||0);
         p.civElo=p.civElo||{};
         if(a.civId){
           const cg2=(p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0);
@@ -3136,20 +3162,110 @@ function renderGamesPerDay(){
   const max=Math.max(1,...days.map(d=>d.count));
   const pad={t:8,r:8,b:20,l:20};
   const cW=W-pad.l-pad.r, cH=H-pad.t-pad.b;
-  const bW=cW/days.length-1;
-  ctx.clearRect(0,0,W,H);
-  days.forEach((d,i)=>{
-    const x=pad.l+i*(cW/days.length);
-    const bH=(d.count/max)*cH;
-    const y=pad.t+cH-bH;
-    ctx.fillStyle=d.count?'var(--gold)':'rgba(255,255,255,0.05)';
-    ctx.fillRect(x,y,Math.max(1,bW),bH);
+  const bW=Math.max(1,cW/days.length-1);
+
+  function drawChart(hoverIdx){
+    ctx.clearRect(0,0,W,H);
+    days.forEach((d,i)=>{
+      const x=pad.l+i*(cW/days.length);
+      const bH=(d.count/max)*cH;
+      const y=pad.t+cH-bH;
+      if(i===hoverIdx && d.count){
+        ctx.fillStyle='var(--gold)';
+        ctx.fillRect(x,y,bW,bH);
+        // Tooltip box
+        const label=`${d.date}: ${d.count} game${d.count!==1?'s':''}`;
+        ctx.font='bold 11px monospace';
+        const tw=ctx.measureText(label).width;
+        const tx=Math.min(Math.max(x-tw/2,pad.l),W-pad.r-tw-8);
+        const ty=Math.max(y-8,pad.t+4);
+        ctx.fillStyle='rgba(20,18,16,0.92)';
+        ctx.strokeStyle='var(--gold)';
+        ctx.lineWidth=1;
+        const rx=tx-6, ry=ty-14, rw=tw+12, rh=20;
+        ctx.beginPath(); ctx.roundRect(rx,ry,rw,rh,3); ctx.fill(); ctx.stroke();
+        ctx.fillStyle='var(--gold)';
+        ctx.textAlign='left';
+        ctx.fillText(label,tx,ty);
+      } else {
+        ctx.fillStyle=d.count?(i===hoverIdx?'var(--gold)':'rgba(201,168,76,0.55)'):'rgba(255,255,255,0.05)';
+        if(d.count) ctx.fillStyle='rgba(201,168,76,0.55)';
+        else ctx.fillStyle='rgba(255,255,255,0.05)';
+        ctx.fillRect(x,y,bW,bH);
+      }
+    });
+    // X axis labels (every 10 days)
+    ctx.fillStyle='rgba(156,136,120,0.6)'; ctx.font='9px monospace'; ctx.textAlign='center';
+    [0,10,20,30,40,50,59].forEach(i=>{
+      const x=pad.l+i*(cW/days.length)+bW/2;
+      ctx.fillText(days[i].date.slice(5),x,H-4);
+    });
+  }
+
+  drawChart(-1);
+
+  // Remove old listeners by replacing the canvas clone trick
+  const newCanvas=canvas.cloneNode(true);
+  canvas.parentNode.replaceChild(newCanvas,canvas);
+  newCanvas.style.cursor='crosshair';
+
+  newCanvas.addEventListener('mousemove',e=>{
+    const rect=newCanvas.getBoundingClientRect();
+    const mx=(e.clientX-rect.left)*(W/rect.width);
+    const i=Math.floor((mx-pad.l)/(cW/days.length));
+    // Need fresh ctx after clone
+    const c2=newCanvas.getContext('2d');
+    c2.scale(dpr,dpr);
+    const max2=Math.max(1,...days.map(d=>d.count));
+    c2.clearRect(0,0,W,H);
+    days.forEach((d,j)=>{
+      const x=pad.l+j*(cW/days.length);
+      const bH=(d.count/max2)*cH;
+      const y=pad.t+cH-bH;
+      if(j===i && d.count){
+        c2.fillStyle='var(--gold)';
+        c2.fillRect(x,y,bW,bH);
+        const label=`${d.date}: ${d.count} game${d.count!==1?'s':''}`;
+        c2.font='bold 11px monospace';
+        const tw=c2.measureText(label).width;
+        const tx=Math.min(Math.max(x-tw/2,pad.l),W-pad.r-tw-8);
+        const ty=Math.max(y-8,pad.t+16);
+        c2.fillStyle='rgba(20,18,16,0.92)';
+        c2.strokeStyle='rgba(201,168,76,0.9)';
+        c2.lineWidth=1;
+        const rx=tx-6, ry=ty-14, rw=tw+12, rh=20;
+        c2.beginPath(); c2.roundRect(rx,ry,rw,rh,3); c2.fill(); c2.stroke();
+        c2.fillStyle='var(--gold)';
+        c2.textAlign='left';
+        c2.fillText(label,tx,ty);
+      } else {
+        c2.fillStyle=d.count?'rgba(201,168,76,0.55)':'rgba(255,255,255,0.05)';
+        c2.fillRect(x,y,bW,bH);
+      }
+    });
+    c2.fillStyle='rgba(156,136,120,0.6)'; c2.font='9px monospace'; c2.textAlign='center';
+    [0,10,20,30,40,50,59].forEach(k=>{
+      const x=pad.l+k*(cW/days.length)+bW/2;
+      c2.fillText(days[k].date.slice(5),x,H-4);
+    });
   });
-  // X axis labels (every 10 days)
-  ctx.fillStyle='rgba(156,136,120,0.6)'; ctx.font='9px monospace'; ctx.textAlign='center';
-  [0,10,20,30,40,50,59].forEach(i=>{
-    const x=pad.l+i*(cW/days.length)+bW/2;
-    ctx.fillText(days[i].date.slice(5),x,H-4);
+  newCanvas.addEventListener('mouseleave',()=>{
+    const c2=newCanvas.getContext('2d');
+    c2.clearRect(0,0,W,H);
+    // redraw without hover
+    const max2=Math.max(1,...days.map(d=>d.count));
+    days.forEach((d,i)=>{
+      const x=pad.l+i*(cW/days.length);
+      const bH=(d.count/max2)*cH;
+      const y=pad.t+cH-bH;
+      c2.fillStyle=d.count?'rgba(201,168,76,0.55)':'rgba(255,255,255,0.05)';
+      c2.fillRect(x,y,bW,bH);
+    });
+    c2.fillStyle='rgba(156,136,120,0.6)'; c2.font='9px monospace'; c2.textAlign='center';
+    [0,10,20,30,40,50,59].forEach(i=>{
+      const x=pad.l+i*(cW/days.length)+bW/2;
+      c2.fillText(days[i].date.slice(5),x,H-4);
+    });
   });
 }
 
