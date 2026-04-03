@@ -366,7 +366,18 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
 <div class="page" id="page-stats">
   <div class="ph"><h1>Community Stats</h1><p>Aggregated statistics across all recorded matches.</p></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;margin-bottom:1rem">
-    <div class="card" style="grid-column:1/-1"><div class="ct">Games Per Day</div><canvas id="gamesPerDayChart" style="width:100%;height:220px"></canvas></div>
+    <div class="card" style="grid-column:1/-1">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem">
+        <div class="ct" style="margin-bottom:0">Games Per Day</div>
+        <div style="display:flex;gap:4px">
+          <button id="gpd14" onclick="setGpdRange(14)" style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:3px;cursor:pointer;border:1px solid var(--border2);background:var(--bg3);color:var(--dim)">14D</button>
+          <button id="gpd30" onclick="setGpdRange(30)" style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:3px;cursor:pointer;border:1px solid var(--border2);background:var(--bg3);color:var(--dim)">30D</button>
+          <button id="gpd60" onclick="setGpdRange(60)" style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:3px;cursor:pointer;border:1px solid var(--gold-d);background:var(--bg3);color:var(--gold)">60D</button>
+          <button id="gpdAll" onclick="setGpdRange(0)" style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:3px;cursor:pointer;border:1px solid var(--border2);background:var(--bg3);color:var(--dim)">All</button>
+        </div>
+      </div>
+      <canvas id="gamesPerDayChart" style="width:100%;height:220px"></canvas>
+    </div>
     <div class="card"><div class="ct">Player Streaks</div><div id="streakList"></div></div>
     <div class="card"><div class="ct">Community Records</div><div id="communityRecords"></div></div>
   </div>
@@ -850,12 +861,15 @@ async function init(){
     }
   });
   onSnapshot(query(collection(db,'history'),orderBy('timestamp','desc'),limit(100)),snap=>{
-    // limit(100) keeps read costs low — enough for deduplication in autoRecord
+    // limit(100) — only used for autoRecord deduplication, not for display
     history=[]; snap.forEach(d=>history.push({id:d.id,...d.data()}));
-    // Always keep fullHistoryCache warm — fetch full history in background on every update
-    // so History search is always instant, just like the Players page search
-    loadAndRenderHist();
     renderWinRate();
+  });
+  // Second listener — no limit — keeps fullHistoryCache permanently live in real-time
+  // This means History page and search always reflect latest data instantly, no getDocs needed
+  onSnapshot(query(collection(db,'history'),orderBy('timestamp','desc')),snap=>{
+    fullHistoryCache=[]; snap.forEach(d=>fullHistoryCache.push({id:d.id,...d.data()}));
+    renderHist();
   });
   setTimeout(autoRecord, 30000);           // first run after 30s (let onSnapshot settle)
   setInterval(autoRecord, 5*60*1000);      // then every 5 minutes
@@ -964,9 +978,11 @@ function doBalance(random=false){
 }
 
 function calcWinOdds(r){
-  // Win probability using Elo formula: P(evil wins) = 1/(1+10^((goodTotal-evilTotal)/400))
+  // Win probability using scaled Elo formula — divisor 2000 (not 400) because
+  // these are 4-player team totals ~5000-6000, not individual 1v1 ratings.
+  // A 500-pt team gap = ~64% vs 96% with the standard 400 divisor.
   const diff=r.evilTotal-r.goodTotal;
-  const evilPct=Math.round(100/(1+Math.pow(10,-diff/400)));
+  const evilPct=Math.round(100/(1+Math.pow(10,-diff/2000)));
   return{evil:evilPct, good:100-evilPct};
 }
 
@@ -1133,18 +1149,8 @@ async function applyResult(winA,loseA,winner,evilTotal,goodTotal,date,source,gam
 // ─────────────────────────────────────────
 let fullHistoryCache = []; // full history for the history page — loaded once per tab visit
 
-async function loadAndRenderHist(){
-  // Show live cache immediately so page isn't blank while fetching
-  renderHist();
-  // Fetch full history from Firestore in background (not the capped 100-item live cache)
-  try {
-    const snap = await getDocs(query(collection(db,'history'), orderBy('timestamp','desc')));
-    fullHistoryCache = [];
-    snap.forEach(d => fullHistoryCache.push({id:d.id,...d.data()}));
-  } catch(e) {
-    fullHistoryCache = [...history];
-  }
-  // Always re-render — whether history page is open or not, cache is now warm for instant search
+function loadAndRenderHist(){
+  // fullHistoryCache is kept live by onSnapshot — just render immediately
   renderHist();
 }
 
@@ -2156,7 +2162,7 @@ function activateLobby(match, foundPlayers){
   if(elEl) elEl.textContent=evilEloTotal?` ${evilEloTotal}`:'';
   if(glEl) glEl.textContent=goodEloTotal?` ${goodEloTotal}`:'';
   if(evilEloTotal&&goodEloTotal){
-    const odds=Math.round(100/(1+Math.pow(10,-(evilEloTotal-goodEloTotal)/400)));
+    const odds=Math.round(100/(1+Math.pow(10,-(evilEloTotal-goodEloTotal)/2000)));
     const oddsEl=document.getElementById('lobbyOdds');
     if(oddsEl) oddsEl.innerHTML=`
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-bottom:3px">
@@ -2247,7 +2253,7 @@ function renderInProgress(){
 
   const et=evil.filter(Boolean).reduce((s,p)=>s+overallElo(p),0);
   const gt=good.filter(Boolean).reduce((s,p)=>s+overallElo(p),0);
-  const odds=et&&gt?Math.round(100/(1+Math.pow(10,-(et-gt)/400))):50;
+  const odds=et&&gt?Math.round(100/(1+Math.pow(10,-(et-gt)/2000))):50;
 
   document.getElementById('evilElo').textContent=` ${et}`;
   document.getElementById('goodElo').textContent=` ${gt}`;
@@ -3167,22 +3173,69 @@ function renderFunStats(){
   el.innerHTML=funCards.join('');
 }
 
+let gpdRange=60; // days to show; 0 = all time
+
+window.setGpdRange=function(r){
+  gpdRange=r;
+  ['14','30','60','All'].forEach(k=>{
+    const btn=document.getElementById('gpd'+k);
+    if(!btn) return;
+    const active=(r===14&&k==='14')||(r===30&&k==='30')||(r===60&&k==='60')||(r===0&&k==='All');
+    btn.style.borderColor=active?'var(--gold-d)':'var(--border2)';
+    btn.style.color=active?'var(--gold)':'var(--dim)';
+  });
+  renderGamesPerDay();
+};
+
 function renderGamesPerDay(){
   const canvas=document.getElementById('gamesPerDayChart'); if(!canvas) return;
-  // Build games per day from last 60 days
-  const counts={};
   const now=Date.now();
+
+  // Determine actual date range from fullHistory
+  const allDates=fullHistory.filter(h=>h.date).map(h=>h.timestamp||0).filter(Boolean);
+  const earliest=allDates.length?Math.min(...allDates):now-60*86400000;
+  const rangeDays=gpdRange>0?gpdRange:Math.ceil((now-earliest)/86400000)+1;
+
+  // Group by day or week depending on range
+  const useWeeks=rangeDays>90;
+  const counts={};
+  const now_s=Math.floor(now/1000);
+
   fullHistory.forEach(h=>{
     if(!h.date) return;
-    const daysAgo=Math.floor((now-(h.timestamp||0))/(86400000));
-    if(daysAgo>60) return;
-    counts[h.date]=(counts[h.date]||0)+1;
+    const ts=h.timestamp||0;
+    if(!ts) return;
+    const daysAgo=Math.floor((now-ts)/86400000);
+    if(gpdRange>0 && daysAgo>=gpdRange) return;
+    if(useWeeks){
+      // Group into week buckets: start of week (Monday)
+      const d=new Date(ts);
+      d.setHours(0,0,0,0);
+      d.setDate(d.getDate()-((d.getDay()+6)%7)); // Monday
+      const key=d.toLocaleDateString('en-CA');
+      counts[key]=(counts[key]||0)+1;
+    } else {
+      counts[h.date]=(counts[h.date]||0)+1;
+    }
   });
-  // Build 60-day array
+
+  // Build array of buckets
   const days=[];
-  for(let i=59;i>=0;i--){
-    const d=new Date(now-i*86400000).toLocaleDateString('en-CA');
-    days.push({date:d,count:counts[d]||0});
+  if(useWeeks){
+    // Weekly buckets
+    const nWeeks=Math.ceil(rangeDays/7)+1;
+    for(let i=nWeeks-1;i>=0;i--){
+      const d=new Date(now-i*7*86400000);
+      d.setHours(0,0,0,0);
+      d.setDate(d.getDate()-((d.getDay()+6)%7));
+      const key=d.toLocaleDateString('en-CA');
+      days.push({date:key,count:counts[key]||0,label:key.slice(5)});
+    }
+  } else {
+    for(let i=rangeDays-1;i>=0;i--){
+      const d=new Date(now-i*86400000).toLocaleDateString('en-CA');
+      days.push({date:d,count:counts[d]||0,label:d.slice(5)});
+    }
   }
   const dpr=window.devicePixelRatio||1;
   const W=canvas.offsetWidth, H=canvas.offsetHeight||140;
@@ -3223,11 +3276,13 @@ function renderGamesPerDay(){
         ctx.fillRect(x,y,bW,bH);
       }
     });
-    // X axis labels (every 10 days)
+    // X axis labels — adaptive spacing to prevent overlap
     ctx.fillStyle='rgba(156,136,120,0.6)'; ctx.font='9px monospace'; ctx.textAlign='center';
-    [0,10,20,30,40,50,59].forEach(i=>{
+    const labelStep=Math.max(1,Math.ceil(36/(cW/days.length)));
+    days.forEach((d,i)=>{
+      if(i%labelStep!==0) return;
       const x=pad.l+i*(cW/days.length)+bW/2;
-      ctx.fillText(days[i].date.slice(5),x,H-4);
+      ctx.fillText(d.label,x,H-4);
     });
   }
 
@@ -3275,7 +3330,7 @@ function renderGamesPerDay(){
     c2.fillStyle='rgba(156,136,120,0.6)'; c2.font='9px monospace'; c2.textAlign='center';
     [0,10,20,30,40,50,59].forEach(k=>{
       const x=pad.l+k*(cW/days.length)+bW/2;
-      c2.fillText(days[k].date.slice(5),x,H-4);
+      if(k%Math.max(1,Math.ceil(36/(cW/days.length)))===0) c2.fillText(days[k].label,x,H-4);
     });
   });
   newCanvas.addEventListener('mouseleave',()=>{
@@ -3291,9 +3346,11 @@ function renderGamesPerDay(){
       c2.fillRect(x,y,bW,bH);
     });
     c2.fillStyle='rgba(156,136,120,0.6)'; c2.font='9px monospace'; c2.textAlign='center';
-    [0,10,20,30,40,50,59].forEach(i=>{
+    const lStep=Math.max(1,Math.ceil(36/(cW/days.length)));
+    days.forEach((d,i)=>{
+      if(i%lStep!==0) return;
       const x=pad.l+i*(cW/days.length)+bW/2;
-      c2.fillText(days[i].date.slice(5),x,H-4);
+      c2.fillText(d.label,x,H-4);
     });
   });
 }
@@ -3444,7 +3501,7 @@ window.openMatchDetail=function(id){
   if(!h) return;
   const dur=h.duration?fmtDuration(h.duration):'—';
   const evilTotal=h.evilTotal||0, goodTotal=h.goodTotal||0;
-  const odds=evilTotal&&goodTotal?Math.round(100/(1+Math.pow(10,-(evilTotal-goodTotal)/400))):null;
+  const odds=evilTotal&&goodTotal?Math.round(100/(1+Math.pow(10,-(evilTotal-goodTotal)/2000))):null;
 
   const fmtSide=(assign,side)=>{
     const won=h.winner===side;
@@ -3471,7 +3528,21 @@ window.openMatchDetail=function(id){
       <div><span style="font-size:11px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase">Date</span><div style="font-size:14px;margin-top:2px">${h.date||'—'}</div></div>
       <div><span style="font-size:11px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase">Duration</span><div style="font-family:'JetBrains Mono',monospace;font-size:14px;margin-top:2px">${dur}</div></div>
       <div><span style="font-size:11px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase">Elo Gap</span><div style="font-family:'JetBrains Mono',monospace;font-size:14px;margin-top:2px">${h.gap!=null?h.gap:'—'}</div></div>
-      ${odds!=null?`<div><span style="font-size:11px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase">Pre-game Odds</span><div style="font-family:'JetBrains Mono',monospace;font-size:14px;margin-top:2px;color:var(--evil)">${odds}%</div></div>`:''}
+      ${odds!=null?`<div style="min-width:160px"><span style="font-size:11px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase">Pre-game Odds</span>
+        <div style="margin-top:6px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+            <span style="color:var(--evil)">⚔ Evil ${odds}%</span>
+            <span style="color:var(--good)">${100-odds}% Good ✦</span>
+          </div>
+          <div style="height:7px;border-radius:4px;background:var(--bg3);overflow:hidden;display:flex">
+            <div style="width:${odds}%;background:var(--evil);border-radius:4px 0 0 4px;transition:width .4s"></div>
+            <div style="width:${100-odds}%;background:var(--good);border-radius:0 4px 4px 0;transition:width .4s"></div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;font-family:'Cinzel',serif;letter-spacing:.06em">
+            ${odds>50?`Evil favoured`:(odds<50?`Good favoured`:`Even match`)}
+          </div>
+        </div>
+      </div>`:''}
       <div><span style="font-size:11px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase">Source</span><div style="font-size:14px;margin-top:2px">${h.source==='auto'?'Auto-recorded':'Manual'}</div></div>
     </div>
     <div class="teams">
