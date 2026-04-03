@@ -287,7 +287,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
   </div>
   <p id="checkStatus" style="font-size:12px;color:var(--muted);margin-bottom:.75rem"></p>
   <div style="margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-    <input type="text" id="histSearch" placeholder="Search player…" style="max-width:220px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:7px 10px;border-radius:3px" oninput="renderHist()">
+    <input type="text" id="histSearch" placeholder="Search player…" style="max-width:220px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:7px 10px;border-radius:3px" oninput="debounceHistSearch()">
     <span id="histSearchCount" style="font-size:12px;color:var(--muted)"></span>
   </div>
   <div id="histList"></div>
@@ -852,7 +852,10 @@ async function init(){
   onSnapshot(query(collection(db,'history'),orderBy('timestamp','desc'),limit(100)),snap=>{
     // limit(100) keeps read costs low — enough for deduplication in autoRecord
     history=[]; snap.forEach(d=>history.push({id:d.id,...d.data()}));
-    fullHistoryCache=[]; // invalidate full cache so next history page visit re-fetches
+    // Only invalidate fullHistoryCache if history page isn't open (avoid disrupting active search)
+    const histPageOpen = document.getElementById('page-history')?.classList.contains('on');
+    if(!histPageOpen) fullHistoryCache=[];
+    else { fullHistoryCache=[]; loadAndRenderHist(); } // refresh in background if open
     renderHist();
     renderWinRate();
   });
@@ -1131,8 +1134,20 @@ async function applyResult(winA,loseA,winner,evilTotal,goodTotal,date,source,gam
 // HISTORY
 // ─────────────────────────────────────────
 let fullHistoryCache = []; // full unfiltered history for the history page
+let histSearchTimer = null;
+
+function debounceHistSearch(){
+  clearTimeout(histSearchTimer);
+  histSearchTimer = setTimeout(renderHist, 150); // wait 150ms after typing stops
+}
 
 async function loadAndRenderHist(){
+  // If cache is already warm and matches or exceeds the live cache, just render
+  if(fullHistoryCache.length >= history.length && fullHistoryCache.length > 0){
+    renderHist(); return;
+  }
+  // Show live cache immediately while full fetch loads
+  renderHist();
   // Fetch all history from Firestore (not the live cache capped at 100)
   try {
     const snap = await getDocs(query(collection(db,'history'), orderBy('timestamp','desc')));
@@ -1146,10 +1161,15 @@ async function loadAndRenderHist(){
 
 function renderHist(){
   const el=document.getElementById('histList'); if(!el) return;
-  // Use fullHistoryCache if populated (full fetch), otherwise fall back to live cache
-  const src = fullHistoryCache.length >= history.length ? fullHistoryCache : history;
-  if(!src.length){el.innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">No matches yet.</p>';return;}
+  // Always use fullHistoryCache when searching — never fall back to partial live cache for search
   const hsq=(document.getElementById('histSearch')?.value||'').toLowerCase().trim();
+  const src = fullHistoryCache.length > 0 ? fullHistoryCache : history;
+  // If search is active but cache isn't loaded yet, show loading indicator
+  if(hsq && fullHistoryCache.length === 0){
+    el.innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">Loading full history…</p>';
+    return;
+  }
+  if(!src.length){el.innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">No matches yet.</p>';return;}
   const filtered=hsq
     ? src.filter(h=>[...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>(a.name||'').toLowerCase().includes(hsq)))
     : src;
