@@ -852,14 +852,9 @@ async function init(){
   onSnapshot(query(collection(db,'history'),orderBy('timestamp','desc'),limit(100)),snap=>{
     // limit(100) keeps read costs low — enough for deduplication in autoRecord
     history=[]; snap.forEach(d=>history.push({id:d.id,...d.data()}));
-    fullHistoryCache=[]; // invalidate cache
-    const histPageOpen=document.getElementById('page-history')?.classList.contains('on');
-    if(histPageOpen){
-      // History page is open — re-fetch full data immediately so search stays live and accurate
-      loadAndRenderHist();
-    } else {
-      renderHist();
-    }
+    // Always keep fullHistoryCache warm — fetch full history in background on every update
+    // so History search is always instant, just like the Players page search
+    loadAndRenderHist();
     renderWinRate();
   });
   setTimeout(autoRecord, 30000);           // first run after 30s (let onSnapshot settle)
@@ -889,7 +884,7 @@ window.go=function(name){
   });
   if(name==='admin') renderAdminList();
   if(name==='stats') setTimeout(renderStats,50);
-  if(name==='history') setTimeout(loadAndRenderHist,50);
+  if(name==='history') renderHist(); // cache always warm from background fetch
 };
 
 // ─────────────────────────────────────────
@@ -1139,9 +1134,9 @@ async function applyResult(winA,loseA,winner,evilTotal,goodTotal,date,source,gam
 let fullHistoryCache = []; // full history for the history page — loaded once per tab visit
 
 async function loadAndRenderHist(){
-  // Show live cache immediately so page isn't blank
+  // Show live cache immediately so page isn't blank while fetching
   renderHist();
-  // Then fetch all history from Firestore (not the capped 100-item live cache)
+  // Fetch full history from Firestore in background (not the capped 100-item live cache)
   try {
     const snap = await getDocs(query(collection(db,'history'), orderBy('timestamp','desc')));
     fullHistoryCache = [];
@@ -1149,6 +1144,7 @@ async function loadAndRenderHist(){
   } catch(e) {
     fullHistoryCache = [...history];
   }
+  // Always re-render — whether history page is open or not, cache is now warm for instant search
   renderHist();
 }
 
