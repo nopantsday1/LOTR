@@ -1509,12 +1509,14 @@ window.sortP=function(k){
 // ─────────────────────────────────────────
 function renderWinRate(){
   const el=document.getElementById('winRateStats'); if(!el) return;
-  if(!history.length){
+  // Use fullHistoryCache (all games) if available, otherwise fall back to capped live cache
+  const src = fullHistoryCache.length > 0 ? fullHistoryCache : history;
+  if(!src.length){
     el.innerHTML='<p style="color:var(--dim);font-size:14px">No matches recorded yet.</p>';
     return;
   }
-  const total    = history.length;
-  const evilWins = history.filter(h=>h.winner==='evil').length;
+  const total    = src.length;
+  const evilWins = src.filter(h=>h.winner==='evil').length;
   const goodWins = total - evilWins;
   const evilPct  = Math.round(evilWins/total*100);
   const goodPct  = 100 - evilPct;
