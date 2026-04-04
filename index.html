@@ -286,8 +286,12 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
     </div>
   </div>
   <p id="checkStatus" style="font-size:12px;color:var(--muted);margin-bottom:.75rem"></p>
-  <div style="margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-    <input type="text" id="histSearch" placeholder="Search player…" style="max-width:220px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:7px 10px;border-radius:3px" oninput="renderHist()">
+  <div style="margin-bottom:.75rem">
+    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem">
+      <input type="text" id="histSearch" placeholder="Search player…" style="width:220px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:8px 12px;border-radius:3px;font-size:15px;flex-shrink:0" onkeydown="if(event.key==='Enter') searchHistNow()">
+      <button onclick="searchHistNow()" style="background:var(--gold-d);border:1px solid var(--gold);color:var(--gold);padding:8px 18px;border-radius:3px;cursor:pointer;font-family:'Cinzel',serif;font-size:10px;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap;flex-shrink:0">🔍 Search</button>
+      <button onclick="document.getElementById('histSearch').value='';renderHist()" style="background:var(--bg3);border:1px solid var(--border2);color:var(--dim);padding:8px 12px;border-radius:3px;cursor:pointer;font-size:14px;flex-shrink:0" title="Clear search">✕</button>
+    </div>
     <span id="histSearchCount" style="font-size:12px;color:var(--muted)"></span>
   </div>
   <div id="histList"></div>
@@ -626,7 +630,7 @@ function go(name){
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc, query, orderBy, limit, writeBatch, runTransaction, increment } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc, query, orderBy, limit, writeBatch, runTransaction, increment } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // ─────────────────────────────────────────
 // CONFIG
@@ -877,10 +881,13 @@ async function init(){
 }
 
 async function savePl(p){
+  // Use setDoc with merge:true so concurrent writes don't overwrite each other's fields.
+  // W/L from game recording uses increment() via transactions — savePl is for
+  // Elo, civ data, profile edits, and recalculate operations only.
   sync('spin');
   const{id,...data}=p;
   for(let i=3;i>0;i--){
-    try{await setDoc(doc(db,'players',String(id)),data);sync('ok');return;}
+    try{await setDoc(doc(db,'players',String(id)),data,{merge:true});sync('ok');return;}
     catch(e){if(i>1) await new Promise(r=>setTimeout(r,1000));}
   }
   sync('err'); toast('Save failed','err');
@@ -1111,37 +1118,11 @@ window.recordResult=async function(winner){
 
 // Core: update ratings and save to history
 async function applyResult(winA,loseA,winner,evilTotal,goodTotal,date,source,gameId){
-  // Only use community players (with stored Elo) for avgWin/avgLose calculation
   const commWinPlayers=winA.filter(a=>a.player&&a.player.id);
   const commLosePlayers=loseA.filter(a=>a.player&&a.player.id);
-  const avgWin =commWinPlayers.length ?commWinPlayers.reduce((s,a)=>s+overallElo(a.player),0)/commWinPlayers.length :DEFAULT_ELO;
+  const avgWin =commWinPlayers.length?commWinPlayers.reduce((s,a)=>s+overallElo(a.player),0)/commWinPlayers.length:DEFAULT_ELO;
   const avgLose=commLosePlayers.length?commLosePlayers.reduce((s,a)=>s+overallElo(a.player),0)/commLosePlayers.length:DEFAULT_ELO;
-  for(const a of winA){
-    if(!a.player||!a.player.id) continue;
-    const p=a.player, g=(p.wins||0)+(p.losses||0);
-    p.civElo=p.civElo||{};
-    if(a.civId){
-      const curCivElo=civElo(p,a.civId);
-      const cgW=(p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0);
-      p.civElo[a.civId]=calcElo(curCivElo, avgLose, true, g, cgW);
-      p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1;
-    }
-    p.wins=(p.wins||0)+1;
-    await savePl(p);
-  }
-  for(const a of loseA){
-    if(!a.player||!a.player.id) continue;
-    const p=a.player, g=(p.wins||0)+(p.losses||0);
-    p.civElo=p.civElo||{};
-    if(a.civId){
-      const curCivElo=civElo(p,a.civId);
-      const cgL=(p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0);
-      p.civElo[a.civId]=calcElo(curCivElo, avgWin, false, g, cgL);
-      p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1;
-    }
-    p.losses=(p.losses||0)+1;
-    await savePl(p);
-  }
+
   const d=date||new Date().toLocaleDateString('en-CA');
   const et=evilTotal??winA.reduce((s,a)=>s+a.effElo,0);
   const gt=goodTotal??loseA.reduce((s,a)=>s+a.effElo,0);
@@ -1152,9 +1133,40 @@ async function applyResult(winA,loseA,winner,evilTotal,goodTotal,date,source,gam
     goodAssign:loseA.map(a=>({name:a.player?.name||`Player ${a.player?.id||'?'}`,civName:a.civName||'',effElo:a.effElo})),
   };
   if(gameId) entry.gameId=gameId;
-  // Use gameId as document ID so concurrent writes are idempotent (no duplicates)
   const docRef = gameId ? doc(db,'history',String(gameId)) : doc(collection(db,'history'));
-  await setDoc(docRef, entry);
+
+  // Use a transaction so concurrent tabs can't both write W/L for the same game
+  await runTransaction(db, async(tx)=>{
+    // Check for duplicate if gameId provided
+    if(gameId){
+      const existing=await tx.get(docRef);
+      if(existing.exists()) return; // already recorded — skip entirely
+    }
+    // Write history entry
+    tx.set(docRef, entry);
+    // Write W/L and Elo using atomic field-level updates (never full setDoc overwrite)
+    const allPlayers=[...commWinPlayers,...commLosePlayers];
+    const seen=new Set();
+    for(const a of allPlayers){
+      const p=a.player;
+      if(seen.has(p.id)) continue; seen.add(p.id);
+      const won=commWinPlayers.includes(a);
+      const g=(p.wins||0)+(p.losses||0);
+      const pRef=doc(db,'players',String(p.id));
+      const upd={};
+      p.civElo=p.civElo||{};
+      if(a.civId){
+        const cg=(p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0);
+        const newCivElo=calcElo(civElo(p,a.civId),won?avgLose:avgWin,won,g,cg);
+        upd['civElo.'+a.civId]=newCivElo; p.civElo[a.civId]=newCivElo;
+        if(won){ upd['civWins.'+a.civId]=increment(1); p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1; }
+        else   { upd['civLosses.'+a.civId]=increment(1); p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1; }
+      }
+      if(won){ upd.wins=increment(1); p.wins=(p.wins||0)+1; }
+      else   { upd.losses=increment(1); p.losses=(p.losses||0)+1; }
+      tx.update(pRef, upd);
+    }
+  });
 }
 
 // ─────────────────────────────────────────
@@ -1163,9 +1175,22 @@ async function applyResult(winA,loseA,winner,evilTotal,goodTotal,date,source,gam
 let fullHistoryCache = []; // full history for the history page — loaded once per tab visit
 
 function loadAndRenderHist(){
-  // fullHistoryCache is kept live by onSnapshot — just render immediately
   renderHist();
 }
+
+window.searchHistNow = async function(){
+  const el = document.getElementById('histList');
+  if(el) el.innerHTML = '<p style="color:var(--muted);font-size:14px;padding:1rem">Loading…</p>';
+  // Always re-fetch from Firestore to guarantee fresh complete data
+  try {
+    const snap = await getDocs(query(collection(db,'history'), orderBy('timestamp','desc')));
+    fullHistoryCache = [];
+    snap.forEach(d => fullHistoryCache.push({id:d.id,...d.data()}));
+  } catch(e) {
+    if(fullHistoryCache.length === 0) fullHistoryCache = [...history];
+  }
+  renderHist();
+};
 
 function renderHist(){
   const el=document.getElementById('histList'); if(!el) return;
