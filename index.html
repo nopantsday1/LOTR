@@ -135,15 +135,6 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
 .lbelo{font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--gold);width:4rem;text-align:right;}
 .lbwl{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim);width:5.5rem;text-align:right;}
 .lbwr{font-size:13px;color:var(--dim);width:3.5rem;text-align:right;}
-.lbhdr{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:6px 1rem;display:flex;align-items:center;gap:1rem;border-bottom:1px solid var(--border);user-select:none;}
-.lbhdr span{cursor:pointer;transition:color .15s;display:flex;align-items:center;gap:3px;}
-.lbhdr span:hover{color:var(--gold);}
-.lbhdr span.sort-active{color:var(--gold);}
-.sort-arrow{font-size:9px;opacity:.5;}
-.sort-arrow.active{opacity:1;color:var(--gold);}
-.ptable th.sort-active{color:var(--gold);}
-.ptable th .sort-arrow{font-size:9px;margin-left:3px;opacity:.4;}
-.ptable th.sort-active .sort-arrow{opacity:1;}
 
 /* ADMIN */
 .apr{display:flex;align-items:center;gap:.75rem;padding:8px 0;border-bottom:1px solid var(--border);}
@@ -325,13 +316,12 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
       </select>
     </div>
     <table class="ptable">
-      <thead><tr id="pthead">
-        <th onclick="sortP('name')" id="pth-name">Player <span class="sort-arrow">↕</span></th>
-        <th onclick="sortP('elo')" id="pth-elo">Overall Elo <span class="sort-arrow">↕</span></th>
+      <thead><tr>
+        <th onclick="sortP('name')">Player</th>
+        <th onclick="sortP('elo')">Overall Elo</th>
         <th>Civ Elos (P1–P8)</th>
-        <th onclick="sortP('wins')" id="pth-wins">W <span class="sort-arrow">↕</span></th>
-        <th onclick="sortP('losses')" id="pth-losses">L <span class="sort-arrow">↕</span></th>
-        <th onclick="sortP('wr')" id="pth-wr">Win% <span class="sort-arrow">↕</span></th>
+        <th onclick="sortP('wins')">W</th>
+        <th onclick="sortP('losses')">L</th>
         <th>Profile ID</th>
       </tr></thead>
       <tbody id="ptbody"></tbody>
@@ -367,16 +357,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
     </div>
   </div>
 
-  <div class="card" style="padding:0">
-    <div class="lbhdr">
-      <span style="width:2rem;flex-shrink:0"></span>
-      <span style="flex:1" onclick="sortLB('name')" id="lbth-name">Player <span class="sort-arrow" id="lba-name">↕</span></span>
-      <span style="width:4rem;text-align:right" onclick="sortLB('elo')" id="lbth-elo">Elo <span class="sort-arrow active" id="lba-elo">↓</span></span>
-      <span style="width:5.5rem;text-align:right" onclick="sortLB('wl')" id="lbth-wl">W / L <span class="sort-arrow" id="lba-wl">↕</span></span>
-      <span style="width:3.5rem;text-align:right" onclick="sortLB('wr')" id="lbth-wr">Win% <span class="sort-arrow" id="lba-wr">↕</span></span>
-    </div>
-    <div id="lbList"></div>
-  </div>
+  <div class="card" style="padding:0"><div id="lbList"></div></div>
 </div>
 
 <!-- ══ PROFILE ══ -->
@@ -734,7 +715,6 @@ let db, players=[], history=[];
 let adminPass=DEFAULT_PASS, adminUnlocked=false;
 let selected=new Set(), lastBal=null, swapSrc=null;
 let pSortKey='elo', pSortDir=-1;
-let lbSortKey='elo', lbSortDir=-1;
 let importing=false;
 let autoRecording=false;
 let fullHistory=[];
@@ -1491,23 +1471,11 @@ function renderPTable(){
   if(q) list=list.filter(p=>p.name.toLowerCase().includes(q));
   // Sort
   list.sort((a,b)=>{
-    if(civF) return civElo(b,civF)-civElo(a,civF);  // always descending by civ elo when filter active
+    if(civF) return civElo(b,civF)-civElo(a,civF);  // always descending by civ elo
     if(pSortKey==='name') return pSortDir*a.name.localeCompare(b.name);
-    if(pSortKey==='wr'){
-      const wrA=(a.wins||0)/Math.max(1,(a.wins||0)+(a.losses||0));
-      const wrB=(b.wins||0)/Math.max(1,(b.wins||0)+(b.losses||0));
-      return pSortDir*(wrB-wrA);
-    }
     const va=pSortKey==='elo'?overallElo(a):(a[pSortKey]||0);
     const vb=pSortKey==='elo'?overallElo(b):(b[pSortKey]||0);
     return pSortDir*(vb-va);
-  });
-  // Update header arrows
-  ['name','elo','wins','losses','wr'].forEach(k=>{
-    const th=document.getElementById('pth-'+k); if(!th) return;
-    const arrow=th.querySelector('.sort-arrow');
-    th.classList.toggle('sort-active', pSortKey===k);
-    if(arrow) arrow.textContent = pSortKey===k ? (pSortDir===-1?'↓':'↑') : '↕';
   });
   tb.innerHTML=list.map(p=>{
     const ov=overallElo(p);
@@ -1519,14 +1487,12 @@ function renderPTable(){
     }).join('');
     const w=civF?(p.civWins?.[civF]||0):(p.wins||0);
     const l=civF?(p.civLosses?.[civF]||0):(p.losses||0);
-    const tot2=w+l; const wrPct=tot2?Math.round(w/tot2*100)+'%':'—';
     return `<tr onclick="${adminUnlocked?`editPlayer('${p.id}')`:`openProfile('${p.id}')`}" style="cursor:pointer">
       <td><span onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color=''" style="transition:color .15s">${p.name}</span></td>
       <td><span class="mono">${civF?`<span style="color:var(--gold)">${civElo(p,civF)}</span> <span style="color:var(--muted);font-size:12px">(${ov})</span>`:ov}</span></td>
       <td><div class="civbars">${bars}</div></td>
       <td style="color:var(--green)">${w}</td>
       <td style="color:var(--evil)">${l}</td>
-      <td style="color:var(--dim);font-size:13px">${wrPct}</td>
       <td><span class="pid">${p.profileId||'—'}</span></td>
     </tr>`;
   }).join('');
@@ -1536,10 +1502,6 @@ window.renderLB=renderLB;
 window.sortP=function(k){
   pSortDir=(pSortKey===k)?-pSortDir:(k==='name'?1:-1);
   pSortKey=k; renderPTable();
-};
-window.sortLB=function(k){
-  lbSortDir=(lbSortKey===k)?-lbSortDir:(k==='name'?1:-1);
-  lbSortKey=k; renderLB();
 };
 
 // ─────────────────────────────────────────
@@ -1584,35 +1546,14 @@ function renderLB(){
   const civF=document.getElementById('lbCivFilter')?.value||'';
   let list=[...players];
   if(q) list=list.filter(p=>p.name.toLowerCase().includes(q));
-  // Sort: civ filter always sorts by civ Elo; otherwise use lbSortKey
-  list.sort((a,b)=>{
-    if(civF) return civElo(b,civF)-civElo(a,civF);
-    if(lbSortKey==='name') return lbSortDir*a.name.localeCompare(b.name);
-    if(lbSortKey==='wl')   return lbSortDir*((a.wins||0)-(b.wins||0));
-    if(lbSortKey==='wr'){
-      const wa=(a.wins||0)/Math.max(1,(a.wins||0)+(a.losses||0));
-      const wb=(b.wins||0)/Math.max(1,(b.wins||0)+(b.losses||0));
-      return lbSortDir*(wa-wb);
-    }
-    return lbSortDir*(overallElo(a)-overallElo(b)); // dir=-1 → descending (highest first)
-  });
-  // Update header arrows
-  ['name','elo','wl','wr'].forEach(k=>{
-    const th=document.getElementById('lbth-'+k);
-    const ar=document.getElementById('lba-'+k);
-    if(th) th.classList.toggle('sort-active', !civF && lbSortKey===k);
-    if(ar) ar.textContent = (!civF && lbSortKey===k) ? (lbSortDir===-1?'↓':'↑') : '↕';
-    if(ar) ar.classList.toggle('active', !civF && lbSortKey===k);
-  });
+  list.sort((a,b)=>civF?civElo(b,civF)-civElo(a,civF):overallElo(b)-overallElo(a));
   // Calculate streaks from history
   const streaks=calcStreaks();
   el.innerHTML=list.map((p,i)=>{
     const ov=overallElo(p);
     const displayElo=civF?civElo(p,civF):ov;
     const subElo=civF?`<span style="font-size:11px;color:var(--muted);margin-left:4px">(${ov})</span>`:'';
-    const w = civF ? (p.civWins?.[civF]||0)  : (p.wins||0);
-    const l = civF ? (p.civLosses?.[civF]||0) : (p.losses||0);
-    const tot=w+l;
+    const w=p.wins||0, l=p.losses||0, tot=w+l;
     const wr=tot?Math.round(w/tot*100)+'%':'—';
     const streak=streaks[p.name];
     const streakHtml=streak&&streak.count>1?`<span class="streak-badge ${streak.type==='w'?'streak-w':'streak-l'}">${streak.type==='w'?'🔥':'❄'} ${streak.count}${streak.type.toUpperCase()}</span>`:'';
@@ -2956,9 +2897,9 @@ function buildEloHistory(p, matches){
     pts.push({date: h.date||'', elo: avg()});
   }
 
-  // NOTE: we do NOT force the last point to match overallElo(p).
-  // The replay is the source of truth for the chart. If the stored Elo differs,
-  // it means ratings are out of sync — run Recalculate All Elos to fix.
+  // Force last point to match overallElo(p) so chart end always equals header
+  if(pts.length > 0) pts[pts.length-1].elo = overallElo(p);
+
   return pts;
 }
 
