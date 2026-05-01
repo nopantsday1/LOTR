@@ -1810,7 +1810,7 @@ async function backfillNewPlayer(newPlayer){
 
   try{
     // ── Step 1: Scan all history ──────────────────────────────────────────
-    setStep('Scan de l'historique…');
+    setStep(`Scan de l'historique…`);
     log(`Recherche des matchs de <b>${newPlayer.name}</b> (ID: ${newPlayer.profileId})…`);
     const allSnap=await getDocs(collection(db,'history'));
     const toUpdate=[];
@@ -1830,8 +1830,8 @@ async function backfillNewPlayer(newPlayer){
     });
 
     if(!toUpdate.length){
-      log('Aucun match trouvé dans l'historique pour ce joueur.');
-      log('Le joueur a été ajouté avec l'Elo par défaut.');
+      log(`Aucun match trouvé dans l'historique pour ce joueur.`);
+      log(`Le joueur a été ajouté avec l'Elo par défaut.`);
       setStep('Terminé');
       setTimeout(()=>closeModal('mBackfill'),2000);
       toast('Player added (aucun historique)');
