@@ -380,7 +380,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
           <button id="gpdAll" onclick="setGpdRange(0)" style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:3px;cursor:pointer;border:1px solid var(--border2);background:var(--bg3);color:var(--dim)">All</button>
         </div>
       </div>
-      <canvas id="gamesPerDayChart" style="width:100%;height:220px"></canvas>
+      <div id="gamesPerDayChart" style="width:100%;height:220px"></div>
     </div>
     <div class="card"><div class="ct">Player Streaks</div><div id="streakList"></div></div>
     <div class="card"><div class="ct">Community Records</div><div id="communityRecords"></div></div>
@@ -1610,7 +1610,9 @@ function renderLB(){
     const ov=overallElo(p);
     const displayElo=civF?civElo(p,civF):ov;
     const subElo=civF?`<span style="font-size:11px;color:var(--muted);margin-left:4px">(${ov})</span>`:'';
-    const w=p.wins||0, l=p.losses||0, tot=w+l;
+    const w=civF?(p.civWins?.[civF]||0):(p.wins||0);
+    const l=civF?(p.civLosses?.[civF]||0):(p.losses||0);
+    const tot=w+l;
     const wr=tot?Math.round(w/tot*100)+'%':'—';
     const streak=streaks[p.name];
     const streakHtml=streak&&streak.count>1?`<span class="streak-badge ${streak.type==='w'?'streak-w':'streak-l'}">${streak.type==='w'?'🔥':'❄'} ${streak.count}${streak.type.toUpperCase()}</span>`:'';
@@ -3515,172 +3517,108 @@ window.setGpdRange=function(r){
 };
 
 function renderGamesPerDay(){
-  const canvas=document.getElementById('gamesPerDayChart'); if(!canvas) return;
+  const wrap=document.getElementById('gamesPerDayChart'); if(!wrap) return;
   const now=Date.now();
 
-  // Determine actual date range from fullHistory
-  const allDates=fullHistory.filter(h=>h.date).map(h=>h.timestamp||0).filter(Boolean);
-  const earliest=allDates.length?Math.min(...allDates):now-60*86400000;
+  const allTs=fullHistory.filter(h=>h.timestamp).map(h=>h.timestamp);
+  const earliest=allTs.length?Math.min(...allTs):now-60*86400000;
   const rangeDays=gpdRange>0?gpdRange:Math.ceil((now-earliest)/86400000)+1;
-
-  // Group by day or week depending on range
   const useWeeks=rangeDays>90;
-  const counts={};
-  const now_s=Math.floor(now/1000);
 
+  const counts={};
   fullHistory.forEach(h=>{
-    if(!h.date) return;
-    const ts=h.timestamp||0;
-    if(!ts) return;
-    const daysAgo=Math.floor((now-ts)/86400000);
-    if(gpdRange>0 && daysAgo>=gpdRange) return;
+    const ts=h.timestamp||0; if(!ts) return;
+    if(gpdRange>0 && now-ts > gpdRange*86400000) return;
     if(useWeeks){
-      // Group into week buckets: start of week (Monday)
-      const d=new Date(ts);
-      d.setHours(0,0,0,0);
-      d.setDate(d.getDate()-((d.getDay()+6)%7)); // Monday
-      const key=d.toLocaleDateString('en-CA');
-      counts[key]=(counts[key]||0)+1;
+      const d=new Date(ts); d.setHours(0,0,0,0);
+      d.setDate(d.getDate()-((d.getDay()+6)%7));
+      const k=d.toLocaleDateString('en-CA');
+      counts[k]=(counts[k]||0)+1;
     } else {
-      counts[h.date]=(counts[h.date]||0)+1;
+      const k=new Date(ts).toLocaleDateString('en-CA');
+      counts[k]=(counts[k]||0)+1;
     }
   });
 
-  // Build array of buckets
   const days=[];
   if(useWeeks){
-    // Weekly buckets
     const nWeeks=Math.ceil(rangeDays/7)+1;
     for(let i=nWeeks-1;i>=0;i--){
-      const d=new Date(now-i*7*86400000);
-      d.setHours(0,0,0,0);
+      const d=new Date(now-i*7*86400000); d.setHours(0,0,0,0);
       d.setDate(d.getDate()-((d.getDay()+6)%7));
-      const key=d.toLocaleDateString('en-CA');
-      days.push({date:key,count:counts[key]||0,label:key.slice(5)});
+      const k=d.toLocaleDateString('en-CA');
+      days.push({date:k,count:counts[k]||0,label:k.slice(5)});
     }
   } else {
     for(let i=rangeDays-1;i>=0;i--){
-      const d=new Date(now-i*86400000).toLocaleDateString('en-CA');
-      days.push({date:d,count:counts[d]||0,label:d.slice(5)});
+      const k=new Date(now-i*86400000).toLocaleDateString('en-CA');
+      days.push({date:k,count:counts[k]||0,label:k.slice(5)});
     }
   }
-  const dpr=window.devicePixelRatio||1;
-  const W=canvas.offsetWidth, H=canvas.offsetHeight||140;
-  canvas.width=W*dpr; canvas.height=H*dpr;
-  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+
   const max=Math.max(1,...days.map(d=>d.count));
-  const pad={t:8,r:8,b:20,l:20};
-  const cW=W-pad.l-pad.r, cH=H-pad.t-pad.b;
-  const bW=Math.max(1,cW/days.length-1);
+  const H=220, padB=24, padT=10, padL=28, padR=8;
+  const chartH=H-padB-padT;
+  const n=days.length;
+  const svgW=Math.max(wrap.offsetWidth||600, 300);
+  const slotPx=svgW/n;
+  const barPx=Math.max(1, slotPx-Math.max(1,slotPx*0.15));
+  const approxBarPx=slotPx;
+  const labelStep=Math.max(1,Math.ceil(40/approxBarPx));
 
-  function drawChart(hoverIdx){
-    ctx.clearRect(0,0,W,H);
-    days.forEach((d,i)=>{
-      const x=pad.l+i*(cW/days.length);
-      const bH=(d.count/max)*cH;
-      const y=pad.t+cH-bH;
-      if(i===hoverIdx && d.count){
-        ctx.fillStyle='var(--gold)';
-        ctx.fillRect(x,y,bW,bH);
-        // Tooltip box
-        const label=`${d.date}: ${d.count} game${d.count!==1?'s':''}`;
-        ctx.font='bold 11px monospace';
-        const tw=ctx.measureText(label).width;
-        const tx=Math.min(Math.max(x-tw/2,pad.l),W-pad.r-tw-8);
-        const ty=Math.max(y-8,pad.t+4);
-        ctx.fillStyle='rgba(20,18,16,0.92)';
-        ctx.strokeStyle='var(--gold)';
-        ctx.lineWidth=1;
-        const rx=tx-6, ry=ty-14, rw=tw+12, rh=20;
-        ctx.beginPath(); ctx.roundRect(rx,ry,rw,rh,3); ctx.fill(); ctx.stroke();
-        ctx.fillStyle='var(--gold)';
-        ctx.textAlign='left';
-        ctx.fillText(label,tx,ty);
-      } else {
-        ctx.fillStyle=d.count?(i===hoverIdx?'var(--gold)':'rgba(201,168,76,0.55)'):'rgba(255,255,255,0.05)';
-        if(d.count) ctx.fillStyle='rgba(201,168,76,0.55)';
-        else ctx.fillStyle='rgba(255,255,255,0.05)';
-        ctx.fillRect(x,y,bW,bH);
-      }
-    });
-    // X axis labels — adaptive spacing to prevent overlap
-    ctx.fillStyle='rgba(156,136,120,0.6)'; ctx.font='9px monospace'; ctx.textAlign='center';
-    const labelStep=Math.max(1,Math.ceil(36/(cW/days.length)));
-    days.forEach((d,i)=>{
-      if(i%labelStep!==0) return;
-      const x=pad.l+i*(cW/days.length)+bW/2;
-      ctx.fillText(d.label,x,H-4);
-    });
-  }
+  const nTicks=4;
+  const ylabels=Array.from({length:nTicks+1},(_,i)=>{
+    const v=Math.round(max*i/nTicks);
+    const y=(padT+chartH-(v/max)*chartH).toFixed(1);
+    return `<text x="${padL-4}" y="${y}" text-anchor="end" dominant-baseline="middle" fill="rgba(156,136,120,0.5)" font-size="9" font-family="monospace">${v}</text><line x1="${padL}" y1="${y}" x2="${(svgW-padR).toFixed(1)}" y2="${y}" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>`;
+  }).join('');
 
-  drawChart(-1);
+  const bars=days.map((d,i)=>{
+    const bH=d.count?Math.max(2,(d.count/max)*chartH):0;
+    const x=(padL+i*slotPx).toFixed(1);
+    const y=(padT+chartH-bH).toFixed(1);
+    const fill=d.count?'rgba(201,168,76,0.6)':'rgba(255,255,255,0.04)';
+    const lbl=d.count?`${d.date}: ${d.count} match${d.count>1?'s':''}`:d.date;
+    return `<rect class="gpd-bar" x="${x}" y="${y}" width="${barPx.toFixed(1)}" height="${Math.max(0,bH).toFixed(1)}" fill="${fill}" rx="1" style="cursor:crosshair" onmouseenter="gpdHover(this,'${lbl}',${x},${y},${svgW},${padL},${(svgW-padR).toFixed(1)})" onmouseleave="gpdUnhover(this,'${fill}')"/>`;
+  }).join('');
 
-  // Remove old listeners by replacing the canvas clone trick
-  const newCanvas=canvas.cloneNode(true);
-  canvas.parentNode.replaceChild(newCanvas,canvas);
-  newCanvas.style.cursor='crosshair';
+  const xlabels=days.map((d,i)=>{
+    if(i%labelStep!==0) return '';
+    const x=(padL+i*slotPx+barPx/2).toFixed(1);
+    return `<text x="${x}" y="${H-4}" text-anchor="middle" fill="rgba(156,136,120,0.65)" font-size="9" font-family="monospace">${d.label}</text>`;
+  }).join('');
 
-  newCanvas.addEventListener('mousemove',e=>{
-    const rect=newCanvas.getBoundingClientRect();
-    const mx=(e.clientX-rect.left)*(W/rect.width);
-    const i=Math.floor((mx-pad.l)/(cW/days.length));
-    // Need fresh ctx after clone
-    const c2=newCanvas.getContext('2d');
-    c2.scale(dpr,dpr);
-    const max2=Math.max(1,...days.map(d=>d.count));
-    c2.clearRect(0,0,W,H);
-    days.forEach((d,j)=>{
-      const x=pad.l+j*(cW/days.length);
-      const bH=(d.count/max2)*cH;
-      const y=pad.t+cH-bH;
-      if(j===i && d.count){
-        c2.fillStyle='var(--gold)';
-        c2.fillRect(x,y,bW,bH);
-        const label=`${d.date}: ${d.count} game${d.count!==1?'s':''}`;
-        c2.font='bold 11px monospace';
-        const tw=c2.measureText(label).width;
-        const tx=Math.min(Math.max(x-tw/2,pad.l),W-pad.r-tw-8);
-        const ty=Math.max(y-8,pad.t+16);
-        c2.fillStyle='rgba(20,18,16,0.92)';
-        c2.strokeStyle='rgba(201,168,76,0.9)';
-        c2.lineWidth=1;
-        const rx=tx-6, ry=ty-14, rw=tw+12, rh=20;
-        c2.beginPath(); c2.roundRect(rx,ry,rw,rh,3); c2.fill(); c2.stroke();
-        c2.fillStyle='var(--gold)';
-        c2.textAlign='left';
-        c2.fillText(label,tx,ty);
-      } else {
-        c2.fillStyle=d.count?'rgba(201,168,76,0.55)':'rgba(255,255,255,0.05)';
-        c2.fillRect(x,y,bW,bH);
-      }
-    });
-    c2.fillStyle='rgba(156,136,120,0.6)'; c2.font='9px monospace'; c2.textAlign='center';
-    [0,10,20,30,40,50,59].forEach(k=>{
-      const x=pad.l+k*(cW/days.length)+bW/2;
-      if(k%Math.max(1,Math.ceil(36/(cW/days.length)))===0) c2.fillText(days[k].label,x,H-4);
-    });
-  });
-  newCanvas.addEventListener('mouseleave',()=>{
-    const c2=newCanvas.getContext('2d');
-    c2.clearRect(0,0,W,H);
-    // redraw without hover
-    const max2=Math.max(1,...days.map(d=>d.count));
-    days.forEach((d,i)=>{
-      const x=pad.l+i*(cW/days.length);
-      const bH=(d.count/max2)*cH;
-      const y=pad.t+cH-bH;
-      c2.fillStyle=d.count?'rgba(201,168,76,0.55)':'rgba(255,255,255,0.05)';
-      c2.fillRect(x,y,bW,bH);
-    });
-    c2.fillStyle='rgba(156,136,120,0.6)'; c2.font='9px monospace'; c2.textAlign='center';
-    const lStep=Math.max(1,Math.ceil(36/(cW/days.length)));
-    days.forEach((d,i)=>{
-      if(i%lStep!==0) return;
-      const x=pad.l+i*(cW/days.length)+bW/2;
-      c2.fillText(d.label,x,H-4);
-    });
-  });
+  wrap.innerHTML=`<svg width="100%" height="${H}" viewBox="0 0 ${svgW} ${H}" preserveAspectRatio="none" style="display:block;overflow:visible">
+    ${ylabels}${bars}${xlabels}
+    <g id="gpdTooltip" style="display:none;pointer-events:none">
+      <rect id="gpdTipBox" rx="3" fill="rgba(14,12,10,0.96)" stroke="rgba(201,168,76,0.8)" stroke-width="1"/>
+      <text id="gpdTipText" font-size="11" font-family="monospace" fill="rgba(201,168,76,1)" dominant-baseline="middle" text-anchor="middle"/>
+    </g>
+  </svg>`;
 }
+
+window.gpdHover=function(el, lbl, bx, by, svgW, padL, padR){
+  el.setAttribute('fill','rgba(201,168,76,1)');
+  const tip=document.getElementById('gpdTooltip');
+  const box=document.getElementById('gpdTipBox');
+  const txt=document.getElementById('gpdTipText');
+  if(!tip||!box||!txt) return;
+  txt.textContent=lbl;
+  const tw=lbl.length*6.5+20, th=20;
+  let tx=Number(bx)-tw/2;
+  if(tx<padL) tx=padL;
+  if(tx+tw>padR) tx=padR-tw;
+  const ty=Math.max(Number(by)-th-4, 2);
+  box.setAttribute('x',tx); box.setAttribute('y',ty);
+  box.setAttribute('width',tw); box.setAttribute('height',th);
+  txt.setAttribute('x',tx+tw/2); txt.setAttribute('y',ty+th/2);
+  tip.style.display='';
+};
+window.gpdUnhover=function(el, origFill){
+  el.setAttribute('fill', origFill);
+  const tip=document.getElementById('gpdTooltip');
+  if(tip) tip.style.display='none';
+};
 
 function renderCivMeta(){
   const el=document.getElementById('civMetaStats'); if(!el) return;
