@@ -482,6 +482,19 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
   </div>
 </div>
 
+<!-- ══ BACKFILL PROGRESS MODAL ══ -->
+<div class="mo" id="mBackfill">
+  <div class="modal" style="max-width:500px">
+    <div class="mtitle">⚙ Intégration du joueur</div>
+    <p id="backfillStep" style="font-family:'Cinzel',serif;font-size:11px;letter-spacing:.1em;color:var(--gold);margin-bottom:.75rem;text-transform:uppercase"></p>
+    <div id="backfillLog" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim);max-height:260px;overflow-y:auto;line-height:2;border:1px solid var(--border);border-radius:3px;padding:.6rem .85rem;background:var(--bg)"></div>
+    <p style="font-size:12px;color:var(--muted);margin-top:.75rem">Cette opération peut prendre quelques secondes selon le nombre de matchs.</p>
+    <div style="margin-top:1rem;text-align:right">
+      <button class="btn" onclick="closeModal('mBackfill')">Fermer</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ BULK ELO MODAL ══ -->
 <div class="mo" id="mBulkElo">
   <div class="modal wide" style="max-width:560px">
@@ -519,10 +532,14 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
   <div class="modal">
     <span class="mclose" onclick="closeModal('mAddPlayer')">×</span>
     <div class="mtitle">Add Player</div>
-    <label>Name</label>
-    <input type="text" id="apName" style="margin-bottom:.75rem">
-    <label>AoE2 Profile ID <span style="color:var(--muted)">(for auto-recording)</span></label>
-    <input type="number" id="apPid" style="margin-bottom:1rem">
+    <label>AoE2 Profile ID <span style="color:var(--muted)">(entrez l'ID pour auto-compléter le nom)</span></label>
+    <div style="display:flex;gap:.5rem;margin-bottom:.4rem">
+      <input type="number" id="apPid" placeholder="ex: 1234567" style="flex:1">
+      <button class="btn" id="apLookupBtn" onclick="apLookupNow()" style="white-space:nowrap">&#128269; Lookup</button>
+    </div>
+    <p id="apNameStatus" style="font-size:12px;color:var(--gold);margin-bottom:.5rem;min-height:1.2em"></p>
+    <label>Nom</label>
+    <input type="text" id="apName" placeholder="Rempli auto via l'ID, ou entrez manuellement" style="margin-bottom:1rem">
     <button class="btn-p" onclick="addPlayer()">Add Player</button>
   </div>
 </div>
@@ -1250,16 +1267,56 @@ function renderHist(){
   }).join('');
 }
 
-window.promptAddPlayer=function(name, profileId){
+// ─────────────────────────────────────────
+// AOE2 PROFILE LOOKUP (via corsproxy.io)
+// ─────────────────────────────────────────
+async function lookupAoe2Profile(profileId){
+  if(!profileId) return null;
+  try{
+    const url=`https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=${encodeURIComponent(JSON.stringify([Number(profileId)]))}`;
+    const data=await fetchWithProxy(url, 10000);
+    // Try profiles array first
+    const profiles=data.profiles||data.playerInfo||[];
+    if(profiles.length){
+      const p=profiles[0];
+      return p.alias||p.name||p.Name||null;
+    }
+    // Fallback: pull name from first match member
+    const matches=data.matchHistoryStats||[];
+    if(matches.length){
+      const members=(matches[0].matchhistorymember||matches[0].matchhistoryreportresults||[]);
+      const m=members.find(x=>Number(x.profile_id)===Number(profileId));
+      if(m&&m.name) return m.name;
+    }
+  }catch(e){ console.warn('[lookupAoe2Profile]',e.message); }
+  return null;
+}
+
+window.promptAddPlayer=async function(name, profileId){
   if(!adminUnlocked){
     toast('Unlock Admin first to add players','err');
-    // Still open admin page so they can unlock
     go('admin');
     return;
   }
   document.getElementById('apName').value=name||'';
   document.getElementById('apPid').value=profileId||'';
   openModal('mAddPlayer');
+
+  // If we have a profileId but no name (or placeholder name), auto-lookup
+  if(profileId && (!name || name.startsWith('Player '))){
+    document.getElementById('apNameStatus').textContent='🔍 Recherche du profil aoe2.gg…';
+    document.getElementById('apName').disabled=true;
+    const found=await lookupAoe2Profile(profileId);
+    document.getElementById('apName').disabled=false;
+    if(found){
+      document.getElementById('apName').value=found;
+      document.getElementById('apNameStatus').textContent=`✓ Profil trouvé : ${found}`;
+    } else {
+      document.getElementById('apNameStatus').textContent='Profil introuvable — entrez le nom manuellement.';
+    }
+  } else {
+    document.getElementById('apNameStatus').textContent='';
+  }
 };
 
 window.delHist=async function(id){
@@ -1689,17 +1746,197 @@ function renderAdminList(){
     </div>`).join('');
 }
 
+window.apLookupNow=async function(){
+  const pid=document.getElementById('apPid').value;
+  if(!pid){ toast('Entrez un Profile ID','err'); return; }
+  const btn=document.getElementById('apLookupBtn');
+  const status=document.getElementById('apNameStatus');
+  btn.disabled=true;
+  status.textContent='🔍 Recherche sur aoe2.gg…';
+  status.style.color='var(--gold)';
+  document.getElementById('apName').disabled=true;
+  const found=await lookupAoe2Profile(pid);
+  document.getElementById('apName').disabled=false;
+  btn.disabled=false;
+  if(found){
+    document.getElementById('apName').value=found;
+    status.textContent='✓ Profil trouvé : '+found;
+    status.style.color='var(--green)';
+  } else {
+    status.textContent='Profil introuvable — entrez le nom manuellement.';
+    status.style.color='var(--evil)';
+  }
+};
+
 window.addPlayer=async function(){
   const name=document.getElementById('apName').value.trim();
   const pid=document.getElementById('apPid').value;
   if(!name){toast('Enter a name','err');return;}
   const np={name,profileId:pid?Number(pid):null,civElo:{},wins:0,losses:0};
   CIVS.forEach(c=>{np.civElo[c.id]=DEFAULT_ELO;});
-  await addDoc(collection(db,'players'),np);
+  const ref=await addDoc(collection(db,'players'),np);
   document.getElementById('apName').value='';
   document.getElementById('apPid').value='';
-  closeModal('mAddPlayer'); toast('Player added');
+  const st=document.getElementById('apNameStatus');
+  if(st){ st.textContent=''; }
+  closeModal('mAddPlayer');
+
+  // Backfill historical matches if they have a profileId
+  if(pid){
+    const newPlayer={id:ref.id,...np};
+    players.push(newPlayer); // add to local state immediately
+    await backfillNewPlayer(newPlayer);
+  } else {
+    toast('Player added');
+  }
 };
+
+// ─────────────────────────────────────────
+// BACKFILL NEW PLAYER INTO HISTORY + RECALC
+// When a new player is added with a profileId, scans all history docs,
+// patches any anonymous entries matching that profileId with the real name
+// and isCommunity:true, then recalculates all Elos from scratch.
+// ─────────────────────────────────────────
+async function backfillNewPlayer(newPlayer){
+  if(!newPlayer.profileId){ toast('Player added'); return; }
+
+  // Show progress modal
+  openModal('mBackfill');
+  const log=s=>{
+    const el=document.getElementById('backfillLog');
+    if(el){ el.innerHTML+=`<span>${s}</span>`; el.scrollTop=el.scrollHeight; }
+  };
+  const setStep=s=>{ const el=document.getElementById('backfillStep'); if(el) el.textContent=s; };
+
+  try{
+    // ── Step 1: Scan all history ──────────────────────────────────────────
+    setStep('Scan de l'historique…');
+    log(`Recherche des matchs de <b>${newPlayer.name}</b> (ID: ${newPlayer.profileId})…`);
+    const allSnap=await getDocs(collection(db,'history'));
+    const toUpdate=[];
+    allSnap.forEach(d=>{
+      const h=d.data();
+      let changed=false;
+      const patchSide=arr=>(arr||[]).map(a=>{
+        if(String(a.profileId)===String(newPlayer.profileId) && (!a.isCommunity||a.name!==newPlayer.name)){
+          changed=true;
+          return {...a, name:newPlayer.name, isCommunity:true};
+        }
+        return a;
+      });
+      const evilAssign=patchSide(h.evilAssign);
+      const goodAssign=patchSide(h.goodAssign);
+      if(changed) toUpdate.push({ref:d.ref, evilAssign, goodAssign});
+    });
+
+    if(!toUpdate.length){
+      log('Aucun match trouvé dans l'historique pour ce joueur.');
+      log('Le joueur a été ajouté avec l'Elo par défaut.');
+      setStep('Terminé');
+      setTimeout(()=>closeModal('mBackfill'),2000);
+      toast('Player added (aucun historique)');
+      return;
+    }
+
+    log(`${toUpdate.length} match${toUpdate.length>1?'s':''} trouvé${toUpdate.length>1?'s':''}. Mise à jour…`);
+
+    // ── Step 2: Patch history docs in batches ─────────────────────────────
+    setStep('Mise à jour des matchs…');
+    for(let i=0;i<toUpdate.length;i+=400){
+      const batch=writeBatch(db);
+      toUpdate.slice(i,i+400).forEach(({ref,evilAssign,goodAssign})=>{
+        batch.update(ref,{evilAssign,goodAssign});
+      });
+      await batch.commit();
+      log(`  ${Math.min(i+400,toUpdate.length)}/${toUpdate.length} matchs mis à jour…`);
+    }
+    log('✓ Historique mis à jour.');
+
+    // ── Step 3: Full Elo recalc ───────────────────────────────────────────
+    setStep('Recalcul des Elos…');
+    log('Recalcul de tous les Elos depuis le début…');
+
+    // Reload history from Firestore (patched version)
+    const freshSnap=await getDocs(collection(db,'history'));
+    const allDocs=[];
+    const seenIds=new Set();
+    freshSnap.forEach(d=>{
+      const gid=String(d.data().gameId||d.id);
+      if(!seenIds.has(gid)){ seenIds.add(gid); allDocs.push({id:d.id,...d.data()}); }
+    });
+    const sorted=allDocs.sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
+    log(`${sorted.length} matchs à rejouer (oldest→newest)…`);
+
+    // Load seeded Elos
+    const seedSnap=await getDoc(doc(db,'settings','bulkOrder'));
+    const seededElos={};
+    if(seedSnap.exists()){
+      const order=seedSnap.data().order||[];
+      const top=seedSnap.data().top||DEFAULT_ELO;
+      const bot=seedSnap.data().bot||DEFAULT_ELO;
+      const n=order.length;
+      order.forEach((id,idx)=>{ seededElos[id]=n===1?top:Math.round(top-(top-bot)*(idx/(n-1))); });
+    }
+
+    // Reset all players (including new one at DEFAULT_ELO)
+    for(const p of players){
+      const seed=seededElos[p.id]||DEFAULT_ELO;
+      p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=seed;});
+      p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
+    }
+
+    // Replay
+    const findPlayer=a=>players.find(pl=>
+      pl.name===a.name||(a.profileId&&String(a.profileId)===String(pl.profileId)));
+
+    let done=0;
+    for(const h of sorted){
+      const winA =(h.winner==='evil'?h.evilAssign:h.goodAssign)||[];
+      const loseA=(h.winner==='evil'?h.goodAssign:h.evilAssign)||[];
+      const commWin =winA.map(a=>findPlayer(a)).filter(Boolean);
+      const commLose=loseA.map(a=>findPlayer(a)).filter(Boolean);
+      const avgWin =commWin.length?commWin.reduce((s,p)=>s+overallElo(p),0)/commWin.length:DEFAULT_ELO;
+      const avgLose=commLose.length?commLose.reduce((s,p)=>s+overallElo(p),0)/commLose.length:DEFAULT_ELO;
+      const seenP=new Set();
+      for(const [arr,won,opp] of [[winA,true,avgLose],[loseA,false,avgWin]]){
+        for(const a of arr){
+          const p=findPlayer(a); if(!p||seenP.has(p.id)) continue;
+          seenP.add(p.id);
+          const g=(p.wins||0)+(p.losses||0);
+          const civName=normCivName(a.civName||'');
+          const civ=CIVS.find(c=>normCivName(c.name)===civName);
+          if(civ){
+            const cg=(p.civWins?.[civ.id]||0)+(p.civLosses?.[civ.id]||0);
+            p.civElo[civ.id]=calcElo(civElo(p,civ.id),opp,won,g,cg);
+            if(won){p.civWins=p.civWins||{};p.civWins[civ.id]=(p.civWins[civ.id]||0)+1;}
+            else   {p.civLosses=p.civLosses||{};p.civLosses[civ.id]=(p.civLosses[civ.id]||0)+1;}
+          }
+          if(won)p.wins=(p.wins||0)+1; else p.losses=(p.losses||0)+1;
+        }
+      }
+      done++;
+      if(done%10===0) log(`  Rejoué ${done}/${sorted.length}…`);
+    }
+
+    // ── Step 4: Save all players ──────────────────────────────────────────
+    setStep('Sauvegarde…');
+    log(`Sauvegarde de ${players.length} joueurs…`);
+    for(const p of players) await savePl(p);
+
+    const newP=players.find(p=>p.id===newPlayer.id);
+    const finalElo=newP?overallElo(newP):DEFAULT_ELO;
+    log(`✓ <b>${newPlayer.name}</b> ajouté — Elo calculé : <span style="color:var(--gold)">${finalElo}</span> (${toUpdate.length} matchs rétroactifs)`);
+    setStep('Terminé !');
+    renderLB(); renderPTable();
+    toast(`${newPlayer.name} ajouté — ${toUpdate.length} matchs rétroactifs, Elo: ${finalElo}`);
+
+  }catch(e){
+    log(`Erreur : ${e.message}`);
+    setStep('Erreur');
+    console.error('[backfill]',e);
+    toast('Erreur lors du backfill','err');
+  }
+}
 
 window.confirmReset=async function(){
   closeModal('mReset'); sync('spin');
