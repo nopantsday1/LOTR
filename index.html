@@ -731,7 +731,7 @@ function buildProfMap(playerList){
 let db, players=[], history=[];
 let adminPass=DEFAULT_PASS, adminUnlocked=false;
 let selected=new Set(), lastBal=null, swapSrc=null;
-let pSortKey='elo', pSortDir=-1;
+let pSortKey='elo', pSortDir=1;
 let importing=false;
 let autoRecording=false;
 let fullHistory=[];
@@ -1274,28 +1274,58 @@ async function lookupAoe2Profile(profileId){
   if(!profileId) return null;
   const pid=Number(profileId);
 
-  // ── Attempt 1: Personal stats endpoint (returns alias directly) ──────────
+  // ── Attempt 1: Leaderboard endpoint — most reliable, returns alias by profile_id ──
+  // getLeaderboard2 accepts a profile_id filter and returns the player row with alias
+  for(const lbId of [0,1,2,3,4]){
+    try{
+      const url=`https://aoe-api.worldsedgelink.com/community/leaderboard/getLeaderboard2?title=age2&leaderboard_id=${lbId}&profile_id=${pid}&count=1`;
+      const data=await fetchWithProxy(url, 8000);
+      const rows=data.items||data.leaderboard||data.players||[];
+      const row=rows.find(r=>Number(r.profile_id||r.profileId)===pid);
+      if(row){
+        const n=row.alias||row.name||row.Name;
+        if(n){ console.log(`[lookup] Found via leaderboard ${lbId}:`,n); return n; }
+      }
+    }catch(e){}
+  }
+
+  // ── Attempt 2: Personal stats endpoint ──────────────────────────────────
   try{
     const url=`https://aoe-api.worldsedgelink.com/community/leaderboard/getPersonalStatsByProfileId?title=age2&profile_id=${pid}`;
     const data=await fetchWithProxy(url, 10000);
-    // Response: { playerInfo: { alias, profile_id, ... }, ... }
-    const alias=data?.playerInfo?.alias||data?.playerInfo?.name;
-    if(alias) return alias;
+    const alias=data?.playerInfo?.alias||data?.playerInfo?.name
+      ||data?.statGroups?.[0]?.members?.[0]?.alias
+      ||data?.statGroups?.[0]?.members?.[0]?.name;
+    if(alias){ console.log('[lookup] Found via personalStats:',alias); return alias; }
   }catch(e){ console.warn('[lookup] personalStats failed:', e.message); }
 
-  // ── Attempt 2: Match history — find the player's own member entry ────────
+  // ── Attempt 3: Match history — scan ALL matches for the player's own entry ──
   try{
     const url=`https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=${encodeURIComponent(JSON.stringify([pid]))}`;
-    const data=await fetchWithProxy(url, 10000);
-    // profiles[] is keyed by index but each has a profile_id we can match
-    const profiles=data.profiles||[];
-    const prof=profiles.find(p=>Number(p.profile_id||p.profileId)===pid);
-    if(prof){ const n=prof.alias||prof.name||prof.Name; if(n) return n; }
-    // Fallback: scan every match member looking for our profile_id
+    const data=await fetchWithProxy(url, 12000);
+    console.log('[lookup] matchHistory keys:', Object.keys(data));
+    // profiles[] — each entry should have profile_id + alias
+    for(const prof of (data.profiles||[])){
+      const profId=Number(prof.profile_id||prof.profileId||prof.id||0);
+      if(profId===pid){
+        const n=prof.alias||prof.name||prof.Name;
+        if(n){ console.log('[lookup] Found in profiles[]:', n); return n; }
+      }
+    }
+    // statGroups[] — another possible location
+    for(const sg of (data.statGroups||[])){
+      for(const m of (sg.members||[])){
+        if(Number(m.profile_id||m.profileId)===pid){
+          const n=m.alias||m.name;
+          if(n){ console.log('[lookup] Found in statGroups:', n); return n; }
+        }
+      }
+    }
+    // matchhistorymember — scan every match, every member
     for(const match of (data.matchHistoryStats||[])){
       const members=match.matchhistorymember||match.matchhistoryreportresults||[];
       const m=members.find(x=>Number(x.profile_id)===pid);
-      if(m?.name) return m.name;
+      if(m?.name){ console.log('[lookup] Found in match member:', m.name); return m.name; }
     }
   }catch(e){ console.warn('[lookup] matchHistory failed:', e.message); }
 
@@ -1567,7 +1597,7 @@ function renderPTable(){
 window.renderPTable=renderPTable;
 window.renderLB=renderLB;
 window.sortP=function(k){
-  pSortDir=(pSortKey===k)?-pSortDir:(k==='name'?1:-1);
+  pSortDir=(pSortKey===k)?-pSortDir:(k==='name'?1:1);
   pSortKey=k; renderPTable();
 };
 
