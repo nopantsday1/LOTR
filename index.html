@@ -1272,23 +1272,33 @@ function renderHist(){
 // ─────────────────────────────────────────
 async function lookupAoe2Profile(profileId){
   if(!profileId) return null;
+  const pid=Number(profileId);
+
+  // ── Attempt 1: Personal stats endpoint (returns alias directly) ──────────
   try{
-    const url=`https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=${encodeURIComponent(JSON.stringify([Number(profileId)]))}`;
+    const url=`https://aoe-api.worldsedgelink.com/community/leaderboard/getPersonalStatsByProfileId?title=age2&profile_id=${pid}`;
     const data=await fetchWithProxy(url, 10000);
-    // Try profiles array first
-    const profiles=data.profiles||data.playerInfo||[];
-    if(profiles.length){
-      const p=profiles[0];
-      return p.alias||p.name||p.Name||null;
+    // Response: { playerInfo: { alias, profile_id, ... }, ... }
+    const alias=data?.playerInfo?.alias||data?.playerInfo?.name;
+    if(alias) return alias;
+  }catch(e){ console.warn('[lookup] personalStats failed:', e.message); }
+
+  // ── Attempt 2: Match history — find the player's own member entry ────────
+  try{
+    const url=`https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=${encodeURIComponent(JSON.stringify([pid]))}`;
+    const data=await fetchWithProxy(url, 10000);
+    // profiles[] is keyed by index but each has a profile_id we can match
+    const profiles=data.profiles||[];
+    const prof=profiles.find(p=>Number(p.profile_id||p.profileId)===pid);
+    if(prof){ const n=prof.alias||prof.name||prof.Name; if(n) return n; }
+    // Fallback: scan every match member looking for our profile_id
+    for(const match of (data.matchHistoryStats||[])){
+      const members=match.matchhistorymember||match.matchhistoryreportresults||[];
+      const m=members.find(x=>Number(x.profile_id)===pid);
+      if(m?.name) return m.name;
     }
-    // Fallback: pull name from first match member
-    const matches=data.matchHistoryStats||[];
-    if(matches.length){
-      const members=(matches[0].matchhistorymember||matches[0].matchhistoryreportresults||[]);
-      const m=members.find(x=>Number(x.profile_id)===Number(profileId));
-      if(m&&m.name) return m.name;
-    }
-  }catch(e){ console.warn('[lookupAoe2Profile]',e.message); }
+  }catch(e){ console.warn('[lookup] matchHistory failed:', e.message); }
+
   return null;
 }
 
