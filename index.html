@@ -2181,7 +2181,7 @@ window.runImport=async function(){
       ilog('Ratings reset. Processing oldest→newest…');
     } else {
       ilog(`Found ${matches.length} matches. Keeping current Elos — processing oldest→newest…`,'warn');
-      for(const p of players){ p.wins=0; p.losses=0; }
+      for(const p of players){ p.wins=0; p.losses=0; p.civWins={}; p.civLosses={}; }
       const hSnap=await getDocs(collection(db,'history'));
       const batch=writeBatch(db); hSnap.forEach(d=>batch.delete(d.ref)); await batch.commit();
       ilog('W/L reset, history cleared. Processing…');
@@ -3776,9 +3776,11 @@ window.saveMatchEdit=async function(newWinner){
     p.losses=Math.max(0,(p.losses||0)-1);
   }
 
-  // Apply new result
-  const avgWin=newWinA.reduce((s,a)=>s+(a.effElo||1200),0)/Math.max(1,newWinA.length);
-  const avgLose=newLoseA.reduce((s,a)=>s+(a.effElo||1200),0)/Math.max(1,newLoseA.length);
+  // Apply new result — use live overallElo() for opponent averages (consistent with applyResult)
+  const editWinPlayers=newWinA.map(a=>profMap[a.name]).filter(Boolean);
+  const editLosePlayers=newLoseA.map(a=>profMap[a.name]).filter(Boolean);
+  const avgWin=editWinPlayers.length?editWinPlayers.reduce((s,p)=>s+overallElo(p),0)/editWinPlayers.length:DEFAULT_ELO;
+  const avgLose=editLosePlayers.length?editLosePlayers.reduce((s,p)=>s+overallElo(p),0)/editLosePlayers.length:DEFAULT_ELO;
   for(const a of newWinA){
     const p=profMap[a.name]; if(!p) continue;
     p.wins=(p.wins||0)+1;
