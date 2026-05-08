@@ -331,7 +331,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
 
 <!-- ══ LEADERBOARD ══ -->
 <div class="page" id="page-leaderboard">
-  <div class="ph"><h1>Leaderboard</h1><p>Ranked by overall Elo (average of all 8 civ Elos).</p></div>
+  <div class="ph"><h1>Leaderboard</h1><p>Ranked by overall Elo (weighted average — played civs carry more influence).</p></div>
 
   <div class="card" style="margin-bottom:1rem">
     <div class="ct">Community Win Rates</div>
@@ -747,13 +747,21 @@ let fullHistory=[];
 const civElo = (p,cid) => Math.max(100, p.civElo?.[cid] ?? DEFAULT_ELO);
 
 // overallElo: THE single source of truth for a player's rating.
-// Averages only civs the player has actually played (civWins+civLosses > 0).
-// Falls back to all civs for brand-new players with no data yet.
-// Used on leaderboard, players page, profile header, balance page — everywhere.
+// Weighted average: every civ gets baseWeight (0.25) so unplayed civs at 900
+// still exert a small pull, but played civs gain extra weight = sqrt(gamesPlayed),
+// so a civ with 100 games (weight 10.25) dominates over unused civs (weight 0.25).
+// This prevents both extremes: ignoring unplayed civs entirely, and letting
+// many unused 900-rated civs drag a strong player unfairly low.
+const BASE_WEIGHT = 0.25;
 const overallElo = p => {
-  const played = CIVS.filter(c => (p.civWins?.[c.id]||0)+(p.civLosses?.[c.id]||0) > 0);
-  const pool   = played.length ? played : CIVS;
-  return Math.round(pool.reduce((s,c) => s+civElo(p,c.id), 0) / pool.length);
+  let weightedSum = 0, totalWeight = 0;
+  for(const c of CIVS){
+    const games = (p.civWins?.[c.id]||0)+(p.civLosses?.[c.id]||0);
+    const weight = BASE_WEIGHT + Math.sqrt(games);
+    weightedSum += civElo(p,c.id) * weight;
+    totalWeight += weight;
+  }
+  return Math.round(weightedSum / totalWeight);
 };
 
 // effCivElo: used only for balancing assignments.
