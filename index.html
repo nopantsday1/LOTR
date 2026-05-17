@@ -4397,15 +4397,15 @@ function renderMyProfile(){
     </div>
     ${linkSection}
     ${linkedPlayer?`
-    ${buildPlayerStats(linkedPlayer)}
     <div class="ct" style="margin-bottom:.75rem;margin-top:.5rem">My Civ Preferences</div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:.75rem;font-family:'Cinzel',serif;letter-spacing:.05em">
       ⭐ Favourite (+40%, max 2) &nbsp;·&nbsp; 👎 Avoid (−40%, max 2) &nbsp;·&nbsp; 🚫 Ban (never assigned, max 2)
     </p>
     ${prefsSection}
-    <div style="margin-top:1rem;text-align:right">
+    <div style="margin-top:1rem;text-align:right;margin-bottom:1.5rem">
       <button class="btn-p" onclick="saveMyPrefs()">✓ Save Preferences</button>
-    </div>`:''}`;
+    </div>
+    ${buildPlayerStats(linkedPlayer)}`:''}`;
 }
 
 function buildPrefsSection(){
