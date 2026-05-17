@@ -4091,12 +4091,12 @@ function resolveLinkedPlayer(){
 }
 
 // ── AUTH MODAL ────────────────────────────
-function openAuthModal(mode='login'){
+window.openAuthModal=function(mode='login'){
   renderAuthModal(mode);
   openModal('mAuth');
 }
 
-function renderAuthModal(mode){
+window.renderAuthModal=function(mode){
   const el=document.getElementById('authModalContent');
   el.innerHTML=`
     <div class="mtitle">${mode==='login'?'Login':'Create Account'}</div>
@@ -4170,7 +4170,7 @@ function authErrMsg(code){
 }
 
 // ── PLAYER PROFILE MODAL ──────────────────
-function openMyProfile(){
+window.openMyProfile=function(){
   renderMyProfile();
   openModal('mMyProfile');
 }
