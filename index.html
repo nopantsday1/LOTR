@@ -560,7 +560,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
     </div>
     <div class="ct" style="margin-bottom:.6rem">Favourite, Avoid & Banned Civs</div>
     <div style="font-size:11px;color:var(--muted);margin-bottom:.5rem;font-family:'Cinzel',serif;letter-spacing:.06em">
-      ⭐ Favourite (+15% Elo, up to 2) &nbsp;·&nbsp; 👎 Avoid (−40%, unlimited) &nbsp;·&nbsp; 🚫 Banned (never assigned, up to 2)
+      ⭐ Favourite (+40% Elo, up to 2) &nbsp;·&nbsp; 👎 Avoid (−40%, up to 2) &nbsp;·&nbsp; 🚫 Banned (never assigned, up to 2)
     </div>
     <div id="favAvoidGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin-bottom:1rem"></div>
     <div class="ct" style="margin-bottom:.6rem">Individual Civ Elos</div>
@@ -789,10 +789,19 @@ const overallElo = p => {
 };
 
 // effCivElo: used only for balancing assignments.
-// Played civs → actual civ Elo. Unplayed civs → player's overall Elo as estimate.
-const effCivElo = (p,cid) => {
-  const hasPlayed = (p.civWins?.[cid]||0)+(p.civLosses?.[cid]||0) > 0;
-  return hasPlayed ? civElo(p,cid) : overallElo(p);
+// < 5 games on this civ → use the player's lowest Elo across all civs with 5+ games
+// (penalises unfamiliar civs without being as harsh as their worst ever game).
+// If no civ has 5+ games yet, fall back to overall Elo.
+const effCivElo = (p, cid) => {
+  const games = (p.civWins?.[cid]||0) + (p.civLosses?.[cid]||0);
+  if(games >= 5) return civElo(p, cid);
+  // Find lowest Elo among civs the player has played 5+ times
+  const experiencedElos = CIVS
+    .filter(c => (p.civWins?.[c.id]||0) + (p.civLosses?.[c.id]||0) >= 5)
+    .map(c => civElo(p, c.id));
+  if(experiencedElos.length > 0) return Math.min(...experiencedElos);
+  // No civ with 5+ games — fall back to overall Elo
+  return overallElo(p);
 };
 
 // kFactor: K=200 for first 5 games on a civ (provisional),
@@ -852,7 +861,7 @@ function bestAssign(players, civs){
     if((p.bannedCivs||[]).includes(cid)) return -Infinity;
     let e=effCivElo(p,cid);
     // Fav/avoid modifiers
-    if((p.favCivs||[]).includes(cid))   e=Math.round(e*1.15);
+    if((p.favCivs||[]).includes(cid))   e=Math.round(e*1.40);
     if((p.avoidCivs||[]).includes(cid)) e=Math.round(e*0.60);
     // Rotation penalties — stronger for more recent play
     const recent=recentCivs[p.id]||[];
@@ -1785,6 +1794,8 @@ window.toggleFavAvoid=function(civId, type){
     favBtn.classList.toggle('active');
     if(favBtn.classList.contains('active')){ avoidBtn.classList.remove('active'); banBtn.classList.remove('active'); }
   } else if(type==='avoid'){
+    const isActive=avoidBtn.classList.contains('active');
+    if(!isActive && countActive('avoid_')>=2){ toast('Max 2 avoid civs','err'); return; }
     avoidBtn.classList.toggle('active');
     if(avoidBtn.classList.contains('active')){ favBtn.classList.remove('active'); banBtn.classList.remove('active'); }
   } else if(type==='ban'){
@@ -4244,7 +4255,7 @@ function renderMyProfile(){
     ${linkedPlayer?`
     <div class="ct" style="margin-bottom:.75rem">My Civ Preferences</div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:.75rem;font-family:'Cinzel',serif;letter-spacing:.05em">
-      ⭐ Favourite (+15%, max 2) &nbsp;·&nbsp; 👎 Avoid (−40%) &nbsp;·&nbsp; 🚫 Ban (never assigned, max 2)
+      ⭐ Favourite (+40%, max 2) &nbsp;·&nbsp; 👎 Avoid (−40%, max 2) &nbsp;·&nbsp; 🚫 Ban (never assigned, max 2)
     </p>
     ${prefsSection}
     <div style="margin-top:1rem;text-align:right">
@@ -4280,6 +4291,8 @@ window.toggleMyPref=function(civId, type){
     favBtn.classList.toggle('active');
     if(favBtn.classList.contains('active')){avoidBtn.classList.remove('active');banBtn.classList.remove('active');}
   } else if(type==='avoid'){
+    const isActive=avoidBtn.classList.contains('active');
+    if(!isActive&&countActive('mp_avoid_')>=2){toast('Max 2 avoid civs','err');return;}
     avoidBtn.classList.toggle('active');
     if(avoidBtn.classList.contains('active')){favBtn.classList.remove('active');banBtn.classList.remove('active');}
   } else if(type==='ban'){
