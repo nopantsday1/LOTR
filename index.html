@@ -232,9 +232,10 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
   <button class="tab" onclick="go('leaderboard')">Leaderboard</button>
   <button class="tab" onclick="go('stats')">Stats</button>
   <button class="tab" onclick="go('admin')">Admin</button>
-  <button class="tab" id="liveTab" onclick="go('live')">Live <span id="liveDot" style="display:none;width:7px;height:7px;border-radius:50%;background:#e08080;display:inline-block;vertical-align:middle;margin-left:4px;animation:pulse .8s infinite"></span></button>
+
   <span class="spacer"></span>
-  <div class="sync" id="sync" title="Firebase sync"></div>
+  <button id="navAuthBtn" onclick="openModal('mAuth')" style="font-family:'Cinzel',serif;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);background:none;border:1px solid var(--border2);padding:5px 14px;border-radius:3px;cursor:pointer;transition:color .15s,border-color .15s;white-space:nowrap">Connexion</button>
+  <div class="sync" id="sync" title="Firebase sync" style="margin-left:.75rem"></div>
 </nav>
 
 <!-- ══ BALANCE ══ -->
@@ -557,7 +558,10 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
       <label>Alt Profile IDs <span style="font-size:11px;color:var(--muted)">(comma separated — for players with multiple accounts)</span></label>
       <input type="text" id="epAltPids" placeholder="e.g. 1234567, 7654321" style="width:100%;margin-top:4px">
     </div>
-    <div class="ct" style="margin-bottom:.6rem">Favourite & Avoid Civs</div>
+    <div class="ct" style="margin-bottom:.6rem">Favourite, Avoid & Banned Civs</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:.5rem;font-family:'Cinzel',serif;letter-spacing:.06em">
+      ⭐ Favourite (+15% Elo, up to 2) &nbsp;·&nbsp; 👎 Avoid (−40%, unlimited) &nbsp;·&nbsp; 🚫 Banned (never assigned, up to 2)
+    </div>
     <div id="favAvoidGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin-bottom:1rem"></div>
     <div class="ct" style="margin-bottom:.6rem">Individual Civ Elos</div>
     <div class="civ-grid" id="civGrid"></div>
@@ -630,6 +634,23 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
   </div>
 </div>
 
+<!-- ══ AUTH MODAL ══ -->
+<div class="mo" id="mAuth">
+  <div class="modal" style="max-width:420px">
+    <span class="mclose" onclick="closeModal('mAuth')">×</span>
+    <div id="authModalContent"></div>
+  </div>
+</div>
+
+<!-- ══ PLAYER PROFILE MODAL ══ -->
+<div class="mo" id="mMyProfile">
+  <div class="modal wide" style="max-width:560px">
+    <span class="mclose" onclick="closeModal('mMyProfile')">×</span>
+    <div class="mtitle" id="myProfileTitle">Mon Profil</div>
+    <div id="myProfileContent"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- Navigation defined outside module so it works even if Firebase fails to load -->
@@ -648,6 +669,7 @@ function go(name){
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc, query, orderBy, limit, writeBatch, runTransaction, increment } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
 // ─────────────────────────────────────────
 // CONFIG
@@ -728,7 +750,9 @@ function buildProfMap(playerList){
 // ─────────────────────────────────────────
 // STATE
 // ─────────────────────────────────────────
-let db, players=[], history=[];
+let db, auth, players=[], history=[];
+let currentUser=null;   // Firebase Auth user
+let linkedPlayer=null;  // players[] entry linked to this account
 let adminPass=DEFAULT_PASS, adminUnlocked=false;
 let selected=new Set(), lastBal=null, swapSrc=null;
 let pSortKey='elo', pSortDir=1;
@@ -824,6 +848,8 @@ function bestAssign(players, civs){
   }
 
   const adjElo=(p,cid)=>{
+    // HARD BAN — banned civs are never assigned (score -Infinity)
+    if((p.bannedCivs||[]).includes(cid)) return -Infinity;
     let e=effCivElo(p,cid);
     // Fav/avoid modifiers
     if((p.favCivs||[]).includes(cid))   e=Math.round(e*1.15);
@@ -877,12 +903,31 @@ function matchupScore(evilAssign, goodAssign){
 }
 async function init(){
   sync('spin');
-  const app=initializeApp(FB); db=getFirestore(app);
+  const app=initializeApp(FB); db=getFirestore(app); auth=getAuth(app);
+  // Auth state listener
+  onAuthStateChanged(auth, async user=>{
+    currentUser=user;
+    if(user){
+      // Try to find linked player by stored profileId in auth doc
+      try{
+        const authDoc=await getDoc(doc(db,'auth_profiles',user.uid));
+        if(authDoc.exists()){
+          const pid=authDoc.data().profileId;
+          linkedPlayer=players.find(p=>String(p.profileId)===String(pid)||String(p.id)===String(pid))||null;
+        } else { linkedPlayer=null; }
+      } catch(e){ linkedPlayer=null; }
+      renderNavAuth();
+    } else {
+      linkedPlayer=null;
+      renderNavAuth();
+    }
+  });
   try{ const s=await getDoc(doc(db,'settings','main')); if(s.exists()) adminPass=s.data().adminPass||DEFAULT_PASS; }catch(_){}
   onSnapshot(collection(db,'players'),snap=>{
     players=[]; snap.forEach(d=>players.push({id:d.id,...d.data()}));
     players.sort((a,b)=>overallElo(b)-overallElo(a));
     renderGrid(); renderPTable(); renderLB(); sync('ok');
+    resolveLinkedPlayer();
     // Re-subscribe WebSocket to updated player list
     if(lobbyWs&&lobbyWs.readyState===WebSocket.OPEN){
       const pids=players.filter(p=>p.profileId).map(p=>String(p.profileId));
@@ -1091,7 +1136,7 @@ function renderTeam(id,assign,side,total){
     row.className='arow'+(swapSrc?.side===side&&swapSrc?.i===i?' sel':'');
     row.onclick=()=>doSwap(side,i);
     row.innerHTML=`<span class="aname">${a.player.name}</span>
-      <span class="aciv">${normCivName(a.civName)}${(a.player.favCivs||[]).includes(a.civId)?' ⭐':''}</span>
+      <span class="aciv">${normCivName(a.civName)}${(a.player.favCivs||[]).includes(a.civId)?' ⭐':''}${(a.player.bannedCivs||[]).length>0?' 🚫('+((a.player.bannedCivs||[]).map(id=>CIVS.find(c=>c.id===id)?.name||id).join(','))+')':''}</span>
       <span class="aelo">${a.effElo}</span>`;
     el.appendChild(row);
   });
@@ -1706,14 +1751,16 @@ window.editPlayer=function(id){
   document.getElementById('epName').value=p.name;
   document.getElementById('epPid').value=p.profileId||'';
   document.getElementById('epAltPids').value=(p.altProfileIds||[]).join(', ');
-  // Fav/Avoid grid
+  // Fav/Avoid/Ban grid
   const favs=new Set(p.favCivs||[]);
   const avoids=new Set(p.avoidCivs||[]);
+  const bans=new Set(p.bannedCivs||[]);
   document.getElementById('favAvoidGrid').innerHTML=CIVS.map(c=>`
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:5px 8px;display:flex;align-items:center;gap:4px">
       <span style="font-size:11px;flex:1;color:${c.side==='evil'?'var(--evil)':'var(--good)'}">${c.name}</span>
-      <button class="fa-btn ${favs.has(c.id)?'active':''}" id="fav_${c.id}" onclick="toggleFavAvoid('${c.id}','fav')" title="Favourite">⭐</button>
-      <button class="fa-btn ${avoids.has(c.id)?'active':''}" id="avoid_${c.id}" onclick="toggleFavAvoid('${c.id}','avoid')" title="Avoid">🚫</button>
+      <button class="fa-btn ${favs.has(c.id)?'active':''}" id="fav_${c.id}" onclick="toggleFavAvoid('${c.id}','fav')" title="Favourite (max 2)">⭐</button>
+      <button class="fa-btn ${avoids.has(c.id)?'active':''}" id="avoid_${c.id}" onclick="toggleFavAvoid('${c.id}','avoid')" title="Avoid (−40%)">👎</button>
+      <button class="fa-btn ${bans.has(c.id)?'active':''}" id="ban_${c.id}" onclick="toggleFavAvoid('${c.id}','ban')" title="Ban (never assigned, max 2)">🚫</button>
     </div>`).join('');
   document.getElementById('civGrid').innerHTML=CIVS.map(c=>`
     <div class="civ-edit">
@@ -1723,16 +1770,28 @@ window.editPlayer=function(id){
   openModal('mEditPlayer');
 };
 
-// Toggle fav/avoid buttons in edit modal (mutually exclusive)
+// Toggle fav/avoid/ban buttons — mutually exclusive per civ, fav & ban each max 2
 window.toggleFavAvoid=function(civId, type){
-  const favBtn=document.getElementById('fav_'+civId);
-  const avoidBtn=document.getElementById('avoid_'+civId);
+  const favBtn  = document.getElementById('fav_'+civId);
+  const avoidBtn= document.getElementById('avoid_'+civId);
+  const banBtn  = document.getElementById('ban_'+civId);
+
+  const countActive = (prefix) =>
+    CIVS.filter(c=>document.getElementById(prefix+c.id)?.classList.contains('active')).length;
+
   if(type==='fav'){
+    const isActive=favBtn.classList.contains('active');
+    if(!isActive && countActive('fav_')>=2){ toast('Max 2 favourites','err'); return; }
     favBtn.classList.toggle('active');
-    if(favBtn.classList.contains('active')) avoidBtn.classList.remove('active');
-  } else {
+    if(favBtn.classList.contains('active')){ avoidBtn.classList.remove('active'); banBtn.classList.remove('active'); }
+  } else if(type==='avoid'){
     avoidBtn.classList.toggle('active');
-    if(avoidBtn.classList.contains('active')) favBtn.classList.remove('active');
+    if(avoidBtn.classList.contains('active')){ favBtn.classList.remove('active'); banBtn.classList.remove('active'); }
+  } else if(type==='ban'){
+    const isActive=banBtn.classList.contains('active');
+    if(!isActive && countActive('ban_')>=2){ toast('Max 2 bans','err'); return; }
+    banBtn.classList.toggle('active');
+    if(banBtn.classList.contains('active')){ favBtn.classList.remove('active'); avoidBtn.classList.remove('active'); }
   }
 };
 
@@ -1747,9 +1806,10 @@ window.savePlayer=async function(){
   p.altProfileIds=altRaw.split(',').map(s=>s.trim()).filter(Boolean).map(Number).filter(n=>n&&n!==p.profileId);
   p.civElo=p.civElo||{};
   CIVS.forEach(c=>{ p.civElo[c.id]=Math.max(100,Number(document.getElementById('ce_'+c.id).value)||DEFAULT_ELO); });
-  // Save fav/avoid
+  // Save fav/avoid/ban
   p.favCivs=CIVS.filter(c=>document.getElementById('fav_'+c.id)?.classList.contains('active')).map(c=>c.id);
   p.avoidCivs=CIVS.filter(c=>document.getElementById('avoid_'+c.id)?.classList.contains('active')).map(c=>c.id);
+  p.bannedCivs=CIVS.filter(c=>document.getElementById('ban_'+c.id)?.classList.contains('active')).map(c=>c.id);
   await savePl(p); closeModal('mEditPlayer'); toast('Saved');
 };
 
@@ -3995,6 +4055,280 @@ window.applyBulkElo=async function(){
   toast(`Applied Elo ratings to ${bulkOrder.length} players!`);
   renderLB(); renderPTable();
 };
+
+// ─────────────────────────────────────────
+// AUTH — LOGIN / REGISTER / PROFILE
+// ─────────────────────────────────────────
+
+// Update the navbar button based on auth state
+function renderNavAuth(){
+  const btn=document.getElementById('navAuthBtn');
+  if(!btn) return;
+  if(currentUser){
+    const name=linkedPlayer?linkedPlayer.name:(currentUser.email.split('@')[0]);
+    btn.textContent=name;
+    btn.style.color='var(--gold)';
+    btn.style.borderColor='var(--gold-d)';
+    btn.onclick=()=>openMyProfile();
+  } else {
+    btn.textContent='Connexion';
+    btn.style.color='var(--dim)';
+    btn.style.borderColor='var(--border2)';
+    btn.onclick=()=>openAuthModal('login');
+  }
+}
+
+// When players list updates, re-resolve linkedPlayer
+function resolveLinkedPlayer(){
+  if(!currentUser) return;
+  getDoc(doc(db,'auth_profiles',currentUser.uid)).then(d=>{
+    if(d.exists()){
+      const pid=d.data().profileId;
+      linkedPlayer=players.find(p=>String(p.profileId)===String(pid)||String(p.id)===String(pid))||null;
+      renderNavAuth();
+    }
+  }).catch(()=>{});
+}
+
+// ── AUTH MODAL ────────────────────────────
+function openAuthModal(mode='login'){
+  renderAuthModal(mode);
+  openModal('mAuth');
+}
+
+function renderAuthModal(mode){
+  const el=document.getElementById('authModalContent');
+  el.innerHTML=`
+    <div class="mtitle">${mode==='login'?'Connexion':'Créer un compte'}</div>
+    <div style="margin-bottom:1rem">
+      <label>Email</label>
+      <input type="text" id="authEmail" placeholder="votre@email.com" style="margin-bottom:.6rem">
+      <label>Mot de passe</label>
+      <input type="password" id="authPass" placeholder="••••••••"
+        onkeydown="if(event.key==='Enter') submitAuth('${mode}')">
+      ${mode==='register'?`
+      <label style="margin-top:.6rem">Confirmer le mot de passe</label>
+      <input type="password" id="authPass2" placeholder="••••••••"
+        onkeydown="if(event.key==='Enter') submitAuth('register')">
+      `:''}
+    </div>
+    <p id="authErr" style="display:none;font-size:13px;color:var(--evil);margin-bottom:.75rem;padding:6px 10px;background:#2e1010;border:1px solid var(--evil-d);border-radius:3px"></p>
+    <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+      <button class="btn-p" onclick="submitAuth('${mode}')" id="authSubmitBtn">
+        ${mode==='login'?'Se connecter':'Créer le compte'}
+      </button>
+      <button class="btn" onclick="renderAuthModal('${mode==='login'?'register':'login'}')">
+        ${mode==='login'?'Pas de compte ? S\'inscrire':'Déjà un compte ? Se connecter'}
+      </button>
+    </div>`;
+}
+
+window.submitAuth=async function(mode){
+  const email=document.getElementById('authEmail')?.value?.trim();
+  const pass=document.getElementById('authPass')?.value;
+  const pass2=document.getElementById('authPass2')?.value;
+  const errEl=document.getElementById('authErr');
+  const btn=document.getElementById('authSubmitBtn');
+  const showErr=msg=>{ errEl.textContent=msg; errEl.style.display='block'; };
+  errEl.style.display='none';
+
+  if(!email||!pass){ showErr('Email et mot de passe requis.'); return; }
+  if(mode==='register'&&pass!==pass2){ showErr('Les mots de passe ne correspondent pas.'); return; }
+  if(mode==='register'&&pass.length<6){ showErr('Mot de passe trop court (6 caractères min).'); return; }
+
+  btn.disabled=true; btn.textContent='…';
+  try{
+    if(mode==='login'){
+      await signInWithEmailAndPassword(auth, email, pass);
+    } else {
+      await createUserWithEmailAndPassword(auth, email, pass);
+    }
+    closeModal('mAuth');
+    toast(mode==='login'?'Connecté !':'Compte créé !');
+    // After register/login, prompt to link profile if not yet linked
+    setTimeout(()=>{
+      if(!linkedPlayer) openMyProfile();
+    }, 400);
+  } catch(e){
+    btn.disabled=false;
+    btn.textContent=mode==='login'?'Se connecter':'Créer le compte';
+    showErr(authErrMsg(e.code));
+  }
+};
+
+function authErrMsg(code){
+  const map={
+    'auth/user-not-found':'Aucun compte avec cet email.',
+    'auth/wrong-password':'Mot de passe incorrect.',
+    'auth/invalid-credential':'Email ou mot de passe incorrect.',
+    'auth/email-already-in-use':'Cet email est déjà utilisé.',
+    'auth/weak-password':'Mot de passe trop faible (6 caractères min).',
+    'auth/invalid-email':'Adresse email invalide.',
+    'auth/too-many-requests':'Trop de tentatives. Réessayez plus tard.',
+  };
+  return map[code]??`Erreur : ${code}`;
+}
+
+// ── PLAYER PROFILE MODAL ──────────────────
+function openMyProfile(){
+  renderMyProfile();
+  openModal('mMyProfile');
+}
+
+function renderMyProfile(){
+  const el=document.getElementById('myProfileContent');
+  const titleEl=document.getElementById('myProfileTitle');
+
+  if(!currentUser){
+    el.innerHTML=`<p style="color:var(--dim);font-size:14px">Vous n'êtes pas connecté.</p>
+      <button class="btn-p" onclick="closeModal('mMyProfile');openAuthModal('login')">Se connecter</button>`;
+    return;
+  }
+
+  titleEl.textContent=linkedPlayer?`Mon Profil — ${linkedPlayer.name}`:'Mon Profil';
+
+  // ── Linked player section ──
+  const linkSection=linkedPlayer?`
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:.85rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+      <div style="font-size:22px">✅</div>
+      <div>
+        <div style="font-family:'Cinzel',serif;font-size:12px;color:var(--gold);letter-spacing:.08em">${linkedPlayer.name}</div>
+        <div style="font-size:13px;color:var(--dim);margin-top:2px">Profile ID : ${linkedPlayer.profileId||linkedPlayer.id} · Elo : ${overallElo(linkedPlayer)}</div>
+      </div>
+      <button class="btn btn-del" onclick="unlinkProfile()" style="margin-left:auto">Délier</button>
+    </div>`:`
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:1rem;margin-bottom:1rem">
+      <div class="ct" style="margin-bottom:.5rem">Lier votre profil joueur</div>
+      <p style="font-size:13px;color:var(--dim);margin-bottom:.75rem">Entrez votre AoE2 Profile ID pour lier votre compte à votre profil joueur. Votre Profile ID se trouve sur <a href="https://www.aoe2insights.com" target="_blank" style="color:var(--gold)">aoe2insights.com</a> ou dans l'URL de votre profil.</p>
+      <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+        <input type="number" id="linkPidInput" placeholder="ex: 1234567" style="max-width:180px">
+        <button class="btn-p" onclick="linkProfile()">🔗 Lier le profil</button>
+      </div>
+      <p id="linkErr" style="display:none;font-size:13px;color:var(--evil);margin-top:.5rem"></p>
+    </div>`;
+
+  // ── Bans/favs section (only shown when linked) ──
+  const prefsSection=linkedPlayer?buildPrefsSection():'<p style="font-size:13px;color:var(--muted);padding:.5rem 0">Liez votre profil joueur pour gérer vos préférences.</p>';
+
+  el.innerHTML=`
+    <div style="font-size:13px;color:var(--muted);margin-bottom:1rem">${currentUser.email}
+      <button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:var(--evil);font-size:12px;font-family:'Cinzel',serif;letter-spacing:.06em;text-transform:uppercase;margin-left:1rem">Déconnexion</button>
+    </div>
+    ${linkSection}
+    ${linkedPlayer?`
+    <div class="ct" style="margin-bottom:.75rem">Mes préférences de civs</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:.75rem;font-family:'Cinzel',serif;letter-spacing:.05em">
+      ⭐ Favori (+15%, max 2) &nbsp;·&nbsp; 👎 Éviter (−40%) &nbsp;·&nbsp; 🚫 Bannir (jamais attribué, max 2)
+    </p>
+    ${prefsSection}
+    <div style="margin-top:1rem;text-align:right">
+      <button class="btn-p" onclick="saveMyPrefs()">✓ Sauvegarder mes préférences</button>
+    </div>`:''}`;
+}
+
+function buildPrefsSection(){
+  if(!linkedPlayer) return '';
+  const favs=new Set(linkedPlayer.favCivs||[]);
+  const avoids=new Set(linkedPlayer.avoidCivs||[]);
+  const bans=new Set(linkedPlayer.bannedCivs||[]);
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.4rem">
+    ${CIVS.map(c=>`
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:5px 8px;display:flex;align-items:center;gap:4px">
+        <span style="font-size:11px;flex:1;color:${c.side==='evil'?'var(--evil)':'var(--good)'}">${c.name}</span>
+        <button class="fa-btn ${favs.has(c.id)?'active':''}" id="mp_fav_${c.id}" onclick="toggleMyPref('${c.id}','fav')" title="Favori (max 2)">⭐</button>
+        <button class="fa-btn ${avoids.has(c.id)?'active':''}" id="mp_avoid_${c.id}" onclick="toggleMyPref('${c.id}','avoid')" title="Éviter (−40%)">👎</button>
+        <button class="fa-btn ${bans.has(c.id)?'active':''}" id="mp_ban_${c.id}" onclick="toggleMyPref('${c.id}','ban')" title="Bannir (max 2)">🚫</button>
+      </div>`).join('')}
+  </div>`;
+}
+
+window.toggleMyPref=function(civId, type){
+  const favBtn  =document.getElementById('mp_fav_'+civId);
+  const avoidBtn=document.getElementById('mp_avoid_'+civId);
+  const banBtn  =document.getElementById('mp_ban_'+civId);
+  const countActive=prefix=>CIVS.filter(c=>document.getElementById(prefix+c.id)?.classList.contains('active')).length;
+
+  if(type==='fav'){
+    const isActive=favBtn.classList.contains('active');
+    if(!isActive&&countActive('mp_fav_')>=2){toast('Max 2 favoris','err');return;}
+    favBtn.classList.toggle('active');
+    if(favBtn.classList.contains('active')){avoidBtn.classList.remove('active');banBtn.classList.remove('active');}
+  } else if(type==='avoid'){
+    avoidBtn.classList.toggle('active');
+    if(avoidBtn.classList.contains('active')){favBtn.classList.remove('active');banBtn.classList.remove('active');}
+  } else if(type==='ban'){
+    const isActive=banBtn.classList.contains('active');
+    if(!isActive&&countActive('mp_ban_')>=2){toast('Max 2 bans','err');return;}
+    banBtn.classList.toggle('active');
+    if(banBtn.classList.contains('active')){favBtn.classList.remove('active');avoidBtn.classList.remove('active');}
+  }
+};
+
+window.saveMyPrefs=async function(){
+  if(!linkedPlayer||!currentUser){toast('Profil non lié','err');return;}
+  linkedPlayer.favCivs  =CIVS.filter(c=>document.getElementById('mp_fav_'+c.id)?.classList.contains('active')).map(c=>c.id);
+  linkedPlayer.avoidCivs=CIVS.filter(c=>document.getElementById('mp_avoid_'+c.id)?.classList.contains('active')).map(c=>c.id);
+  linkedPlayer.bannedCivs=CIVS.filter(c=>document.getElementById('mp_ban_'+c.id)?.classList.contains('active')).map(c=>c.id);
+  await savePl(linkedPlayer);
+  toast('Préférences sauvegardées !');
+  renderMyProfile(); // refresh display
+};
+
+// Link account to player profile by profile ID
+window.linkProfile=async function(){
+  const pidRaw=document.getElementById('linkPidInput')?.value?.trim();
+  const errEl=document.getElementById('linkErr');
+  errEl.style.display='none';
+  if(!pidRaw){errEl.textContent='Entrez un Profile ID.';errEl.style.display='block';return;}
+  const pid=Number(pidRaw);
+  // Find player in local list
+  const match=players.find(p=>Number(p.profileId)===pid||(p.altProfileIds||[]).map(Number).includes(pid)||Number(p.id)===pid);
+  if(!match){
+    errEl.textContent=`Aucun joueur trouvé avec le Profile ID ${pid}. Contactez l'admin pour vous ajouter.`;
+    errEl.style.display='block';
+    return;
+  }
+  // Check if this profileId is already claimed by another account
+  try{
+    const existing=await getDocs(query(collection(db,'auth_profiles')));
+    for(const d of existing.docs){
+      if(d.id!==currentUser.uid&&String(d.data().profileId)===String(pid)){
+        errEl.textContent='Ce Profile ID est déjà lié à un autre compte.';
+        errEl.style.display='block';
+        return;
+      }
+    }
+    // Save the link
+    await setDoc(doc(db,'auth_profiles',currentUser.uid),{
+      profileId:pid, email:currentUser.email, linkedAt:Date.now()
+    });
+    linkedPlayer=match;
+    renderNavAuth();
+    renderMyProfile();
+    toast(`Profil lié à ${match.name} !`);
+  } catch(e){ errEl.textContent='Erreur lors de la liaison. Réessayez.'; errEl.style.display='block'; }
+};
+
+window.unlinkProfile=async function(){
+  if(!confirm('Délier votre compte de ce profil joueur ?')) return;
+  try{
+    await deleteDoc(doc(db,'auth_profiles',currentUser.uid));
+    linkedPlayer=null;
+    renderNavAuth();
+    renderMyProfile();
+    toast('Profil délié.');
+  } catch(e){ toast('Erreur','err'); }
+};
+
+window.doSignOut=async function(){
+  await signOut(auth);
+  closeModal('mMyProfile');
+  toast('Déconnecté.');
+};
+
+// ─────────────────────────────────────────
+// END AUTH
+// ─────────────────────────────────────────
 
 // START
 init();
