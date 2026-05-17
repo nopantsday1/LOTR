@@ -644,7 +644,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
 
 <!-- ══ PLAYER PROFILE MODAL ══ -->
 <div class="mo" id="mMyProfile">
-  <div class="modal wide" style="max-width:560px">
+  <div class="modal wide" style="max-width:700px;max-height:88vh;overflow-y:auto">
     <span class="mclose" onclick="closeModal('mMyProfile')">×</span>
     <div class="mtitle" id="myProfileTitle">Mon Profil</div>
     <div id="myProfileContent"></div>
@@ -4212,6 +4212,150 @@ window.openMyProfile=function(){
   openModal('mMyProfile');
 }
 
+function buildPlayerStats(p){
+  if(!p) return '';
+
+  const wins   = p.wins   || 0;
+  const losses = p.losses || 0;
+  const total  = wins + losses;
+  const wr     = total ? Math.round((wins/total)*100) : 0;
+
+  // Best and worst civ (min 3 games)
+  const civStats = CIVS.map(c => {
+    const w = p.civWins?.[c.id]||0;
+    const l = p.civLosses?.[c.id]||0;
+    const g = w+l;
+    const elo = civElo(p,c.id);
+    const civWr = g ? Math.round((w/g)*100) : null;
+    return { ...c, w, l, g, elo, civWr };
+  }).filter(c => c.g >= 3).sort((a,b) => b.elo-a.elo);
+
+  const bestCiv  = civStats[0]   || null;
+  const worstCiv = civStats[civStats.length-1] || null;
+
+  // Current streak from fullHistoryCache
+  const myMatches = [...fullHistoryCache]
+    .filter(h => [...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>a.name===p.name))
+    .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
+
+  let streak=0, streakType=null;
+  for(const h of myMatches){
+    const onEvil=(h.evilAssign||[]).some(a=>a.name===p.name);
+    const won=(onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
+    if(streakType===null){ streakType=won?'W':'L'; streak=1; }
+    else if((won&&streakType==='W')||(!won&&streakType==='L')) streak++;
+    else break;
+  }
+
+  // Head-to-head: for each opponent, count W/L
+  const h2h={};
+  for(const h of myMatches){
+    const onEvil=(h.evilAssign||[]).some(a=>a.name===p.name);
+    const myTeam=onEvil?h.evilAssign:h.goodAssign;
+    const oppTeam=onEvil?h.goodAssign:h.evilAssign;
+    const won=(onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
+    (oppTeam||[]).forEach(a=>{
+      if(!a.name||a.name===p.name) return;
+      h2h[a.name]=h2h[a.name]||{w:0,l:0};
+      if(won) h2h[a.name].w++; else h2h[a.name].l++;
+    });
+  }
+  const h2hSorted=Object.entries(h2h)
+    .map(([name,r])=>({name,w:r.w,l:r.l,g:r.w+r.l,wr:Math.round((r.w/(r.w+r.l))*100)}))
+    .filter(r=>r.g>=2)
+    .sort((a,b)=>b.g-a.g)
+    .slice(0,8);
+
+  // Recent form (last 10 games)
+  const recentForm = myMatches.slice(0,10).map(h=>{
+    const onEvil=(h.evilAssign||[]).some(a=>a.name===p.name);
+    const won=(onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
+    return won;
+  });
+
+  // Stat card helper
+  const statCard=(val,lbl,color='var(--text)')=>`
+    <div class="pstat">
+      <div class="pstat-val" style="color:${color}">${val}</div>
+      <span class="pstat-lbl">${lbl}</span>
+    </div>`;
+
+  return `
+    <!-- Overview stats -->
+    <div class="ct" style="margin-bottom:.75rem">Career Stats</div>
+    <div style="display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.25rem;padding:.85rem 1rem;background:var(--bg3);border:1px solid var(--border);border-radius:4px">
+      ${statCard(overallElo(p),'Overall Elo','var(--gold)')}
+      ${statCard(total,'Games')}
+      ${statCard(wins,'Wins','var(--green)')}
+      ${statCard(losses,'Losses','var(--evil)')}
+      ${statCard(total?wr+'%':'—','Win Rate', wr>=50?'var(--green)':'var(--evil)')}
+      ${streak>0?statCard(streak+(streakType==='W'?' W':' L'),'Streak',streakType==='W'?'var(--green)':'var(--evil)'):''}
+    </div>
+
+    <!-- Recent form -->
+    ${recentForm.length>0?`
+    <div class="ct" style="margin-bottom:.6rem">Recent Form <span style="font-size:10px;color:var(--muted)">(last ${recentForm.length} games)</span></div>
+    <div style="display:flex;gap:4px;margin-bottom:1.25rem;flex-wrap:wrap">
+      ${recentForm.map(w=>`<span style="width:28px;height:28px;border-radius:3px;display:inline-flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:10px;font-weight:700;background:${w?'#1a2e1a':'#2e1010'};color:${w?'var(--green)':'var(--evil)'};border:1px solid ${w?'#2a4a2a':'#4a2020'}">${w?'W':'L'}</span>`).join('')}
+    </div>`:''}
+
+    <!-- Best / Worst civ -->
+    ${(bestCiv||worstCiv)?`
+    <div class="ct" style="margin-bottom:.6rem">Civ Performance</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:1.25rem">
+      ${bestCiv?`
+      <div style="background:var(--bg3);border:1px solid #2a4a2a;border-radius:4px;padding:.75rem 1rem">
+        <div style="font-size:10px;font-family:'Cinzel',serif;letter-spacing:.1em;color:var(--green);margin-bottom:.4rem">⭐ BEST CIV</div>
+        <div style="font-size:15px;color:${bestCiv.side==='evil'?'var(--evil)':'var(--good)'}">${bestCiv.name}</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--gold);margin-top:2px">${bestCiv.elo} Elo</div>
+        <div style="font-size:12px;color:var(--dim);margin-top:2px">${bestCiv.w}W – ${bestCiv.l}L · ${bestCiv.civWr}% WR</div>
+      </div>`:''}
+      ${worstCiv&&worstCiv!==bestCiv?`
+      <div style="background:var(--bg3);border:1px solid #4a2020;border-radius:4px;padding:.75rem 1rem">
+        <div style="font-size:10px;font-family:'Cinzel',serif;letter-spacing:.1em;color:var(--evil);margin-bottom:.4rem">📉 WORST CIV</div>
+        <div style="font-size:15px;color:${worstCiv.side==='evil'?'var(--evil)':'var(--good)'}">${worstCiv.name}</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--gold);margin-top:2px">${worstCiv.elo} Elo</div>
+        <div style="font-size:12px;color:var(--dim);margin-top:2px">${worstCiv.w}W – ${worstCiv.l}L · ${worstCiv.civWr}% WR</div>
+      </div>`:''}
+    </div>`:''}
+
+    <!-- All civ breakdown -->
+    ${civStats.length>0?`
+    <div class="ct" style="margin-bottom:.6rem">All Civs <span style="font-size:10px;color:var(--muted)">(3+ games)</span></div>
+    <div class="civ-wl-grid" style="margin-bottom:1.25rem">
+      ${civStats.map(c=>`
+        <div class="civ-wl-card">
+          <div class="civ-wl-name ${c.side}">${c.name}</div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-bottom:2px">
+            <span>${c.w}W–${c.l}L</span>
+            <span style="font-family:'JetBrains Mono',monospace;color:var(--gold)">${c.elo}</span>
+          </div>
+          <div class="civ-wl-bar">
+            <div class="civ-wl-fill" style="width:${c.civWr}%;background:${c.civWr>=50?'var(--green)':'var(--evil)'}"></div>
+          </div>
+          <div style="font-size:11px;color:${c.civWr>=50?'var(--green)':'var(--evil)'}">${c.civWr}%</div>
+        </div>`).join('')}
+    </div>`:''}
+
+    <!-- Head to head -->
+    ${h2hSorted.length>0?`
+    <div class="ct" style="margin-bottom:.6rem">Head-to-Head <span style="font-size:10px;color:var(--muted)">(2+ games together)</span></div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;overflow:hidden;margin-bottom:1rem">
+      <div style="display:flex;padding:6px 1rem;border-bottom:1px solid var(--border)">
+        <span style="flex:1;font-family:'Cinzel',serif;font-size:9px;letter-spacing:.12em;color:var(--muted)">OPPONENT</span>
+        <span style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:.12em;color:var(--muted);width:60px;text-align:center">W–L</span>
+        <span style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:.12em;color:var(--muted);width:50px;text-align:right">WR</span>
+      </div>
+      ${h2hSorted.map(r=>`
+        <div style="display:flex;align-items:center;padding:8px 1rem;border-bottom:1px solid var(--border)">
+          <span style="flex:1;font-size:14px">${r.name}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim);width:60px;text-align:center">${r.w}–${r.l}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:13px;width:50px;text-align:right;color:${r.wr>=50?'var(--green)':'var(--evil)'}">${r.wr}%</span>
+        </div>`).join('')}
+    </div>`:''}
+  `;
+}
+
 function renderMyProfile(){
   const el=document.getElementById('myProfileContent');
   const titleEl=document.getElementById('myProfileTitle');
@@ -4253,7 +4397,8 @@ function renderMyProfile(){
     </div>
     ${linkSection}
     ${linkedPlayer?`
-    <div class="ct" style="margin-bottom:.75rem">My Civ Preferences</div>
+    ${buildPlayerStats(linkedPlayer)}
+    <div class="ct" style="margin-bottom:.75rem;margin-top:.5rem">My Civ Preferences</div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:.75rem;font-family:'Cinzel',serif;letter-spacing:.05em">
       ⭐ Favourite (+40%, max 2) &nbsp;·&nbsp; 👎 Avoid (−40%, max 2) &nbsp;·&nbsp; 🚫 Ban (never assigned, max 2)
     </p>
