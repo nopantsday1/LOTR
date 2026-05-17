@@ -4181,6 +4181,8 @@ window.signInWithGoogle=async function(){
     else toast(authErrMsg(e.code),'err');
   }
 };
+
+function authErrMsg(code){
   const map={
     'auth/user-not-found':'No account found with this email.',
     'auth/wrong-password':'Incorrect password.',
