@@ -71,7 +71,7 @@ input:focus,select:focus{outline:none;border-color:var(--gold-d);}
 label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase;}
 
 /* PLAYER GRID */
-#playerGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:6px;}
+#playerGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:6px;max-height:320px;overflow-y:auto;}
 .pci{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px 10px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:border-color .15s,background .15s;user-select:none;}
 .pci:hover{border-color:var(--border2);}
 .pci.on{border-color:var(--gold-d);background:#1f1b12;}
@@ -195,11 +195,6 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
 .fa-btn.active{opacity:1;transform:scale(1.2);}
 /* STREAK */
 .streak-badge{font-size:11px;font-family:'Cinzel',serif;padding:2px 6px;border-radius:2px;margin-left:6px;}
-.fun-card{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:.85rem 1rem;display:flex;flex-direction:column;gap:4px;}
-.fun-emoji{font-size:22px;line-height:1;margin-bottom:2px;}
-.fun-title{font-size:10px;font-family:'Cinzel',serif;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
-.fun-winner{font-size:15px;color:var(--gold);font-weight:bold;}
-.fun-detail{font-size:12px;color:var(--dim);}
 .streak-w{background:#1a2e1a;color:#5a9a5a;border:1px solid #2a4a2a;}
 .streak-l{background:#2e1010;color:#c04848;border:1px solid #4a2020;}
 /* SUGGESTIONS */
@@ -232,10 +227,9 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
   <button class="tab" onclick="go('leaderboard')">Leaderboard</button>
   <button class="tab" onclick="go('stats')">Stats</button>
   <button class="tab" onclick="go('admin')">Admin</button>
-
+  <button class="tab" id="liveTab" onclick="go('live')">Live <span id="liveDot" style="display:none;width:7px;height:7px;border-radius:50%;background:#e08080;display:inline-block;vertical-align:middle;margin-left:4px;animation:pulse .8s infinite"></span></button>
   <span class="spacer"></span>
-  <button id="navAuthBtn" onclick="openModal('mAuth')" style="font-family:'Cinzel',serif;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);background:none;border:1px solid var(--border2);padding:5px 14px;border-radius:3px;cursor:pointer;transition:color .15s,border-color .15s;white-space:nowrap">Connexion</button>
-  <div class="sync" id="sync" title="Firebase sync" style="margin-left:.75rem"></div>
+  <div class="sync" id="sync" title="Firebase sync"></div>
 </nav>
 
 <!-- ══ BALANCE ══ -->
@@ -287,14 +281,6 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
     </div>
   </div>
   <p id="checkStatus" style="font-size:12px;color:var(--muted);margin-bottom:.75rem"></p>
-  <div style="margin-bottom:.75rem">
-    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem">
-      <input type="text" id="histSearch" placeholder="Search player…" style="width:220px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:8px 12px;border-radius:3px;font-size:15px;flex-shrink:0" onkeydown="if(event.key==='Enter') searchHistNow()">
-      <button onclick="searchHistNow()" style="background:var(--gold-d);border:1px solid var(--gold);color:var(--gold);padding:8px 18px;border-radius:3px;cursor:pointer;font-family:'Cinzel',serif;font-size:10px;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap;flex-shrink:0">🔍 Search</button>
-      <button onclick="document.getElementById('histSearch').value='';renderHist()" style="background:var(--bg3);border:1px solid var(--border2);color:var(--dim);padding:8px 12px;border-radius:3px;cursor:pointer;font-size:14px;flex-shrink:0" title="Clear search">✕</button>
-    </div>
-    <span id="histSearchCount" style="font-size:12px;color:var(--muted)"></span>
-  </div>
   <div id="histList"></div>
 </div>
 
@@ -310,7 +296,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
         <option value="p2">P2 Dol Guldur</option>
         <option value="p3">P3 Azog's Host</option>
         <option value="p4">P4 Goblin</option>
-        <option value="p5">P5 Blue Mountains</option>
+        <option value="p5">P5 Blue Mts</option>
         <option value="p6">P6 Northmen</option>
         <option value="p7">P7 Elves</option>
         <option value="p8">P8 Iron Hills</option>
@@ -332,7 +318,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
 
 <!-- ══ LEADERBOARD ══ -->
 <div class="page" id="page-leaderboard">
-  <div class="ph"><h1>Leaderboard</h1><p>Ranked by overall Elo (weighted average — played civs carry more influence).</p></div>
+  <div class="ph"><h1>Leaderboard</h1><p>Ranked by overall Elo (average of all 8 civ Elos).</p></div>
 
   <div class="card" style="margin-bottom:1rem">
     <div class="ct">Community Win Rates</div>
@@ -350,7 +336,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
         <option value="p2">Sort by P2 Dol Guldur</option>
         <option value="p3">Sort by P3 Azog's Host</option>
         <option value="p4">Sort by P4 Goblin</option>
-        <option value="p5">Sort by P5 Blue Mountains</option>
+        <option value="p5">Sort by P5 Blue Mts</option>
         <option value="p6">Sort by P6 Northmen</option>
         <option value="p7">Sort by P7 Elves</option>
         <option value="p8">Sort by P8 Iron Hills</option>
@@ -371,24 +357,9 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
 <div class="page" id="page-stats">
   <div class="ph"><h1>Community Stats</h1><p>Aggregated statistics across all recorded matches.</p></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;margin-bottom:1rem">
-    <div class="card" style="grid-column:1/-1">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem">
-        <div class="ct" style="margin-bottom:0">Games Per Day</div>
-        <div style="display:flex;gap:4px">
-          <button id="gpd14" onclick="setGpdRange(14)" style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:3px;cursor:pointer;border:1px solid var(--border2);background:var(--bg3);color:var(--dim)">14D</button>
-          <button id="gpd30" onclick="setGpdRange(30)" style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:3px;cursor:pointer;border:1px solid var(--border2);background:var(--bg3);color:var(--dim)">30D</button>
-          <button id="gpd60" onclick="setGpdRange(60)" style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:3px;cursor:pointer;border:1px solid var(--gold-d);background:var(--bg3);color:var(--gold)">60D</button>
-          <button id="gpdAll" onclick="setGpdRange(0)" style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:3px;cursor:pointer;border:1px solid var(--border2);background:var(--bg3);color:var(--dim)">All</button>
-        </div>
-      </div>
-      <div id="gamesPerDayChart" style="width:100%;height:220px"></div>
-    </div>
+    <div class="card" style="grid-column:1/-1"><div class="ct">Games Per Day</div><canvas id="gamesPerDayChart" style="width:100%;height:220px"></canvas></div>
     <div class="card"><div class="ct">Player Streaks</div><div id="streakList"></div></div>
     <div class="card"><div class="ct">Community Records</div><div id="communityRecords"></div></div>
-  </div>
-  <div class="card" style="margin-bottom:1rem">
-    <div class="ct">🎭 Fun Stats</div>
-    <div id="funStats" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.75rem;margin-top:.5rem"></div>
   </div>
 </div>
 
@@ -437,34 +408,24 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
     </div>
 
     <div class="card">
-      <div class="ct">Ratings &amp; History</div>
-      <p style="font-size:14px;color:var(--dim);margin-bottom:1rem">Two tools to manage ratings. Use <b>Recalculate</b> after fixing history records. Use <b>Full Reset</b> to wipe everything and start fresh.</p>
-
-      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:1rem;margin-bottom:.75rem">
-        <div style="font-size:13px;font-family:'Cinzel',serif;letter-spacing:.05em;margin-bottom:.4rem">⟳ Recalculate Elos from History</div>
-        <p style="font-size:13px;color:var(--dim);margin-bottom:.75rem">Replays all recorded matches oldest→newest. Resets to seeded Elos first, then rebuilds civElo, civWins, civLosses, wins, losses from scratch. Run this any time ratings look wrong.</p>
-        <div id="recalcStatus" style="font-size:12px;color:var(--muted);margin-bottom:.5rem;min-height:16px"></div>
-        <button class="btn-p" onclick="recalcAllElos()">⟳ Recalculate All Elos</button>
+      <div class="ct">Historical Import <span style="font-size:10px;color:var(--muted)">(one-time)</span></div>
+      <p style="font-size:14px;color:var(--dim);margin-bottom:1rem">Reads all matches from <code style="font-size:12px;color:var(--gold)">matches.json</code> and replays every game oldest→newest to compute ratings.</p>
+      <div style="margin-bottom:.75rem;display:flex;align-items:center;gap:.75rem">
+        <label style="display:flex;align-items:center;gap:.5rem;font-size:13px;color:var(--dim);cursor:pointer">
+          <input type="checkbox" id="importReset" checked style="accent-color:var(--gold)">
+          Reset all ratings to 1200 before import
+        </label>
       </div>
-
-      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:1rem;margin-bottom:.75rem">
-        <div style="font-size:13px;font-family:'Cinzel',serif;letter-spacing:.05em;margin-bottom:.4rem">📥 Import from matches.json</div>
-        <p style="font-size:13px;color:var(--dim);margin-bottom:.75rem">Reads all matches from <code style="font-size:12px;color:var(--gold)">matches.json</code> and replays every game to compute ratings. Use for first-time setup or after the scraper adds new matches.</p>
-        <div style="margin-bottom:.75rem">
-          <label style="display:flex;align-items:center;gap:.5rem;font-size:13px;color:var(--dim);cursor:pointer">
-            <input type="checkbox" id="importReset" checked style="accent-color:var(--gold)">
-            Reset all ratings before import
-          </label>
-        </div>
+      <div class="row" style="margin-bottom:.75rem">
         <button class="btn-p" id="importBtn" onclick="runImport()">▶ Run Import</button>
-        <div id="ilog" class="ilog" style="display:none"></div>
       </div>
+      <div id="ilog" class="ilog" style="display:none"></div>
+    </div>
 
-      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:1rem">
-        <div style="font-size:13px;font-family:'Cinzel',serif;letter-spacing:.05em;margin-bottom:.4rem;color:var(--evil)">⚠ Full Reset</div>
-        <p style="font-size:13px;color:var(--dim);margin-bottom:.75rem">Wipes all match history AND resets every player to seeded Elos. Cannot be undone. Only use to start completely fresh.</p>
-        <button class="btn-del" onclick="openModal('mReset')">Reset Everything</button>
-      </div>
+    <div class="card">
+      <div class="ct">Reset Ratings</div>
+      <p style="font-size:14px;color:var(--dim);margin-bottom:1rem">Reset every player to 1200 on all civs. Clears W/L and match history. Names and profile IDs are kept.</p>
+      <button class="btn-del" onclick="openModal('mReset')">Reset All Ratings</button>
     </div>
 
     <div class="card">
@@ -483,19 +444,6 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
   </div>
 </div>
 
-<!-- ══ BACKFILL PROGRESS MODAL ══ -->
-<div class="mo" id="mBackfill">
-  <div class="modal" style="max-width:500px">
-    <div class="mtitle">⚙ Intégration du joueur</div>
-    <p id="backfillStep" style="font-family:'Cinzel',serif;font-size:11px;letter-spacing:.1em;color:var(--gold);margin-bottom:.75rem;text-transform:uppercase"></p>
-    <div id="backfillLog" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim);max-height:260px;overflow-y:auto;line-height:2;border:1px solid var(--border);border-radius:3px;padding:.6rem .85rem;background:var(--bg)"></div>
-    <p style="font-size:12px;color:var(--muted);margin-top:.75rem">Cette opération peut prendre quelques secondes selon le nombre de matchs.</p>
-    <div style="margin-top:1rem;text-align:right">
-      <button class="btn" onclick="closeModal('mBackfill')">Fermer</button>
-    </div>
-  </div>
-</div>
-
 <!-- ══ BULK ELO MODAL ══ -->
 <div class="mo" id="mBulkElo">
   <div class="modal wide" style="max-width:560px">
@@ -503,8 +451,8 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
     <div class="mtitle">Bulk Elo Seeder</div>
     <p style="font-size:13px;color:var(--dim);margin-bottom:1rem">Drag to rank players best→worst. Set the Elo range and apply.</p>
     <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap">
-      <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Top Elo</label><input type="number" id="bulkEloTop" value="1400" style="width:90px" oninput="updateBulkPreview()"></div>
-      <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Bottom Elo</label><input type="number" id="bulkEloBottom" value="1050" style="width:90px" oninput="updateBulkPreview()"></div>
+      <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Top Elo</label><input type="number" id="bulkEloTop" value="1400" min="1000" max="2000" style="width:90px"></div>
+      <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Bottom Elo</label><input type="number" id="bulkEloBottom" value="1050" min="500" max="1500" style="width:90px"></div>
       <div style="flex:1;font-size:12px;color:var(--muted)" id="bulkEloPreview"></div>
     </div>
     <div id="bulkEloList" style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:3px"></div>
@@ -519,7 +467,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
 <div class="mo" id="mReset">
   <div class="modal">
     <div class="mtitle">Confirm Reset</div>
-    <p style="font-size:14px;color:var(--dim);margin-bottom:1.25rem">Wipes all match history and resets every player to their seeded Elo. Cannot be undone.</p>
+    <p style="font-size:14px;color:var(--dim);margin-bottom:1.25rem">Reset all players to 1200 Elo on every civ and clear match history. Cannot be undone.</p>
     <div class="row">
       <button class="btn" onclick="closeModal('mReset')">Cancel</button>
       <button class="btn-del" onclick="confirmReset()">Reset Everything</button>
@@ -533,14 +481,10 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
   <div class="modal">
     <span class="mclose" onclick="closeModal('mAddPlayer')">×</span>
     <div class="mtitle">Add Player</div>
-    <label>AoE2 Profile ID <span style="color:var(--muted)">(entrez l'ID pour auto-compléter le nom)</span></label>
-    <div style="display:flex;gap:.5rem;margin-bottom:.4rem">
-      <input type="number" id="apPid" placeholder="ex: 1234567" style="flex:1">
-      <button class="btn" id="apLookupBtn" onclick="apLookupNow()" style="white-space:nowrap">&#128269; Lookup</button>
-    </div>
-    <p id="apNameStatus" style="font-size:12px;color:var(--gold);margin-bottom:.5rem;min-height:1.2em"></p>
-    <label>Nom</label>
-    <input type="text" id="apName" placeholder="Rempli auto via l'ID, ou entrez manuellement" style="margin-bottom:1rem">
+    <label>Name</label>
+    <input type="text" id="apName" style="margin-bottom:.75rem">
+    <label>AoE2 Profile ID <span style="color:var(--muted)">(for auto-recording)</span></label>
+    <input type="number" id="apPid" style="margin-bottom:1rem">
     <button class="btn-p" onclick="addPlayer()">Add Player</button>
   </div>
 </div>
@@ -554,14 +498,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
       <div><label>Name</label><input type="text" id="epName"></div>
       <div><label>Profile ID</label><input type="number" id="epPid"></div>
     </div>
-    <div style="margin-bottom:1rem">
-      <label>Alt Profile IDs <span style="font-size:11px;color:var(--muted)">(comma separated — for players with multiple accounts)</span></label>
-      <input type="text" id="epAltPids" placeholder="e.g. 1234567, 7654321" style="width:100%;margin-top:4px">
-    </div>
-    <div class="ct" style="margin-bottom:.6rem">Favourite, Avoid & Banned Civs</div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:.5rem;font-family:'Cinzel',serif;letter-spacing:.06em">
-      ⭐ Favourite (+15% Elo, up to 2) &nbsp;·&nbsp; 👎 Avoid (−40%, unlimited) &nbsp;·&nbsp; 🚫 Banned (never assigned, up to 2)
-    </div>
+    <div class="ct" style="margin-bottom:.6rem">Favourite & Avoid Civs</div>
     <div id="favAvoidGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin-bottom:1rem"></div>
     <div class="ct" style="margin-bottom:.6rem">Individual Civ Elos</div>
     <div class="civ-grid" id="civGrid"></div>
@@ -585,7 +522,7 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
     <div class="card" style="text-align:center;padding:2.5rem 1rem">
       <div style="font-size:32px;margin-bottom:.75rem;opacity:.4">⚔</div>
       <p style="font-size:15px;color:var(--dim);margin-bottom:.5rem">Watching for community lobbies every 30s</p>
-      <p style="font-size:13px;color:var(--muted)">When 2+ community members join a LOTR/Hobbit lobby, this tab activates automatically.</p>
+      <p style="font-size:13px;color:var(--muted)">When 2+ community members join a LOTR lobby, this tab activates automatically.</p>
     </div>
   </div>
 
@@ -595,21 +532,17 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
       <div style="font-family:'Cinzel',serif;font-size:10px;letter-spacing:.15em;color:var(--gold);margin-bottom:.4rem">LOBBY DETECTED</div>
       <div id="lobbyName" style="font-family:'Cinzel',serif;font-size:18px;color:var(--text)"></div>
       <div id="lobbyInfo" style="font-size:13px;color:var(--dim);margin-top:.3rem"></div>
-      <div id="lobbyBalanceBtn" style="display:none;margin-top:.75rem">
-        <button class="btn-p" onclick="balanceLobbyPlayers()" style="font-size:11px;padding:8px 20px">⚖ Balance These Players</button>
-      </div>
     </div>
     <div class="teams">
       <div class="tpanel evil">
-        <div class="tlabel evil">⚔ Evil Forces<span id="lobbyEvilElo" style="font-family:'JetBrains Mono',monospace;font-size:12px"></span></div>
+        <div class="tlabel evil">⚔ Evil Forces</div>
         <div id="lobbyEvil"></div>
       </div>
       <div class="tpanel good">
-        <div class="tlabel good">✦ Free Peoples<span id="lobbyGoodElo" style="font-family:'JetBrains Mono',monospace;font-size:12px"></span></div>
+        <div class="tlabel good">✦ Free Peoples</div>
         <div id="lobbyGood"></div>
       </div>
     </div>
-  <div id="lobbyOdds" style="margin-top:.75rem;padding:0 .25rem"></div>
   </div>
 
   <!-- IN PROGRESS -->
@@ -620,7 +553,6 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
       <div id="progressStatus" style="font-size:12px;color:var(--muted);margin-top:.4rem"></div>
       <button class="btn" onclick="forceEndGame()" style="margin-top:1rem;font-size:9px;opacity:.6">✕ End Game / Reset</button>
     </div>
-    <div id="ipOdds" style="margin-bottom:.75rem"></div>
     <div class="teams">
       <div class="tpanel evil">
         <div class="tlabel evil">⚔ Evil Forces<span id="evilElo" style="font-family:'JetBrains Mono',monospace;font-size:12px"></span></div>
@@ -631,23 +563,6 @@ label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px;font-famil
         <div id="ipGood"></div>
       </div>
     </div>
-  </div>
-</div>
-
-<!-- ══ AUTH MODAL ══ -->
-<div class="mo" id="mAuth">
-  <div class="modal" style="max-width:420px">
-    <span class="mclose" onclick="closeModal('mAuth')">×</span>
-    <div id="authModalContent"></div>
-  </div>
-</div>
-
-<!-- ══ PLAYER PROFILE MODAL ══ -->
-<div class="mo" id="mMyProfile">
-  <div class="modal wide" style="max-width:560px">
-    <span class="mclose" onclick="closeModal('mMyProfile')">×</span>
-    <div class="mtitle" id="myProfileTitle">Mon Profil</div>
-    <div id="myProfileContent"></div>
   </div>
 </div>
 
@@ -668,8 +583,7 @@ function go(name){
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc, query, orderBy, limit, writeBatch, runTransaction, increment } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc, query, orderBy, limit, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // ─────────────────────────────────────────
 // CONFIG
@@ -688,7 +602,7 @@ const CIVS = [
   {id:'p2', name:'P2 Dol Guldur',  side:'evil', teamid:6 },
   {id:'p3', name:"P3 Azog's Host", side:'evil', teamid:7 },
   {id:'p4', name:'P4 Goblin',      side:'evil', teamid:8 },
-  {id:'p5', name:'P5 Blue Mountains',    side:'good', teamid:9 },
+  {id:'p5', name:'P5 Blue Mts',    side:'good', teamid:9 },
   {id:'p6', name:'P6 Northmen',    side:'good', teamid:10},
   {id:'p7', name:'P7 Elves',       side:'good', teamid:11},
   {id:'p8', name:'P8 Iron Hills',  side:'good', teamid:12},
@@ -699,110 +613,25 @@ const GOOD_CIVS = CIVS.filter(c=>c.side==='good');
 const TEAMID_MAP = Object.fromEntries(CIVS.map(c=>[c.teamid, c.id]));
 // Map race_id from matchhistoryreportresults → scenario civ (this IS the station)
 const RACE_MAP = {4:'p1',38:'p2',17:'p3',25:'p4',12:'p5',32:'p6',9:'p7',22:'p8'};
-const DEFAULT_ELO = 900;
-const LOTR_KW = ['hobbit','lotr','lord of the ring','the shire','middle earth'];
-
-// Normalize old civ names to current names (for existing Firestore records)
-const CIV_NAME_MAP={'P5 Blue Mts':'P5 Blue Mountains','Blue Mts':'Blue Mountains'};
-function normCivName(n){ return CIV_NAME_MAP[n]||n; }
-const LOTR_MAPS = ['the_hobbit','hobbit','lotr']; // known scenario mapnames
-function isLotrMatch(match){
-  const desc=(match.description||match.mapname||'').toLowerCase();
-  const map=(match.mapname||'').toLowerCase();
-  return LOTR_KW.some(k=>desc.includes(k)) || LOTR_MAPS.some(k=>map.includes(k));
-}
+const DEFAULT_ELO = 1200;
+const LOTR_KW = ['hobbit','lotr','lord of the ring','bfme','the shire','middle'];
 const DEFAULT_PASS = 'admin123';
-
-function fmtDuration(s){
-  if(!s) return '—';
-  if(s>=3600){
-    const h=Math.floor(s/3600);
-    const m=Math.floor((s%3600)/60);
-    const sec=s%60;
-    return `${h}h${String(m).padStart(2,'0')}m${String(sec).padStart(2,'0')}s`;
-  }
-  return `${Math.floor(s/60)}m${String(s%60).padStart(2,'0')}s`;
-}
-
-// ─────────────────────────────────────────
-// MULTI-ACCOUNT HELPERS
-// A player can have a primary profileId + altProfileIds array
-// ─────────────────────────────────────────
-function playerProfileIds(p){
-  // Returns all profile IDs for a player as Numbers
-  const ids=[];
-  if(p.profileId) ids.push(Number(p.profileId));
-  (p.altProfileIds||[]).forEach(id=>{ if(id) ids.push(Number(id)); });
-  return ids;
-}
-function buildCommIds(playerList){
-  const set=new Set();
-  playerList.forEach(p=>playerProfileIds(p).forEach(id=>set.add(id)));
-  return set;
-}
-function buildProfMap(playerList){
-  // Maps every profile ID (primary + alt) → player
-  const map={};
-  playerList.forEach(p=>playerProfileIds(p).forEach(id=>{ map[id]=p; }));
-  return map;
-}
 
 // ─────────────────────────────────────────
 // STATE
 // ─────────────────────────────────────────
-let db, auth, players=[], history=[];
-let currentUser=null;   // Firebase Auth user
-let linkedPlayer=null;  // players[] entry linked to this account
+let db, players=[], history=[];
 let adminPass=DEFAULT_PASS, adminUnlocked=false;
 let selected=new Set(), lastBal=null, swapSrc=null;
-let pSortKey='elo', pSortDir=1;
+let pSortKey='elo', pSortDir=-1;
 let importing=false;
 let autoRecording=false;
-let fullHistory=[];
 
 // ─────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────
-// ── ELO HELPERS ─────────────────────────────────────────────────────────────
-// civElo: stored civ Elo from Firestore (floor 100)
-// ── ELO CORE ─────────────────────────────────────────────────────────────────
-
-// civElo: stored Elo for a specific civ from Firestore (floor 100, default to seed)
-const civElo = (p,cid) => Math.max(100, p.civElo?.[cid] ?? DEFAULT_ELO);
-
-// overallElo: THE single source of truth for a player's rating.
-// Weighted average: every civ gets baseWeight (0.25) so unplayed civs at 900
-// still exert a small pull, but played civs gain extra weight = sqrt(gamesPlayed),
-// so a civ with 100 games (weight 10.25) dominates over unused civs (weight 0.25).
-// This prevents both extremes: ignoring unplayed civs entirely, and letting
-// many unused 900-rated civs drag a strong player unfairly low.
-const BASE_WEIGHT = 0.25;
-const overallElo = p => {
-  let weightedSum = 0, totalWeight = 0;
-  for(const c of CIVS){
-    const games = (p.civWins?.[c.id]||0)+(p.civLosses?.[c.id]||0);
-    const weight = BASE_WEIGHT + Math.sqrt(games);
-    weightedSum += civElo(p,c.id) * weight;
-    totalWeight += weight;
-  }
-  return Math.round(weightedSum / totalWeight);
-};
-
-// effCivElo: used only for balancing assignments.
-// Played civs → actual civ Elo. Unplayed civs → player's overall Elo as estimate.
-const effCivElo = (p,cid) => {
-  const hasPlayed = (p.civWins?.[cid]||0)+(p.civLosses?.[cid]||0) > 0;
-  return hasPlayed ? civElo(p,cid) : overallElo(p);
-};
-
-// kFactor: K=200 for first 5 games on a civ (provisional),
-//          K=128 for first 20 total games, K=64 up to 40, K=32 after.
-function kFactor(totalGames, civGames){
-  if(civGames < 5)    return 200;
-  if(totalGames < 20) return 128;
-  if(totalGames < 40) return 64;
-  return 32;
-}
+const civElo  = (p,cid)    => Math.max(100, p.civElo?.[cid] ?? DEFAULT_ELO);
+const overallElo = p        => Math.round(CIVS.reduce((s,c)=>s+civElo(p,c.id),0)/CIVS.length);
 const sync    = s           => document.getElementById('sync').className='sync '+s;
 const toast   = (m,t='ok') => {
   const el=document.getElementById('toast');
@@ -810,10 +639,10 @@ const toast   = (m,t='ok') => {
   el.classList.add('on'); setTimeout(()=>el.classList.remove('on'),2800);
 };
 
-function calcElo(elo, oppAvg, won, totalGames, civGames){
-  const K = kFactor(totalGames, civGames ?? 99);
-  const E = 1/(1+Math.pow(10,(oppAvg-elo)/400));
-  return Math.max(100, Math.round(elo + K*((won?1:0)-E)));
+function calcElo(elo, oppAvg, won, games){
+  const K=games<20?128:games<40?64:32;
+  const E=1/(1+Math.pow(10,(oppAvg-elo)/400));
+  return Math.max(100, Math.round(elo+K*((won?1:0)-E)));
 }
 
 function* permutations(arr){
@@ -825,139 +654,48 @@ function* permutations(arr){
 }
 
 function bestAssign(players, civs){
-  // Build each player's recent civ history (last 3 games) and unplayed civs
-  const recentCivs={}; // playerId → [civId, civId, civId] newest first
-  const playedCivs={}; // playerId → Set of civIds ever played on this side
-  for(const p of players){
-    const myMatches=history
-      .filter(h=>[...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>a.name===p.name))
-      .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
-    recentCivs[p.id]=[];
-    playedCivs[p.id]=new Set();
-    for(const h of myMatches){
-      const a=[...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name);
-      if(!a?.civName) continue;
-      const civ=CIVS.find(c=>normCivName(c.name)===normCivName(a.civName));
-      if(!civ) continue;
-      // Only track civs on the same side (evil/good) as current assignment pool
-      if(civs.some(c=>c.id===civ.id)){
-        if(recentCivs[p.id].length<3) recentCivs[p.id].push(civ.id);
-        playedCivs[p.id].add(civ.id);
-      }
-    }
-  }
-
+  // Fav civ gets +15% bonus, avoid civ gets -40% penalty
   const adjElo=(p,cid)=>{
-    // HARD BAN — banned civs are never assigned (score -Infinity)
-    if((p.bannedCivs||[]).includes(cid)) return -Infinity;
-    let e=effCivElo(p,cid);
-    // Fav/avoid modifiers
+    let e=civElo(p,cid);
     if((p.favCivs||[]).includes(cid))   e=Math.round(e*1.15);
     if((p.avoidCivs||[]).includes(cid)) e=Math.round(e*0.60);
-    // Rotation penalties — stronger for more recent play
-    const recent=recentCivs[p.id]||[];
-    if(recent[0]===cid) e=Math.round(e*0.65); // last game: -35%
-    else if(recent[1]===cid) e=Math.round(e*0.80); // 2 games ago: -20%
-    else if(recent[2]===cid) e=Math.round(e*0.90); // 3 games ago: -10%
-    // Bonus for civs never played — encourages variety
-    if(!(playedCivs[p.id]||new Set()).has(cid)) e=Math.round(e*1.10);
     return e;
   };
-
   let best=null, bestScore=-Infinity;
   for(const perm of permutations(civs.map(c=>c.id))){
     const score=players.reduce((s,p,i)=>s+adjElo(p,perm[i]),0);
     if(score>bestScore){bestScore=score;best=perm;}
   }
-  return players.map((p,i)=>({player:p,civId:best[i],civName:CIVS.find(c=>c.id===best[i]).name,effElo:effCivElo(p,best[i])}));
+  return players.map((p,i)=>({player:p,civId:best[i],civName:CIVS.find(c=>c.id===best[i]).name,effElo:civElo(p,best[i])}));
 }
 
 // ─────────────────────────────────────────
-// POSITION MATCHUP WEIGHTS
-// Based on who fights whom most in the scenario:
-// P4 vs P5 (main fight), P1 vs P8 (early), P2 vs P8 (mid-late),
-// P3 vs P6 (fight each other), P7 vs P2/P4 (early pressure)
+// FIREBASE
 // ─────────────────────────────────────────
-const MATCHUPS = [
-  { evil:'p4', good:'p5', weight:2.0 }, // main direct fight all game
-  { evil:'p2', good:'p8', weight:1.8 }, // mid-late main fight
-  { evil:'p3', good:'p6', weight:1.5 }, // fight each other a lot
-  { evil:'p1', good:'p8', weight:1.2 }, // early fight
-  { evil:'p1', good:'p7', weight:0.8 }, // P7 pressures evil early
-  { evil:'p4', good:'p7', weight:0.8 }, // P7 attacks P4 early
-];
-
-function matchupScore(evilAssign, goodAssign){
-  // Returns a penalty score — higher = worse matchup balance
-  // For each matchup pair, compute Elo difference between the two positions
-  let penalty = 0;
-  const evilByPos = Object.fromEntries(evilAssign.map(a=>([a.civId, a.effElo])));
-  const goodByPos = Object.fromEntries(goodAssign.map(a=>([a.civId, a.effElo])));
-  for(const {evil, good, weight} of MATCHUPS){
-    const eElo = evilByPos[evil] || 0;
-    const gElo = goodByPos[good] || 0;
-    if(!eElo || !gElo) continue;
-    penalty += Math.abs(eElo - gElo) * weight;
-  }
-  return penalty;
-}
 async function init(){
   sync('spin');
-  const app=initializeApp(FB); db=getFirestore(app); auth=getAuth(app);
-  // Auth state listener
-  onAuthStateChanged(auth, async user=>{
-    currentUser=user;
-    if(user){
-      // Try to find linked player by stored profileId in auth doc
-      try{
-        const authDoc=await getDoc(doc(db,'auth_profiles',user.uid));
-        if(authDoc.exists()){
-          const pid=authDoc.data().profileId;
-          linkedPlayer=players.find(p=>String(p.profileId)===String(pid)||String(p.id)===String(pid))||null;
-        } else { linkedPlayer=null; }
-      } catch(e){ linkedPlayer=null; }
-      renderNavAuth();
-    } else {
-      linkedPlayer=null;
-      renderNavAuth();
-    }
-  });
+  const app=initializeApp(FB); db=getFirestore(app);
   try{ const s=await getDoc(doc(db,'settings','main')); if(s.exists()) adminPass=s.data().adminPass||DEFAULT_PASS; }catch(_){}
   onSnapshot(collection(db,'players'),snap=>{
     players=[]; snap.forEach(d=>players.push({id:d.id,...d.data()}));
     players.sort((a,b)=>overallElo(b)-overallElo(a));
     renderGrid(); renderPTable(); renderLB(); sync('ok');
-    resolveLinkedPlayer();
-    // Re-subscribe WebSocket to updated player list
-    if(lobbyWs&&lobbyWs.readyState===WebSocket.OPEN){
-      const pids=players.filter(p=>p.profileId).map(p=>String(p.profileId));
-      if(pids.length) lobbyWs.send(JSON.stringify({action:'subscribe',type:'players',context:'lobby',ids:pids}));
-    }
   });
   onSnapshot(query(collection(db,'history'),orderBy('timestamp','desc'),limit(100)),snap=>{
-    // limit(100) — only used for autoRecord deduplication, not for display
+    // limit(100) keeps read costs low — enough for deduplication in autoRecord
     history=[]; snap.forEach(d=>history.push({id:d.id,...d.data()}));
+    renderHist();
     renderWinRate();
   });
-  // Second listener — no limit — keeps fullHistoryCache permanently live in real-time
-  // This means History page and search always reflect latest data instantly, no getDocs needed
-  onSnapshot(query(collection(db,'history'),orderBy('timestamp','desc')),snap=>{
-    fullHistoryCache=[]; snap.forEach(d=>fullHistoryCache.push({id:d.id,...d.data()}));
-    // Only re-render DOM if history page is visible — otherwise cache update alone is enough
-    if(document.getElementById('page-history')?.classList.contains('on')) renderHist();
-  });
   setTimeout(autoRecord, 30000);           // first run after 30s (let onSnapshot settle)
-  setInterval(autoRecord, 5*60*1000);      // then every 5 minutes
+  setInterval(autoRecord, 15*60*1000);     // then every 15 minutes
 }
 
 async function savePl(p){
-  // Use setDoc with merge:true so concurrent writes don't overwrite each other's fields.
-  // W/L from game recording uses increment() via transactions — savePl is for
-  // Elo, civ data, profile edits, and recalculate operations only.
   sync('spin');
   const{id,...data}=p;
   for(let i=3;i>0;i--){
-    try{await setDoc(doc(db,'players',String(id)),data,{merge:true});sync('ok');return;}
+    try{await setDoc(doc(db,'players',String(id)),data);sync('ok');return;}
     catch(e){if(i>1) await new Promise(r=>setTimeout(r,1000));}
   }
   sync('err'); toast('Save failed','err');
@@ -976,19 +714,6 @@ window.go=function(name){
   });
   if(name==='admin') renderAdminList();
   if(name==='stats') setTimeout(renderStats,50);
-  if(name==='history'){
-    if(fullHistoryCache.length > 0){
-      renderHist(); // cache already warm
-    } else {
-      // Cache not ready yet (first load / mobile) — fetch immediately
-      document.getElementById('histList').innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">Loading…</p>';
-      getDocs(query(collection(db,'history'),orderBy('timestamp','desc'))).then(snap=>{
-        fullHistoryCache=[];
-        snap.forEach(d=>fullHistoryCache.push({id:d.id,...d.data()}));
-        renderHist();
-      }).catch(()=>renderHist());
-    }
-  }
 };
 
 // ─────────────────────────────────────────
@@ -1044,19 +769,16 @@ function doBalance(random=false){
     const et=ea.reduce((s,a)=>s+a.effElo,0), gt=ga.reduce((s,a)=>s+a.effElo,0);
     return{evilAssign:ea,goodAssign:ga,evilTotal:et,goodTotal:gt,gap:Math.abs(et-gt)};
   }
-  // Collect all splits, score by team gap + matchup balance
+  // Collect top 3 unique splits sorted by gap
   const results=[];
   for(const m of splits){
     const ep=sel.filter((_,i)=>(m>>i)&1), gp=sel.filter((_,i)=>!((m>>i)&1));
     const ea=bestAssign(ep,EVIL_CIVS), ga=bestAssign(gp,GOOD_CIVS);
     const et=ea.reduce((s,a)=>s+a.effElo,0), gt=ga.reduce((s,a)=>s+a.effElo,0);
     const gap=Math.abs(et-gt);
-    const mScore=matchupScore(ea,ga);
-    // Combined score: gap is primary, matchup penalty is secondary (weighted 30%)
-    const score=gap + mScore * 0.3;
-    results.push({evilAssign:ea,goodAssign:ga,evilTotal:et,goodTotal:gt,gap,matchupScore:mScore,score});
+    results.push({evilAssign:ea,goodAssign:ga,evilTotal:et,goodTotal:gt,gap});
   }
-  results.sort((a,b)=>a.score-b.score);
+  results.sort((a,b)=>a.gap-b.gap);
   // Deduplicate by player set
   const top3=[], seen=new Set();
   for(const r of results){
@@ -1068,11 +790,9 @@ function doBalance(random=false){
 }
 
 function calcWinOdds(r){
-  // Win probability using scaled Elo formula — divisor 2000 (not 400) because
-  // these are 4-player team totals ~5000-6000, not individual 1v1 ratings.
-  // A 500-pt team gap = ~64% vs 96% with the standard 400 divisor.
+  // Win probability using Elo formula: P(evil wins) = 1/(1+10^((goodTotal-evilTotal)/400))
   const diff=r.evilTotal-r.goodTotal;
-  const evilPct=Math.round(100/(1+Math.pow(10,-diff/2000)));
+  const evilPct=Math.round(100/(1+Math.pow(10,-diff/400)));
   return{evil:evilPct, good:100-evilPct};
 }
 
@@ -1099,8 +819,7 @@ function renderSuggestions(suggestions){
         <span class="gap-badge ${r.gap<100?'tight':r.gap<300?'mid':'wide'}" style="font-size:10px;padding:2px 6px">Gap: ${r.gap}</span>
       </div>
       <div style="font-size:12px;color:var(--evil);margin-bottom:2px">⚔ ${r.evilAssign.map(a=>a.player.name).join(', ')}</div>
-      <div style="font-size:12px;color:var(--good);margin-bottom:.4rem">✦ ${r.goodAssign.map(a=>a.player.name).join(', ')}</div>
-      <div style="font-size:10px;color:var(--muted)">Matchup balance: <span style="color:${(r.matchupScore||0)<300?'var(--green)':(r.matchupScore||0)<600?'var(--gold)':'var(--evil)'}">${r.matchupScore?Math.round(r.matchupScore):'—'}</span></div>
+      <div style="font-size:12px;color:var(--good)">✦ ${r.goodAssign.map(a=>a.player.name).join(', ')}</div>
     </div>`).join('');
   window._suggestions=suggestions;
 }
@@ -1136,7 +855,7 @@ function renderTeam(id,assign,side,total){
     row.className='arow'+(swapSrc?.side===side&&swapSrc?.i===i?' sel':'');
     row.onclick=()=>doSwap(side,i);
     row.innerHTML=`<span class="aname">${a.player.name}</span>
-      <span class="aciv">${normCivName(a.civName)}${(a.player.favCivs||[]).includes(a.civId)?' ⭐':''}${(a.player.bannedCivs||[]).length>0?' 🚫('+((a.player.bannedCivs||[]).map(id=>CIVS.find(c=>c.id===id)?.name||id).join(','))+')':''}</span>
+      <span class="aciv">${a.civName}${(a.player.favCivs||[]).includes(a.civId)?' ⭐':''}</span>
       <span class="aelo">${a.effElo}</span>`;
     el.appendChild(row);
   });
@@ -1154,17 +873,17 @@ function doSwap(side,idx){
     const aPlayer=arr[a.i].player,  bPlayer=arr[b.i].player;
     arr[a.i].civId   = bCivId;
     arr[a.i].civName = CIVS.find(c=>c.id===bCivId)?.name||'';
-    arr[a.i].effElo  = effCivElo(aPlayer, bCivId);
+    arr[a.i].effElo  = civElo(aPlayer, bCivId);
     arr[b.i].civId   = aCivId;
     arr[b.i].civName = CIVS.find(c=>c.id===aCivId)?.name||'';
-    arr[b.i].effElo  = effCivElo(bPlayer, aCivId);
+    arr[b.i].effElo  = civElo(bPlayer, aCivId);
   } else {
     // swap players across teams — keep civ slots, recalculate effElo
     const aArr=lastBal[a.side+'Assign'], bArr=lastBal[b.side+'Assign'];
     const aCiv=aArr[a.i].civId, bCiv=bArr[b.i].civId;
     const aP=aArr[a.i].player, bP=bArr[b.i].player;
-    aArr[a.i]={player:bP, civId:aCiv, civName:CIVS.find(c=>c.id===aCiv)?.name||'', effElo:effCivElo(bP,aCiv)};
-    bArr[b.i]={player:aP, civId:bCiv, civName:CIVS.find(c=>c.id===bCiv)?.name||'', effElo:effCivElo(aP,bCiv)};
+    aArr[a.i]={player:bP, civId:aCiv, civName:CIVS.find(c=>c.id===aCiv)?.name||'', effElo:civElo(bP,aCiv)};
+    bArr[b.i]={player:aP, civId:bCiv, civName:CIVS.find(c=>c.id===bCiv)?.name||'', effElo:civElo(aP,bCiv)};
   }
 
   // Recalculate totals and gap
@@ -1188,11 +907,28 @@ window.recordResult=async function(winner){
 
 // Core: update ratings and save to history
 async function applyResult(winA,loseA,winner,evilTotal,goodTotal,date,source,gameId){
-  const commWinPlayers=winA.filter(a=>a.player&&a.player.id);
-  const commLosePlayers=loseA.filter(a=>a.player&&a.player.id);
-  const avgWin =commWinPlayers.length?commWinPlayers.reduce((s,a)=>s+overallElo(a.player),0)/commWinPlayers.length:DEFAULT_ELO;
-  const avgLose=commLosePlayers.length?commLosePlayers.reduce((s,a)=>s+overallElo(a.player),0)/commLosePlayers.length:DEFAULT_ELO;
-
+  const avgWin  = winA.reduce((s,a)=>s+overallElo(a.player),0)/(winA.length||1);
+  const avgLose = loseA.reduce((s,a)=>s+overallElo(a.player),0)/(loseA.length||1);
+  for(const a of winA){
+    if(!a.player||!a.player.id) continue;
+    const p=a.player, g=(p.wins||0)+(p.losses||0);
+    p.civElo=p.civElo||{};
+    const curCivElo=civElo(p,a.civId);
+    p.civElo[a.civId]=calcElo(curCivElo, avgLose, true, g);
+    p.wins=(p.wins||0)+1;
+    if(a.civId){ p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1; }
+    await savePl(p);
+  }
+  for(const a of loseA){
+    if(!a.player||!a.player.id) continue;
+    const p=a.player, g=(p.wins||0)+(p.losses||0);
+    p.civElo=p.civElo||{};
+    const curCivElo=civElo(p,a.civId);
+    p.civElo[a.civId]=calcElo(curCivElo, avgWin, false, g);
+    p.losses=(p.losses||0)+1;
+    if(a.civId){ p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1; }
+    await savePl(p);
+  }
   const d=date||new Date().toLocaleDateString('en-CA');
   const et=evilTotal??winA.reduce((s,a)=>s+a.effElo,0);
   const gt=goodTotal??loseA.reduce((s,a)=>s+a.effElo,0);
@@ -1203,87 +939,21 @@ async function applyResult(winA,loseA,winner,evilTotal,goodTotal,date,source,gam
     goodAssign:loseA.map(a=>({name:a.player?.name||`Player ${a.player?.id||'?'}`,civName:a.civName||'',effElo:a.effElo})),
   };
   if(gameId) entry.gameId=gameId;
+  // Use gameId as document ID so concurrent writes are idempotent (no duplicates)
   const docRef = gameId ? doc(db,'history',String(gameId)) : doc(collection(db,'history'));
-
-  // Use a transaction so concurrent tabs can't both write W/L for the same game
-  await runTransaction(db, async(tx)=>{
-    // Check for duplicate if gameId provided
-    if(gameId){
-      const existing=await tx.get(docRef);
-      if(existing.exists()) return; // already recorded — skip entirely
-    }
-    // Write history entry
-    tx.set(docRef, entry);
-    // Write W/L and Elo using atomic field-level updates (never full setDoc overwrite)
-    const allPlayers=[...commWinPlayers,...commLosePlayers];
-    const seen=new Set();
-    for(const a of allPlayers){
-      const p=a.player;
-      if(seen.has(p.id)) continue; seen.add(p.id);
-      const won=commWinPlayers.includes(a);
-      const g=(p.wins||0)+(p.losses||0);
-      const pRef=doc(db,'players',String(p.id));
-      const upd={};
-      p.civElo=p.civElo||{};
-      if(a.civId){
-        const cg=(p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0);
-        const newCivElo=calcElo(civElo(p,a.civId),won?avgLose:avgWin,won,g,cg);
-        upd['civElo.'+a.civId]=newCivElo; p.civElo[a.civId]=newCivElo;
-        if(won){ upd['civWins.'+a.civId]=increment(1); p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1; }
-        else   { upd['civLosses.'+a.civId]=increment(1); p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1; }
-      }
-      if(won){ upd.wins=increment(1); p.wins=(p.wins||0)+1; }
-      else   { upd.losses=increment(1); p.losses=(p.losses||0)+1; }
-      tx.update(pRef, upd);
-    }
-  });
+  await setDoc(docRef, entry);
 }
 
 // ─────────────────────────────────────────
 // HISTORY
 // ─────────────────────────────────────────
-let fullHistoryCache = []; // full history for the history page — loaded once per tab visit
-
-function loadAndRenderHist(){
-  renderHist();
-}
-
-window.searchHistNow = async function(){
-  const el = document.getElementById('histList');
-  if(el) el.innerHTML = '<p style="color:var(--muted);font-size:14px;padding:1rem">Loading…</p>';
-  // Always re-fetch from Firestore to guarantee fresh complete data
-  try {
-    const snap = await getDocs(query(collection(db,'history'), orderBy('timestamp','desc')));
-    fullHistoryCache = [];
-    snap.forEach(d => fullHistoryCache.push({id:d.id,...d.data()}));
-  } catch(e) {
-    if(fullHistoryCache.length === 0) fullHistoryCache = [...history];
-  }
-  renderHist();
-};
-
 function renderHist(){
   const el=document.getElementById('histList'); if(!el) return;
-  // Use fullHistoryCache if loaded (full Firestore fetch), otherwise live cache
-  const src = fullHistoryCache.length > 0 ? fullHistoryCache : history;
-  if(!src.length){el.innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">No matches yet.</p>';return;}
-  // Simple synchronous filter — same pattern as leaderboard search
-  const q=(document.getElementById('histSearch')?.value||'').toLowerCase().trim();
-  const filtered = q
-    ? src.filter(h=>[...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>(a.name||'').toLowerCase().includes(q)))
-    : src;
-  const countEl=document.getElementById('histSearchCount');
-  if(countEl) countEl.textContent=q?`${filtered.length} match${filtered.length!==1?'es':''} found`:'';
-  if(!filtered.length){el.innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">No matches found for "'+q+'".</p>';return;}
-  el.innerHTML=filtered.map(h=>{
+  if(!history.length){el.innerHTML='<p style="color:var(--muted);font-size:14px;padding:1rem">No matches yet.</p>';return;}
+  el.innerHTML=history.map(h=>{
     const w=h.winner||'evil';
     const fmtPlayer=(a,side)=>{
-      // Highlight matched query in player name — same visual feedback as leaderboard search
-      const rawName = a.name||'?';
-      const nameHtml = (q && rawName.toLowerCase().includes(q))
-        ? rawName.replace(new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),
-            '<span style="color:var(--gold);font-weight:600">$1</span>')
-        : rawName;
+      const nameHtml = a.name||'?';
       // If civName is missing (old records), derive it from profileId→teamid via match members
       let civName = a.civName||'';
       if(!civName && a.profileId){
@@ -1293,11 +963,11 @@ function renderHist(){
         const sideArr=side==='evil'?(h.evilAssign||[]):(h.goodAssign||[]);
         const idx=sideArr.indexOf(a);
         if(idx>=0){
-          const civs=side==='evil'?['P1 Dol Guldur','P2 Dol Guldur',"P3 Azog's Host",'P4 Goblin']:['P5 Blue Mountains','P6 Northmen','P7 Elves','P8 Iron Hills'];
+          const civs=side==='evil'?['P1 Dol Guldur','P2 Dol Guldur',"P3 Azog's Host",'P4 Goblin']:['P5 Blue Mts','P6 Northmen','P7 Elves','P8 Iron Hills'];
           civName=civs[idx]||'';
         }
       }
-      const civHtml = civName?` <span style="font-size:12px;color:var(--muted)">— ${normCivName(civName)}</span>`:'';
+      const civHtml = civName?` <span style="font-size:12px;color:var(--muted)">— ${civName}</span>`:'';
       const isUnknown = !a.isCommunity && a.profileId;
       const addHint  = isUnknown?` <button onclick="promptAddPlayer('${a.name}','${a.profileId}')" style="font-size:10px;font-family:'Cinzel',serif;letter-spacing:.08em;background:var(--gold-d);border:1px solid var(--gold);color:var(--gold);padding:2px 7px;border-radius:2px;cursor:pointer;margin-left:4px" title="Add ${a.name} to your community">＋ Add ${a.name}</button>`:'';
       return nameHtml+civHtml+addHint;
@@ -1308,7 +978,7 @@ function renderHist(){
       <div class="hi-top">
         <span class="hbadge ${w}">${w==='evil'?'⚔ Evil Win':'✦ Good Win'}</span>
         ${h.source==='auto'?'<span class="hbadge auto">AUTO</span>':''}
-        <span class="hi-meta">${h.date||''} · Gap: ${h.gap!=null?h.gap:'?'}${h.duration?` · ${fmtDuration(h.duration)}`:''}</span>
+        <span class="hi-meta">${h.date||''} · Gap: ${h.gap!=null?h.gap:'?'}${h.duration?` · ${Math.floor(h.duration/60)}m${String(h.duration%60).padStart(2,'0')}s`:''}</span>
         ${adminUnlocked?`<button class="btn" style="font-size:9px;padding:3px 8px;margin-left:auto" onclick="openMatchEditor('${h.id}')">✎ Edit</button>`:''}
         <button class="btn" style="font-size:9px;padding:3px 8px;${adminUnlocked?'':'margin-left:auto'}" onclick="delHist('${h.id}')">✕</button>
       </div>
@@ -1320,96 +990,16 @@ function renderHist(){
   }).join('');
 }
 
-// ─────────────────────────────────────────
-// AOE2 PROFILE LOOKUP (via corsproxy.io)
-// ─────────────────────────────────────────
-async function lookupAoe2Profile(profileId){
-  if(!profileId) return null;
-  const pid=Number(profileId);
-
-  // ── Attempt 1: Leaderboard endpoint — most reliable, returns alias by profile_id ──
-  // getLeaderboard2 accepts a profile_id filter and returns the player row with alias
-  for(const lbId of [0,1,2,3,4]){
-    try{
-      const url=`https://aoe-api.worldsedgelink.com/community/leaderboard/getLeaderboard2?title=age2&leaderboard_id=${lbId}&profile_id=${pid}&count=1`;
-      const data=await fetchWithProxy(url, 8000);
-      const rows=data.items||data.leaderboard||data.players||[];
-      const row=rows.find(r=>Number(r.profile_id||r.profileId)===pid);
-      if(row){
-        const n=row.alias||row.name||row.Name;
-        if(n){ console.log(`[lookup] Found via leaderboard ${lbId}:`,n); return n; }
-      }
-    }catch(e){}
-  }
-
-  // ── Attempt 2: Personal stats endpoint ──────────────────────────────────
-  try{
-    const url=`https://aoe-api.worldsedgelink.com/community/leaderboard/getPersonalStatsByProfileId?title=age2&profile_id=${pid}`;
-    const data=await fetchWithProxy(url, 10000);
-    const alias=data?.playerInfo?.alias||data?.playerInfo?.name
-      ||data?.statGroups?.[0]?.members?.[0]?.alias
-      ||data?.statGroups?.[0]?.members?.[0]?.name;
-    if(alias){ console.log('[lookup] Found via personalStats:',alias); return alias; }
-  }catch(e){ console.warn('[lookup] personalStats failed:', e.message); }
-
-  // ── Attempt 3: Match history — scan ALL matches for the player's own entry ──
-  try{
-    const url=`https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=${encodeURIComponent(JSON.stringify([pid]))}`;
-    const data=await fetchWithProxy(url, 12000);
-    console.log('[lookup] matchHistory keys:', Object.keys(data));
-    // profiles[] — each entry should have profile_id + alias
-    for(const prof of (data.profiles||[])){
-      const profId=Number(prof.profile_id||prof.profileId||prof.id||0);
-      if(profId===pid){
-        const n=prof.alias||prof.name||prof.Name;
-        if(n){ console.log('[lookup] Found in profiles[]:', n); return n; }
-      }
-    }
-    // statGroups[] — another possible location
-    for(const sg of (data.statGroups||[])){
-      for(const m of (sg.members||[])){
-        if(Number(m.profile_id||m.profileId)===pid){
-          const n=m.alias||m.name;
-          if(n){ console.log('[lookup] Found in statGroups:', n); return n; }
-        }
-      }
-    }
-    // matchhistorymember — scan every match, every member
-    for(const match of (data.matchHistoryStats||[])){
-      const members=match.matchhistorymember||match.matchhistoryreportresults||[];
-      const m=members.find(x=>Number(x.profile_id)===pid);
-      if(m?.name){ console.log('[lookup] Found in match member:', m.name); return m.name; }
-    }
-  }catch(e){ console.warn('[lookup] matchHistory failed:', e.message); }
-
-  return null;
-}
-
-window.promptAddPlayer=async function(name, profileId){
+window.promptAddPlayer=function(name, profileId){
   if(!adminUnlocked){
     toast('Unlock Admin first to add players','err');
+    // Still open admin page so they can unlock
     go('admin');
     return;
   }
   document.getElementById('apName').value=name||'';
   document.getElementById('apPid').value=profileId||'';
   openModal('mAddPlayer');
-
-  // If we have a profileId but no name (or placeholder name), auto-lookup
-  if(profileId && (!name || name.startsWith('Player '))){
-    document.getElementById('apNameStatus').textContent='🔍 Recherche du profil aoe2.gg…';
-    document.getElementById('apName').disabled=true;
-    const found=await lookupAoe2Profile(profileId);
-    document.getElementById('apName').disabled=false;
-    if(found){
-      document.getElementById('apName').value=found;
-      document.getElementById('apNameStatus').textContent=`✓ Profil trouvé : ${found}`;
-    } else {
-      document.getElementById('apNameStatus').textContent='Profil introuvable — entrez le nom manuellement.';
-    }
-  } else {
-    document.getElementById('apNameStatus').textContent='';
-  }
 };
 
 window.delHist=async function(id){
@@ -1437,11 +1027,11 @@ async function autoRecord(){
     const data=await resp.json();
     const matches=(data.matches||[]).sort((a,b)=>(a.completiontime||0)-(b.completiontime||0));
     // Use local history cache kept live by onSnapshot — avoids a Firestore read every poll
-    // Use fullHistoryCache (all games) not history (capped at 100) for dedup
-    const known=new Set(fullHistoryCache.map(h=>String(h.gameId)).filter(Boolean));
-    const commIds=buildCommIds(players);
-    const profMap=buildProfMap(players);
-    if(!commIds.size) return;
+    const known=new Set(history.map(h=>h.gameId).filter(Boolean));
+    const profPlayers=players.filter(p=>p.profileId);
+    if(!profPlayers.length) return;
+    const commIds=new Set(profPlayers.map(p=>Number(p.profileId)));
+    const profMap=Object.fromEntries(profPlayers.map(p=>[Number(p.profileId),p]));
     let added=0;
 
     for(const match of matches){
@@ -1455,18 +1045,18 @@ async function autoRecord(){
       const durCheck=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
       if(durCheck!==null && durCheck<600) continue;
 
-      // Skip if exact same players in exact same civ positions — rehost/restore detection
-      // Uses civ position (e.g. p1@P1 Dol Guldur) so same players with different civs are NOT duplicates
-      const mkLineup=arr=>arr.map(m=>({pid:String(m.profile_id),pos:m.civ_position||String(m.teamid||'')}))
-        .filter(x=>x.pid).sort((a,b)=>a.pid.localeCompare(b.pid)).map(x=>x.pid+'@'+x.pos).join('|');
-      const matchLineup=mkLineup(members);
-      const isDuplicate=matchLineup.length>0&&history.some(h=>{
-        const hLineup=[...(h.evilAssign||[]),...(h.goodAssign||[])]
-          .filter(a=>a.profileId).map(a=>({pid:String(a.profileId),pos:a.civName||''}))
-          .sort((a,b)=>a.pid.localeCompare(b.pid)).map(x=>x.pid+'@'+x.pos).join('|');
-        return hLineup===matchLineup;
+      // Skip duplicate lineups — same community players within 30 min of an existing game
+      const matchCommIds=new Set(members.filter(m=>commIds.has(Number(m.profile_id))).map(m=>String(m.profile_id)));
+      const matchStart=match.startgametime||match.completiontime||0;
+      const isDuplicate=history.some(h=>{
+        const hStart=h.timestamp?Math.floor(h.timestamp/1000):0;
+        if(Math.abs(matchStart-hStart)>1800) return false; // more than 30 min apart
+        const hPlayers=new Set([...(h.evilAssign||[]),...(h.goodAssign||[])].map(a=>String(a.profileId)).filter(Boolean));
+        if(hPlayers.size<4) return false;
+        const overlap=[...matchCommIds].filter(id=>hPlayers.has(id)).length;
+        return overlap>=matchCommIds.size*0.75; // 75%+ same players = duplicate
       });
-      if(isDuplicate){ console.log('[autoRecord] Skipping exact duplicate lineup (rehost/restore):', gid); continue; }
+      if(isDuplicate){ console.log('[autoRecord] Skipping duplicate lineup:', gid); continue; }
       // No description filter — rely on matchtype_id=0 + maxplayers=8 + 4+ community players
       // (mapname is always "my map" for custom scenarios in the API)
       const comm=members.filter(m=>commIds.has(Number(m.profile_id)));
@@ -1547,51 +1137,31 @@ async function autoRecord(){
       const avgWin=commWin.length?commWin.reduce((s,a)=>s+overallElo(a.player),0)/commWin.length:DEFAULT_ELO;
       const avgLose=commLose.length?commLose.reduce((s,a)=>s+overallElo(a.player),0)/commLose.length:DEFAULT_ELO;
 
-      // MULTI-TAB FIX: Use a Firestore transaction so concurrent tabs can't both record the same game.
-      // The transaction atomically checks if this gameId already exists and writes W/L in one operation.
-      const histRef = doc(db,'history',gid);
-      let alreadyRecorded = false;
-      await runTransaction(db, async (tx) => {
-        const existing = await tx.get(histRef);
-        if (existing.exists()) { alreadyRecorded = true; return; }
-
-        const ts=(match.completiontime||match.startgametime||0)*1000;
-        const date=ts?new Date(ts).toLocaleDateString('en-CA'):new Date().toLocaleDateString('en-CA');
-        const durationSec=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
-        const et=winA.reduce((s,a)=>s+a.effElo,0);
-        const gt=loseA.reduce((s,a)=>s+a.effElo,0);
-
-        // Claim this gameId inside the transaction — only one tab will win
-        tx.set(histRef,{
-          date,winner,evilTotal:winner==='evil'?et:gt,goodTotal:winner==='evil'?gt:et,
-          gap:Math.abs(et-gt),timestamp:ts||Date.now(),source:'auto',gameId:gid,
-          duration:durationSec,
-          evilAssign:(winner==='evil'?winA:loseA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
-          goodAssign:(winner==='evil'?loseA:winA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
-        });
-
-        // Use atomic increment() so even if two tabs somehow both pass the exists() check,
-        // W/L counters can never be double-incremented
-        for(const a of [...commWin,...commLose]){
-          const p=a.player, won=commWin.includes(a), g=(p.wins||0)+(p.losses||0);
-          const pRef=doc(db,'players',String(p.id));
-          const updates={};
-          p.civElo=p.civElo||{};
-          if(a.civId){
-            const cg1=(p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0);
-            const newCivElo=calcElo(civElo(p,a.civId), won?avgLose:avgWin, won, g, cg1);
-            updates['civElo.'+a.civId]=newCivElo;
-            p.civElo[a.civId]=newCivElo;
-            if(won){ updates['civWins.'+a.civId]=increment(1); p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1; }
-            else   { updates['civLosses.'+a.civId]=increment(1); p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1; }
-          }
-          if(won){ updates.wins=increment(1); p.wins=(p.wins||0)+1; }
-          else   { updates.losses=increment(1); p.losses=(p.losses||0)+1; }
-          tx.update(pRef, updates);
+      for(const a of [...commWin,...commLose]){
+        const p=a.player, won=commWin.includes(a), g=(p.wins||0)+(p.losses||0);
+        p.civElo=p.civElo||{};
+        if(a.civId){
+          p.civElo[a.civId]=calcElo(civElo(p,a.civId), won?avgLose:avgWin, won, g);
+          if(won){ p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1; }
+          else   { p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1; }
         }
-      });
+        if(won) p.wins=(p.wins||0)+1; else p.losses=(p.losses||0)+1;
+        await savePl(p);
+      }
 
-      if(alreadyRecorded){ console.log('[autoRecord] Already recorded by another tab, skipping:',gid); continue; }
+      const ts=(match.completiontime||match.startgametime||0)*1000;
+      const date=ts?new Date(ts).toLocaleDateString('en-CA'):new Date().toLocaleDateString('en-CA');
+      const durationSec=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
+      const et=winA.reduce((s,a)=>s+a.effElo,0);
+      const gt=loseA.reduce((s,a)=>s+a.effElo,0);
+      // Use gameId as document ID — concurrent writes from multiple tabs just overwrite same doc
+      await setDoc(doc(db,'history',gid),{
+        date,winner,evilTotal:winner==='evil'?et:gt,goodTotal:winner==='evil'?gt:et,
+        gap:Math.abs(et-gt),timestamp:ts||Date.now(),source:'auto',gameId:gid,
+        duration:durationSec,
+        evilAssign:(winner==='evil'?winA:loseA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
+        goodAssign:(winner==='evil'?loseA:winA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
+      });
       known.add(gid); added++;
       console.log('[AUTO]',gid,winner);
     }
@@ -1650,7 +1220,7 @@ function renderPTable(){
 window.renderPTable=renderPTable;
 window.renderLB=renderLB;
 window.sortP=function(k){
-  pSortDir=(pSortKey===k)?-pSortDir:(k==='name'?1:1);
+  pSortDir=(pSortKey===k)?-pSortDir:(k==='name'?1:-1);
   pSortKey=k; renderPTable();
 };
 
@@ -1659,14 +1229,12 @@ window.sortP=function(k){
 // ─────────────────────────────────────────
 function renderWinRate(){
   const el=document.getElementById('winRateStats'); if(!el) return;
-  // Use fullHistoryCache (all games) if available, otherwise fall back to capped live cache
-  const src = fullHistoryCache.length > 0 ? fullHistoryCache : history;
-  if(!src.length){
+  if(!history.length){
     el.innerHTML='<p style="color:var(--dim);font-size:14px">No matches recorded yet.</p>';
     return;
   }
-  const total    = src.length;
-  const evilWins = src.filter(h=>h.winner==='evil').length;
+  const total    = history.length;
+  const evilWins = history.filter(h=>h.winner==='evil').length;
   const goodWins = total - evilWins;
   const evilPct  = Math.round(evilWins/total*100);
   const goodPct  = 100 - evilPct;
@@ -1703,9 +1271,7 @@ function renderLB(){
     const ov=overallElo(p);
     const displayElo=civF?civElo(p,civF):ov;
     const subElo=civF?`<span style="font-size:11px;color:var(--muted);margin-left:4px">(${ov})</span>`:'';
-    const w=civF?(p.civWins?.[civF]||0):(p.wins||0);
-    const l=civF?(p.civLosses?.[civF]||0):(p.losses||0);
-    const tot=w+l;
+    const w=p.wins||0, l=p.losses||0, tot=w+l;
     const wr=tot?Math.round(w/tot*100)+'%':'—';
     const streak=streaks[p.name];
     const streakHtml=streak&&streak.count>1?`<span class="streak-badge ${streak.type==='w'?'streak-w':'streak-l'}">${streak.type==='w'?'🔥':'❄'} ${streak.count}${streak.type.toUpperCase()}</span>`:'';
@@ -1750,17 +1316,14 @@ window.editPlayer=function(id){
   document.getElementById('epId').value=id;
   document.getElementById('epName').value=p.name;
   document.getElementById('epPid').value=p.profileId||'';
-  document.getElementById('epAltPids').value=(p.altProfileIds||[]).join(', ');
-  // Fav/Avoid/Ban grid
+  // Fav/Avoid grid
   const favs=new Set(p.favCivs||[]);
   const avoids=new Set(p.avoidCivs||[]);
-  const bans=new Set(p.bannedCivs||[]);
   document.getElementById('favAvoidGrid').innerHTML=CIVS.map(c=>`
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:5px 8px;display:flex;align-items:center;gap:4px">
       <span style="font-size:11px;flex:1;color:${c.side==='evil'?'var(--evil)':'var(--good)'}">${c.name}</span>
-      <button class="fa-btn ${favs.has(c.id)?'active':''}" id="fav_${c.id}" onclick="toggleFavAvoid('${c.id}','fav')" title="Favourite (max 2)">⭐</button>
-      <button class="fa-btn ${avoids.has(c.id)?'active':''}" id="avoid_${c.id}" onclick="toggleFavAvoid('${c.id}','avoid')" title="Avoid (−40%)">👎</button>
-      <button class="fa-btn ${bans.has(c.id)?'active':''}" id="ban_${c.id}" onclick="toggleFavAvoid('${c.id}','ban')" title="Ban (never assigned, max 2)">🚫</button>
+      <button class="fa-btn ${favs.has(c.id)?'active':''}" id="fav_${c.id}" onclick="toggleFavAvoid('${c.id}','fav')" title="Favourite">⭐</button>
+      <button class="fa-btn ${avoids.has(c.id)?'active':''}" id="avoid_${c.id}" onclick="toggleFavAvoid('${c.id}','avoid')" title="Avoid">🚫</button>
     </div>`).join('');
   document.getElementById('civGrid').innerHTML=CIVS.map(c=>`
     <div class="civ-edit">
@@ -1770,28 +1333,16 @@ window.editPlayer=function(id){
   openModal('mEditPlayer');
 };
 
-// Toggle fav/avoid/ban buttons — mutually exclusive per civ, fav & ban each max 2
+// Toggle fav/avoid buttons in edit modal (mutually exclusive)
 window.toggleFavAvoid=function(civId, type){
-  const favBtn  = document.getElementById('fav_'+civId);
-  const avoidBtn= document.getElementById('avoid_'+civId);
-  const banBtn  = document.getElementById('ban_'+civId);
-
-  const countActive = (prefix) =>
-    CIVS.filter(c=>document.getElementById(prefix+c.id)?.classList.contains('active')).length;
-
+  const favBtn=document.getElementById('fav_'+civId);
+  const avoidBtn=document.getElementById('avoid_'+civId);
   if(type==='fav'){
-    const isActive=favBtn.classList.contains('active');
-    if(!isActive && countActive('fav_')>=2){ toast('Max 2 favourites','err'); return; }
     favBtn.classList.toggle('active');
-    if(favBtn.classList.contains('active')){ avoidBtn.classList.remove('active'); banBtn.classList.remove('active'); }
-  } else if(type==='avoid'){
+    if(favBtn.classList.contains('active')) avoidBtn.classList.remove('active');
+  } else {
     avoidBtn.classList.toggle('active');
-    if(avoidBtn.classList.contains('active')){ favBtn.classList.remove('active'); banBtn.classList.remove('active'); }
-  } else if(type==='ban'){
-    const isActive=banBtn.classList.contains('active');
-    if(!isActive && countActive('ban_')>=2){ toast('Max 2 bans','err'); return; }
-    banBtn.classList.toggle('active');
-    if(banBtn.classList.contains('active')){ favBtn.classList.remove('active'); avoidBtn.classList.remove('active'); }
+    if(avoidBtn.classList.contains('active')) favBtn.classList.remove('active');
   }
 };
 
@@ -1802,14 +1353,11 @@ window.savePlayer=async function(){
   p.name=document.getElementById('epName').value.trim();
   const pid=document.getElementById('epPid').value;
   p.profileId=pid?Number(pid):null;
-  const altRaw=document.getElementById('epAltPids').value;
-  p.altProfileIds=altRaw.split(',').map(s=>s.trim()).filter(Boolean).map(Number).filter(n=>n&&n!==p.profileId);
   p.civElo=p.civElo||{};
   CIVS.forEach(c=>{ p.civElo[c.id]=Math.max(100,Number(document.getElementById('ce_'+c.id).value)||DEFAULT_ELO); });
-  // Save fav/avoid/ban
+  // Save fav/avoid
   p.favCivs=CIVS.filter(c=>document.getElementById('fav_'+c.id)?.classList.contains('active')).map(c=>c.id);
   p.avoidCivs=CIVS.filter(c=>document.getElementById('avoid_'+c.id)?.classList.contains('active')).map(c=>c.id);
-  p.bannedCivs=CIVS.filter(c=>document.getElementById('ban_'+c.id)?.classList.contains('active')).map(c=>c.id);
   await savePl(p); closeModal('mEditPlayer'); toast('Saved');
 };
 
@@ -1856,197 +1404,17 @@ function renderAdminList(){
     </div>`).join('');
 }
 
-window.apLookupNow=async function(){
-  const pid=document.getElementById('apPid').value;
-  if(!pid){ toast('Entrez un Profile ID','err'); return; }
-  const btn=document.getElementById('apLookupBtn');
-  const status=document.getElementById('apNameStatus');
-  btn.disabled=true;
-  status.textContent='🔍 Recherche sur aoe2.gg…';
-  status.style.color='var(--gold)';
-  document.getElementById('apName').disabled=true;
-  const found=await lookupAoe2Profile(pid);
-  document.getElementById('apName').disabled=false;
-  btn.disabled=false;
-  if(found){
-    document.getElementById('apName').value=found;
-    status.textContent='✓ Profil trouvé : '+found;
-    status.style.color='var(--green)';
-  } else {
-    status.textContent='Profil introuvable — entrez le nom manuellement.';
-    status.style.color='var(--evil)';
-  }
-};
-
 window.addPlayer=async function(){
   const name=document.getElementById('apName').value.trim();
   const pid=document.getElementById('apPid').value;
   if(!name){toast('Enter a name','err');return;}
   const np={name,profileId:pid?Number(pid):null,civElo:{},wins:0,losses:0};
   CIVS.forEach(c=>{np.civElo[c.id]=DEFAULT_ELO;});
-  const ref=await addDoc(collection(db,'players'),np);
+  await addDoc(collection(db,'players'),np);
   document.getElementById('apName').value='';
   document.getElementById('apPid').value='';
-  const st=document.getElementById('apNameStatus');
-  if(st){ st.textContent=''; }
-  closeModal('mAddPlayer');
-
-  // Backfill historical matches if they have a profileId
-  if(pid){
-    const newPlayer={id:ref.id,...np};
-    players.push(newPlayer); // add to local state immediately
-    await backfillNewPlayer(newPlayer);
-  } else {
-    toast('Player added');
-  }
+  closeModal('mAddPlayer'); toast('Player added');
 };
-
-// ─────────────────────────────────────────
-// BACKFILL NEW PLAYER INTO HISTORY + RECALC
-// When a new player is added with a profileId, scans all history docs,
-// patches any anonymous entries matching that profileId with the real name
-// and isCommunity:true, then recalculates all Elos from scratch.
-// ─────────────────────────────────────────
-async function backfillNewPlayer(newPlayer){
-  if(!newPlayer.profileId){ toast('Player added'); return; }
-
-  // Show progress modal
-  openModal('mBackfill');
-  const log=s=>{
-    const el=document.getElementById('backfillLog');
-    if(el){ el.innerHTML+=`<span>${s}</span>`; el.scrollTop=el.scrollHeight; }
-  };
-  const setStep=s=>{ const el=document.getElementById('backfillStep'); if(el) el.textContent=s; };
-
-  try{
-    // ── Step 1: Scan all history ──────────────────────────────────────────
-    setStep(`Scan de l'historique…`);
-    log(`Recherche des matchs de <b>${newPlayer.name}</b> (ID: ${newPlayer.profileId})…`);
-    const allSnap=await getDocs(collection(db,'history'));
-    const toUpdate=[];
-    allSnap.forEach(d=>{
-      const h=d.data();
-      let changed=false;
-      const patchSide=arr=>(arr||[]).map(a=>{
-        if(String(a.profileId)===String(newPlayer.profileId) && (!a.isCommunity||a.name!==newPlayer.name)){
-          changed=true;
-          return {...a, name:newPlayer.name, isCommunity:true};
-        }
-        return a;
-      });
-      const evilAssign=patchSide(h.evilAssign);
-      const goodAssign=patchSide(h.goodAssign);
-      if(changed) toUpdate.push({ref:d.ref, evilAssign, goodAssign});
-    });
-
-    if(!toUpdate.length){
-      log(`Aucun match trouvé dans l'historique pour ce joueur.`);
-      log(`Le joueur a été ajouté avec l'Elo par défaut.`);
-      setStep('Terminé');
-      setTimeout(()=>closeModal('mBackfill'),2000);
-      toast('Player added (aucun historique)');
-      return;
-    }
-
-    log(`${toUpdate.length} match${toUpdate.length>1?'s':''} trouvé${toUpdate.length>1?'s':''}. Mise à jour…`);
-
-    // ── Step 2: Patch history docs in batches ─────────────────────────────
-    setStep('Mise à jour des matchs…');
-    for(let i=0;i<toUpdate.length;i+=400){
-      const batch=writeBatch(db);
-      toUpdate.slice(i,i+400).forEach(({ref,evilAssign,goodAssign})=>{
-        batch.update(ref,{evilAssign,goodAssign});
-      });
-      await batch.commit();
-      log(`  ${Math.min(i+400,toUpdate.length)}/${toUpdate.length} matchs mis à jour…`);
-    }
-    log('✓ Historique mis à jour.');
-
-    // ── Step 3: Full Elo recalc ───────────────────────────────────────────
-    setStep('Recalcul des Elos…');
-    log('Recalcul de tous les Elos depuis le début…');
-
-    // Reload history from Firestore (patched version)
-    const freshSnap=await getDocs(collection(db,'history'));
-    const allDocs=[];
-    const seenIds=new Set();
-    freshSnap.forEach(d=>{
-      const gid=String(d.data().gameId||d.id);
-      if(!seenIds.has(gid)){ seenIds.add(gid); allDocs.push({id:d.id,...d.data()}); }
-    });
-    const sorted=allDocs.sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
-    log(`${sorted.length} matchs à rejouer (oldest→newest)…`);
-
-    // Load seeded Elos
-    const seedSnap=await getDoc(doc(db,'settings','bulkOrder'));
-    const seededElos={};
-    if(seedSnap.exists()){
-      const order=seedSnap.data().order||[];
-      const top=seedSnap.data().top||DEFAULT_ELO;
-      const bot=seedSnap.data().bot||DEFAULT_ELO;
-      const n=order.length;
-      order.forEach((id,idx)=>{ seededElos[id]=n===1?top:Math.round(top-(top-bot)*(idx/(n-1))); });
-    }
-
-    // Reset all players (including new one at DEFAULT_ELO)
-    for(const p of players){
-      const seed=seededElos[p.id]||DEFAULT_ELO;
-      p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=seed;});
-      p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
-    }
-
-    // Replay
-    const findPlayer=a=>players.find(pl=>
-      pl.name===a.name||(a.profileId&&String(a.profileId)===String(pl.profileId)));
-
-    let done=0;
-    for(const h of sorted){
-      const winA =(h.winner==='evil'?h.evilAssign:h.goodAssign)||[];
-      const loseA=(h.winner==='evil'?h.goodAssign:h.evilAssign)||[];
-      const commWin =winA.map(a=>findPlayer(a)).filter(Boolean);
-      const commLose=loseA.map(a=>findPlayer(a)).filter(Boolean);
-      const avgWin =commWin.length?commWin.reduce((s,p)=>s+overallElo(p),0)/commWin.length:DEFAULT_ELO;
-      const avgLose=commLose.length?commLose.reduce((s,p)=>s+overallElo(p),0)/commLose.length:DEFAULT_ELO;
-      const seenP=new Set();
-      for(const [arr,won,opp] of [[winA,true,avgLose],[loseA,false,avgWin]]){
-        for(const a of arr){
-          const p=findPlayer(a); if(!p||seenP.has(p.id)) continue;
-          seenP.add(p.id);
-          const g=(p.wins||0)+(p.losses||0);
-          const civName=normCivName(a.civName||'');
-          const civ=CIVS.find(c=>normCivName(c.name)===civName);
-          if(civ){
-            const cg=(p.civWins?.[civ.id]||0)+(p.civLosses?.[civ.id]||0);
-            p.civElo[civ.id]=calcElo(civElo(p,civ.id),opp,won,g,cg);
-            if(won){p.civWins=p.civWins||{};p.civWins[civ.id]=(p.civWins[civ.id]||0)+1;}
-            else   {p.civLosses=p.civLosses||{};p.civLosses[civ.id]=(p.civLosses[civ.id]||0)+1;}
-          }
-          if(won)p.wins=(p.wins||0)+1; else p.losses=(p.losses||0)+1;
-        }
-      }
-      done++;
-      if(done%10===0) log(`  Rejoué ${done}/${sorted.length}…`);
-    }
-
-    // ── Step 4: Save all players ──────────────────────────────────────────
-    setStep('Sauvegarde…');
-    log(`Sauvegarde de ${players.length} joueurs…`);
-    for(const p of players) await savePl(p);
-
-    const newP=players.find(p=>p.id===newPlayer.id);
-    const finalElo=newP?overallElo(newP):DEFAULT_ELO;
-    log(`✓ <b>${newPlayer.name}</b> ajouté — Elo calculé : <span style="color:var(--gold)">${finalElo}</span> (${toUpdate.length} matchs rétroactifs)`);
-    setStep('Terminé !');
-    renderLB(); renderPTable();
-    toast(`${newPlayer.name} ajouté — ${toUpdate.length} matchs rétroactifs, Elo: ${finalElo}`);
-
-  }catch(e){
-    log(`Erreur : ${e.message}`);
-    setStep('Erreur');
-    console.error('[backfill]',e);
-    toast('Erreur lors du backfill','err');
-  }
-}
 
 window.confirmReset=async function(){
   closeModal('mReset'); sync('spin');
@@ -2062,135 +1430,11 @@ window.confirmReset=async function(){
     toast(`Deleting... ${deleted} removed`);
     if(hSnap.size<400) break;
   }
-
-  // Load saved bulk order + Elo range to reset to seeded values instead of 1200
-  let seededElos={}; // playerId → elo
-  try{
-    const s=await getDoc(doc(db,'settings','bulkOrder'));
-    if(s.exists()){
-      const order=s.data().order||[];
-      const top=s.data().top||DEFAULT_ELO;
-      const bot=s.data().bot||DEFAULT_ELO;
-      const n=order.length;
-      order.forEach((id,i)=>{
-        seededElos[id]=n===1?top:Math.round(top-(top-bot)*(i/(n-1)));
-      });
-    }
-  }catch(e){}
-
   for(const p of players){
-    const elo=seededElos[p.id]||DEFAULT_ELO;
-    p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=elo;}); p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
+    p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=DEFAULT_ELO;}); p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
     await savePl(p);
   }
-  sync('ok'); toast(`Reset complete — ${deleted} matches deleted${Object.keys(seededElos).length?', Elos restored from seed':''}`);
-};
-
-// ── RECALCULATE ALL ELOS ─────────────────────────────────────────────────────
-// Replays all stored matches oldest→newest, using the same kFactor() as calcElo().
-// Resets players to seeded Elos first, then replays every match to produce
-// correct civElo, civWins, civLosses, wins, losses in Firestore.
-// ── RECALCULATE ALL ELOS ─────────────────────────────────────────────────────
-window.recalcAllElos=async function(){
-  if(!adminUnlocked){toast('Admin required','err');return;}
-  const log=s=>{const el=document.getElementById('recalcStatus');if(el)el.textContent=s;};
-  log('Loading…');
-
-  // ── Step 1: Deduplicate history in Firestore by gameId ──────────────────
-  // Fetch all history docs and delete true duplicates (same gameId)
-  log('Checking for duplicate matches in Firestore…');
-  const allSnap=await getDocs(collection(db,'history'));
-  const seenGameIds=new Map(); // gameId → docRef (keep first)
-  const dupeRefs=[];
-  allSnap.forEach(d=>{
-    const gid=String(d.data().gameId||d.id);
-    if(seenGameIds.has(gid)){
-      dupeRefs.push(d.ref); // mark as duplicate
-    } else {
-      seenGameIds.set(gid,d.ref);
-    }
-  });
-  if(dupeRefs.length>0){
-    log(`Removing ${dupeRefs.length} duplicate records…`);
-    for(let i=0;i<dupeRefs.length;i+=400){
-      const batch=writeBatch(db);
-      dupeRefs.slice(i,i+400).forEach(r=>batch.delete(r));
-      await batch.commit();
-    }
-    log(`Removed ${dupeRefs.length} duplicates.`);
-  }
-
-  // ── Step 2: Load clean history oldest→newest ────────────────────────────
-  // Use the full Firestore snapshot from Step 1 (not the live cache which is capped at 100)
-  const allDocs=[];
-  allSnap.forEach(d=>{ if(!dupeRefs.includes(d.ref)) allDocs.push({id:d.id,...d.data()}); });
-  const sorted=allDocs
-    .filter((h,i,arr)=>arr.findIndex(x=>String(x.gameId||x.id)===String(h.gameId||h.id))===i)
-    .sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
-  if(!sorted.length){log('No history found.');return;}
-  log(`${sorted.length} unique matches to replay.`);
-
-  // ── Step 3: Load seeded Elos ─────────────────────────────────────────────
-  const snap=await getDoc(doc(db,'settings','bulkOrder'));
-  const seededElos={};
-  if(snap.exists()){
-    const order=snap.data().order||[];
-    const top=snap.data().top||DEFAULT_ELO;
-    const bot=snap.data().bot||DEFAULT_ELO;
-    const n=order.length;
-    order.forEach((id,i)=>{ seededElos[id]=n===1?top:Math.round(top-(top-bot)*(i/(n-1))); });
-  }
-
-  // ── Step 4: Reset all players ────────────────────────────────────────────
-  for(const p of players){
-    const seed=seededElos[p.id]||DEFAULT_ELO;
-    p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=seed;});
-    p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
-  }
-
-  // ── Step 5: Replay oldest→newest ─────────────────────────────────────────
-  const findPlayer=a=>players.find(pl=>
-    pl.name===a.name||(a.profileId&&String(a.profileId)===String(pl.profileId)));
-
-  let done=0;
-  for(const h of sorted){
-    const winA =(h.winner==='evil'?h.evilAssign:h.goodAssign)||[];
-    const loseA=(h.winner==='evil'?h.goodAssign:h.evilAssign)||[];
-
-    // Pre-game team averages
-    const commWin =winA.map(a=>findPlayer(a)).filter(Boolean);
-    const commLose=loseA.map(a=>findPlayer(a)).filter(Boolean);
-    const avgWin =commWin.length?commWin.reduce((s,p)=>s+overallElo(p),0)/commWin.length:DEFAULT_ELO;
-    const avgLose=commLose.length?commLose.reduce((s,p)=>s+overallElo(p),0)/commLose.length:DEFAULT_ELO;
-
-    // Each player processed exactly once per match
-    const seen=new Set();
-    for(const [arr,won,opp] of [[winA,true,avgLose],[loseA,false,avgWin]]){
-      for(const a of arr){
-        const p=findPlayer(a); if(!p||seen.has(p.id)) continue;
-        seen.add(p.id);
-        const g=(p.wins||0)+(p.losses||0);
-        const civName=normCivName(a.civName||'');
-        const civ=CIVS.find(c=>normCivName(c.name)===civName);
-        if(civ){
-          const cg=(p.civWins?.[civ.id]||0)+(p.civLosses?.[civ.id]||0);
-          p.civElo[civ.id]=calcElo(civElo(p,civ.id),opp,won,g,cg);
-          if(won){p.civWins=p.civWins||{};p.civWins[civ.id]=(p.civWins[civ.id]||0)+1;}
-          else   {p.civLosses=p.civLosses||{};p.civLosses[civ.id]=(p.civLosses[civ.id]||0)+1;}
-        }
-        if(won)p.wins=(p.wins||0)+1; else p.losses=(p.losses||0)+1;
-      }
-    }
-    done++;
-    if(done%10===0) log(`Replayed ${done}/${sorted.length}…`);
-  }
-
-  // ── Step 6: Save all players ──────────────────────────────────────────────
-  log(`Saving ${players.length} players…`);
-  for(const p of players) await savePl(p);
-  log(`✓ Done — ${sorted.length} matches, ${dupeRefs.length} duplicates removed.`);
-  toast('Elos recalculated!');
-  renderLB(); renderPTable();
+  sync('ok'); toast(`Reset complete — ${deleted} matches deleted`);
 };
 
 // ─────────────────────────────────────────
@@ -2219,48 +1463,29 @@ window.runImport=async function(){
     const matches=(data.matches||[]).sort((a,b)=>(a.completiontime||0)-(b.completiontime||0));
     const doReset=document.getElementById('importReset')?.checked!==false;
 
-    // Load seeded Elos (same as recalcAllElos uses)
-    const seedSnap=await getDoc(doc(db,'settings','bulkOrder'));
-    const importSeeds={};
-    if(seedSnap.exists()){
-      const order=seedSnap.data().order||[];
-      const top=seedSnap.data().top||DEFAULT_ELO;
-      const bot=seedSnap.data().bot||DEFAULT_ELO;
-      const n=order.length;
-      order.forEach((id,i)=>{ importSeeds[id]=n===1?top:Math.round(top-(top-bot)*(i/(n-1))); });
-    }
-
     if(doReset){
-      ilog(`Found ${matches.length} matches. Resetting all ratings to seeded Elos…`,'warn');
+      ilog(`Found ${matches.length} matches. Resetting all ratings to 1200…`,'warn');
       for(const p of players){
-        const seed=importSeeds[p.id]||DEFAULT_ELO;
-        p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=seed;}); p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
+        p.civElo={}; CIVS.forEach(c=>{p.civElo[c.id]=DEFAULT_ELO;}); p.wins=0; p.losses=0; p.civWins={}; p.civLosses={};
       }
       const hSnap=await getDocs(collection(db,'history'));
       const batch=writeBatch(db); hSnap.forEach(d=>batch.delete(d.ref)); await batch.commit();
       ilog('Ratings reset. Processing oldest→newest…');
     } else {
       ilog(`Found ${matches.length} matches. Keeping current Elos — processing oldest→newest…`,'warn');
-      for(const p of players){ p.wins=0; p.losses=0; p.civWins={}; p.civLosses={}; }
+      for(const p of players){ p.wins=0; p.losses=0; }
       const hSnap=await getDocs(collection(db,'history'));
       const batch=writeBatch(db); hSnap.forEach(d=>batch.delete(d.ref)); await batch.commit();
       ilog('W/L reset, history cleared. Processing…');
     }
 
-    const commIds=buildCommIds(players);
-    const profMap=buildProfMap(players);
-    // Build set of gameIds already in Firestore to avoid re-applying Elo
-    const alreadyDone=new Set();
-    if(!doReset){
-      const snap=await getDocs(collection(db,'history'));
-      snap.forEach(d=>{ if(d.data().gameId) alreadyDone.add(String(d.data().gameId)); });
-      ilog(`${alreadyDone.size} games already recorded — skipping those.`);
-    }
+    const profPlayers=players.filter(p=>p.profileId);
+    const commIds=new Set(profPlayers.map(p=>Number(p.profileId)));
+    const profMap=Object.fromEntries(profPlayers.map(p=>[Number(p.profileId),p]));
     let done=0, skip=0;
 
     for(const match of matches){
       const gid=String(match.match_id||match.id);
-      if(alreadyDone.has(gid)){skip++;continue;} // already in Firestore, skip
       // No description filter — rely on matchtype_id=0 + maxplayers=8 + 4+ community
       const members=match.matchhistorymember||match.matchhistoryreportresults||[];
       if(members.length<8){skip++;continue;}  // dropped/incomplete match
@@ -2312,15 +1537,11 @@ window.runImport=async function(){
       const avgWin=commWin.length?commWin.reduce((s,a)=>s+overallElo(a.player),0)/commWin.length:DEFAULT_ELO;
       const avgLose=commLose.length?commLose.reduce((s,a)=>s+overallElo(a.player),0)/commLose.length:DEFAULT_ELO;
 
-      const seenI=new Set(); // prevent double-counting if same player appears on both sides
       for(const a of [...commWin,...commLose]){
-        const p=a.player, won=commWin.includes(a);
-        if(seenI.has(p.id)) continue; seenI.add(p.id);
-        const g=(p.wins||0)+(p.losses||0);
+        const p=a.player, won=commWin.includes(a), g=(p.wins||0)+(p.losses||0);
         p.civElo=p.civElo||{};
         if(a.civId){
-          const cg2=(p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0);
-          p.civElo[a.civId]=calcElo(civElo(p,a.civId),won?avgLose:avgWin,won,g,cg2);
+          p.civElo[a.civId]=calcElo(civElo(p,a.civId),won?avgLose:avgWin,won,g);
           if(won){ p.civWins=p.civWins||{}; p.civWins[a.civId]=(p.civWins[a.civId]||0)+1; }
           else   { p.civLosses=p.civLosses||{}; p.civLosses[a.civId]=(p.civLosses[a.civId]||0)+1; }
         }
@@ -2368,7 +1589,7 @@ document.querySelectorAll('.mo').forEach(m=>m.addEventListener('click',e=>{if(e.
 // ─────────────────────────────────────────
 // Reads lobby.json (updated by GitHub Action every 2 min)
 // State: idle → lobby → inprogress
-const LIVE_INTERVAL_MS  = 15000;  // lobby.json poll every 15s
+const LIVE_INTERVAL_MS  = 30000;  // lobby poll
 const RESULT_INTERVAL_MS = 45000; // result poll
 
 let liveState = 'idle';       // 'idle' | 'lobby' | 'inprogress'
@@ -2435,25 +1656,19 @@ async function pollLobby(){
     const data=await resp.json();
     const matches=data.matches||[];
 
-    const commIds=buildCommIds(players);
-    const profMap=buildProfMap(players);
+    const profMap=Object.fromEntries(players.filter(p=>p.profileId).map(p=>[Number(p.profileId),p]));
+    const commIds=new Set(Object.keys(profMap).map(Number));
 
     const now=new Date().toLocaleTimeString();
     const st=document.getElementById('liveStatus');
-    // Show staleness warning if lobby.json hasn't been updated in >10 minutes
-    const updated=data.updated||(data.matches?.[0]?.completiontime||0);
-    const ageMin=updated?Math.round((Date.now()/1000-updated)/60):null;
-    const staleWarn=ageMin&&ageMin>10?` ⚠ lobby.json ${ageMin}m old`:'';
-    if(st) st.textContent=`Last checked: ${now} · ${matches.length} lobbies · ${matches.filter(m=>m.matchtype_id===0&&m.maxplayers===8).length} custom 8-player${staleWarn}`;
+    if(st) st.textContent=`Last checked: ${now} · ${matches.length} lobbies · ${matches.filter(m=>m.matchtype_id===0&&m.maxplayers===8).length} custom 8-player`;
 
     // Don't re-detect if game already started
     if(liveState==='inprogress') return;
 
     for(const match of matches){
       // Only 8-player custom games (matchtype_id=0, maxplayers=8)
-      // NOTE: isLotrMatch is NOT used here — AoE2 API always returns "my map" as mapname
-      // for custom scenarios so keyword matching never works. Community player ID match is
-      // the only reliable signal for live detection.
+      // No keyword filter — rely on community member count instead
       if(match.matchtype_id!==0) continue;
       if(match.maxplayers!==8) continue;
 
@@ -2465,9 +1680,8 @@ async function pollLobby(){
       slotProfileIds(slots).forEach(id=>allIds.add(id));
 
       const found=[...allIds].filter(id=>commIds.has(id));
-      // For LOTR lobbies, 1 community member is enough to flag it
-      if(found.length>=1){
-        match._slots=slots;
+      if(found.length>=2){
+        match._slots=slots; // store full slot data for civ assignment
         activateLobby(match, found.map(id=>profMap[id]).filter(Boolean));
         return;
       }
@@ -2494,7 +1708,6 @@ function activateLobby(match, foundPlayers){
 
   // Build profileId → position_label map from slot data
   const slots=match._slots||[];
-  console.log('[lobby] Activating with',foundPlayers.length,'players,',slots.length,'slots, slotinfo='+(match.slotinfo?'yes':'no'));
   const slotByPid={};
   slots.forEach(s=>{ if(s.profileId) slotByPid[s.profileId]=s; });
 
@@ -2508,7 +1721,7 @@ function activateLobby(match, foundPlayers){
     const evilSlots=slots.filter(s=>s.position_label&&EVIL_POS.has(s.position_label)).sort((a,b)=>civSortOrder.indexOf(a.position_label)-civSortOrder.indexOf(b.position_label));
     const goodSlots=slots.filter(s=>s.position_label&&GOOD_POS.has(s.position_label)).sort((a,b)=>civSortOrder.indexOf(a.position_label)-civSortOrder.indexOf(b.position_label));
     liveTeams={evil:evilSlots.map(s=>players.find(p=>p.id===String(s.profileId)||Number(p.profileId)===s.profileId)).filter(Boolean),
-               good:goodSlots.map(s=>players.find(p=>playerProfileIds(p).includes(Number(s.profileId)))).filter(Boolean)};
+               good:goodSlots.map(s=>players.find(p=>p.id===String(s.profileId)||Number(p.profileId)===s.profileId)).filter(Boolean)};
   } else if(lastBal){
     liveTeams={evil:lastBal.evilAssign.map(a=>a.player),good:lastBal.goodAssign.map(a=>a.player)};
   } else {
@@ -2525,9 +1738,13 @@ function activateLobby(match, foundPlayers){
     const rows=[];
     if(slotList.length>0){
       slotList.slice(0,4).forEach(s=>{
-        const p=players.find(pl=>playerProfileIds(pl).includes(Number(s.profileId)));
+        const p=players.find(pl=>Number(pl.profileId)===s.profileId);
         const civName=CIVS.find(c=>c.id===s.position_label)?.name||s.position_label||'—';
-        rows.push(`<div class="arow" style="cursor:${p?'pointer':'default'}" ${p?`onclick="openProfile('${p.id}')"`:''}>          <span class="aname">${p?p.name:`Player ${s.profileId}`}</span>          <span class="aciv">${normCivName(civName)}</span>          <span class="aelo">${p?overallElo(p):''}</span>        </div>`);
+        rows.push(`<div class="arow" style="cursor:default">
+          <span class="aname">${p?p.name:`Player ${s.profileId}`}</span>
+          <span class="aciv">${civName}</span>
+          <span class="aelo">${p?overallElo(p):''}</span>
+        </div>`);
       });
     } else {
       fallbackTeam.slice(0,4).forEach((p,i)=>{
@@ -2547,46 +1764,9 @@ function activateLobby(match, foundPlayers){
   renderLobbyWithCivs('lobbyEvil', evilSlots, liveTeams.evil, EVIL_CIVS);
   renderLobbyWithCivs('lobbyGood', goodSlots, liveTeams.good, GOOD_CIVS);
 
-  // Show Elo totals and win odds in lobby view
-  const evilEloTotal=liveTeams.evil.filter(Boolean).reduce((s,p)=>s+overallElo(p),0);
-  const goodEloTotal=liveTeams.good.filter(Boolean).reduce((s,p)=>s+overallElo(p),0);
-  const elEl=document.getElementById('lobbyEvilElo');
-  const glEl=document.getElementById('lobbyGoodElo');
-  if(elEl) elEl.textContent=evilEloTotal?` ${evilEloTotal}`:'';
-  if(glEl) glEl.textContent=goodEloTotal?` ${goodEloTotal}`:'';
-  if(evilEloTotal&&goodEloTotal){
-    const odds=Math.round(100/(1+Math.pow(10,-(evilEloTotal-goodEloTotal)/2000)));
-    const oddsEl=document.getElementById('lobbyOdds');
-    if(oddsEl) oddsEl.innerHTML=`
-      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-bottom:3px">
-        <span style="color:var(--evil)">⚔ Evil ${odds}%</span>
-        <span style="color:var(--good)">${100-odds}% Good ✦</span>
-      </div>
-      <div class="odds-bar"><div class="odds-evil" style="width:${odds}%"></div><div class="odds-good" style="width:${100-odds}%"></div></div>`;
-  }
-
-  // Show "Balance These Players" button only when lobby is full (8 players)
-  const allLobbyPlayers=[...liveTeams.evil,...liveTeams.good].filter(Boolean);
-  const btnEl=document.getElementById('lobbyBalanceBtn');
-  if(btnEl) btnEl.style.display=allLobbyPlayers.length>=8?'block':'none';
-
   // Store lobby start time so the timer is accurate when game begins
   liveLobbyStart=match.startgametime?match.startgametime*1000:Date.now();
 }
-
-// Pre-select lobby players on balance page and navigate there
-window.balanceLobbyPlayers=function(){
-  if(!liveTeams) return;
-  const lobbyPlayers=[...liveTeams.evil,...liveTeams.good].filter(Boolean);
-  if(lobbyPlayers.length<8){ toast('Need 8 players in lobby','err'); return; }
-  // Clear current selection and select lobby players
-  selected.clear();
-  lobbyPlayers.forEach(p=>{ if(p?.id) selected.add(p.id); });
-  go('balance');
-  renderGrid();
-  updateSel();
-  toast('8 lobby players selected — click Balance Teams!');
-};
 
 function renderLobbySlots(elId, team, civs){
   const el=document.getElementById(elId); if(!el) return;
@@ -2634,42 +1814,18 @@ function activateInProgress(){
 function renderInProgress(){
   if(!liveTeams) return;
   const {evil,good}=liveTeams;
-
-  const getCivName=(p,side)=>{
-    if(lastBal){
-      const assign=side==='evil'?lastBal.evilAssign:lastBal.goodAssign;
-      const a=assign.find(a=>a.player?.id===p.id);
-      if(a?.civName) return normCivName(a.civName);
-    }
-    return '';
-  };
-
-  const et=evil.filter(Boolean).reduce((s,p)=>s+overallElo(p),0);
-  const gt=good.filter(Boolean).reduce((s,p)=>s+overallElo(p),0);
-  const odds=et&&gt?Math.round(100/(1+Math.pow(10,-(et-gt)/2000))):50;
+  const et=evil.reduce((s,p)=>s+overallElo(p),0);
+  const gt=good.reduce((s,p)=>s+overallElo(p),0);
 
   document.getElementById('evilElo').textContent=` ${et}`;
   document.getElementById('goodElo').textContent=` ${gt}`;
 
-  const row=(p,side)=>{
-    if(!p) return `<div class="arow" style="cursor:default;opacity:.35"><span class="aname">Unknown</span></div>`;
-    const civ=getCivName(p,side);
-    return `<div class="arow" style="cursor:pointer" onclick="openProfile('${p.id}')">
-      <span class="aname">${p.name}</span>
-      ${civ?`<span class="aciv">${civ}</span>`:''}
-      <span class="aelo">${overallElo(p)}</span>
-    </div>`;
-  };
-  document.getElementById('ipEvil').innerHTML=evil.map(p=>row(p,'evil')).join('');
-  document.getElementById('ipGood').innerHTML=good.map(p=>row(p,'good')).join('');
-
-  const oddsEl=document.getElementById('ipOdds');
-  if(oddsEl) oddsEl.innerHTML=`
-    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-bottom:3px">
-      <span style="color:var(--evil)">⚔ Evil ${odds}%</span>
-      <span style="color:var(--good)">${100-odds}% Good ✦</span>
-    </div>
-    <div class="odds-bar"><div class="odds-evil" style="width:${odds}%"></div><div class="odds-good" style="width:${100-odds}%"></div></div>`;
+  const row=p=>`<div class="arow" style="cursor:default">
+    <span class="aname">${p.name}</span>
+    <span class="aelo">${overallElo(p)}</span>
+  </div>`;
+  document.getElementById('ipEvil').innerHTML=evil.map(row).join('');
+  document.getElementById('ipGood').innerHTML=good.map(row).join('');
 }
 
 function startTimer(){
@@ -2692,8 +1848,8 @@ async function checkRecentInProgress(){
     const matches=(data.matches||[]);
     const now=Date.now()/1000;
     const knownIds=new Set(history.map(h=>h.gameId).filter(Boolean));
-    const commIds=buildCommIds(players);
-    const profMap=buildProfMap(players);
+    const profMap=Object.fromEntries(players.filter(p=>p.profileId).map(p=>[Number(p.profileId),p]));
+    const commIds=new Set(players.filter(p=>p.profileId).map(p=>Number(p.profileId)));
 
     for(const match of matches){
       const gid=String(match.match_id||match.id);
@@ -2735,8 +1891,9 @@ async function pollForResult(){
     if(!resp.ok) return;
     const data=await resp.json();
     const matches=(data.matches||[]).sort((a,b)=>(b.completiontime||0)-(a.completiontime||0));
-    const known=new Set(history.map(h=>String(h.gameId)).filter(Boolean));
-    const commIds=buildCommIds(players);
+    const known=new Set(history.map(h=>h.gameId).filter(Boolean));
+    const profPlayers=players.filter(p=>p.profileId);
+    const commIds=new Set(profPlayers.map(p=>Number(p.profileId)));
 
     for(const match of matches.slice(0,15)){
       const gid=String(match.match_id||match.id);
@@ -2780,360 +1937,71 @@ window.forceEndGame=function(){
 };
 
 // Start polling on page load
-setInterval(pollLobby, LIVE_INTERVAL_MS);       // lobby.json every 15s
+setInterval(pollLobby, LIVE_INTERVAL_MS);
 setTimeout(pollLobby, 5000);
-// WebSocket for real-time lobby detection
-setTimeout(connectLobbyWs, 3000);
-// Direct API poll every 30s regardless of WebSocket — don't depend on scraper
-setInterval(()=>{ if(liveState!=='inprogress') pollLobbyHttp(); }, 30000);
-setTimeout(pollLobbyHttp, 8000); // first check after 8s
+setInterval(()=>{ if(liveState!=='inprogress') pollLobbyDirect(); }, 60000);
+setTimeout(pollLobbyDirect, 20000);
 
-// Poll match history directly — every 2 minutes, regardless of tab visibility
-setInterval(autoRecordDirect, 2*60*1000);
-setTimeout(autoRecordDirect, 45000); // first check after 45s
-
-// DIRECT LOBBY API POLL (browser-side via corsproxy.io)
-async function fetchWithProxy(aoeUrl, timeout=12000){
-  // corsproxy.io - try with x-cors-api-key header for better reliability
-  const proxyUrl=`https://corsproxy.io/?url=${encodeURIComponent(aoeUrl)}`;
-  try{
-    const resp=await fetch(proxyUrl,{
-      signal:AbortSignal.timeout(timeout),
-      headers:{'x-requested-with':'XMLHttpRequest'}
-    });
-    if(resp.ok){
-      const text=await resp.text();
-      if(text.startsWith('<')){ throw new Error('Got HTML instead of JSON'); }
-      return JSON.parse(text);
-    }
-    console.warn('[proxy] HTTP',resp.status);
-  }catch(e){ console.warn('[proxy] Error:',e.message); }
-  throw new Error('Proxy failed');
-}
-
-// ─────────────────────────────────────────
-// aoe2lobby.com WebSocket — real-time lobby updates
-// ─────────────────────────────────────────
-let lobbyWs=null;
-let lobbyWsReconnectTimer=null;
-let lobbyWsAlive=false;
-
-function connectLobbyWs(){
-  if(lobbyWs&&(lobbyWs.readyState===WebSocket.OPEN||lobbyWs.readyState===WebSocket.CONNECTING)) return;
-  try{
-    lobbyWs=new WebSocket('wss://data.aoe2lobby.com/ws/');
-    lobbyWs.onopen=()=>{
-      lobbyWsAlive=true;
-      console.log('[ws] Connected to aoe2lobby.com');
-      // Subscribe to all lobby matches
-      lobbyWs.send(JSON.stringify({action:'subscribe',type:'matches',context:'lobby'}));
-      // Also subscribe to our specific community player IDs for instant notifications
-      const pids=players.filter(p=>p.profileId).map(p=>String(p.profileId));
-      if(pids.length) lobbyWs.send(JSON.stringify({action:'subscribe',type:'players',context:'lobby',ids:pids}));
-      const st=document.getElementById('liveStatus');
-      if(st) st.textContent='Live — connected to aoe2lobby.com WebSocket';
-    };
-    lobbyWs.onmessage=async(e)=>{
-      try{
-        const msg=JSON.parse(e.data);
-        // Player status update — one of our community members changed status
-        if(msg.player_status){
-          const commIds=buildCommIds(players);
-          for(const[pid,status]of Object.entries(msg.player_status)){
-            if(!commIds.has(Number(pid))) continue;
-            if(!status||!status.status) continue; // ignore null/initial snapshots
-            console.log('[ws] Player update:',pid,status.status);
-            if(status.status==='lobby'&&liveState!=='lobby'&&liveState!=='inprogress'){
-              // A community player entered a lobby — fetch it
-              setTimeout(()=>pollLobbyHttp(), 1000);
-            } else if(status.status==='ingame'&&liveState==='lobby'){
-              activateInProgress();
-            } else if(status.status==='offline'||status.status==='menu'){
-              // ignore
-            }
-          }
-        }
-        // Full match update — check for LOTR community match
-        if(msg.matches){
-          const commIds=buildCommIds(players);
-          if(liveState==='inprogress') return;
-          for(const match of (Array.isArray(msg.matches)?msg.matches:Object.values(msg.matches))){
-            if(!match||typeof match!=='object') continue;
-            if(match.matchtype_id!==0||match.maxplayers!==8) continue;
-            // isLotrMatch skipped — mapname is always "my map" for custom scenarios
-            const allIds=new Set();
-            if(match.host_profile_id) allIds.add(Number(match.host_profile_id));
-            (match.matchmembers||[]).forEach(m=>allIds.add(Number(m.profile_id)));
-            const found=[...allIds].filter(id=>commIds.has(id));
-            if(found.length>=1){
-              console.log('[ws] LOTR lobby with',found.length,'community members — fetching full data');
-              // Always fetch full data from API to get slotinfo for civ positions
-              setTimeout(()=>pollLobbyHttp(), 500);
-              return;
-            }
-          }
-        }
-      }catch(err){ console.warn('[ws] parse error',err.message); }
-    };
-    lobbyWs.onerror=()=>{ console.warn('[ws] Error'); lobbyWsAlive=false; };
-    lobbyWs.onclose=()=>{
-      lobbyWsAlive=false;
-      console.warn('[ws] Disconnected — reconnecting in 10s');
-      const st=document.getElementById('liveStatus');
-      if(st&&liveState==='idle') st.textContent='WebSocket disconnected — reconnecting…';
-      lobbyWsReconnectTimer=setTimeout(connectLobbyWs, 10000);
-    };
-  }catch(e){ console.warn('[ws] Failed to connect:',e.message); }
-}
-
-// HTTP fallback — used when WebSocket finds a community player in a lobby
-// but we need full match details
-const LOBBY_API_URL='https://aoe-api.worldsedgelink.com/community/advertisement/findAdvertisements?title=age2&count=200';
+// DIRECT LOBBY API POLL (browser-side via corsproxy)
+const LOBBY_API_URL='https://corsproxy.io/?url='+encodeURIComponent('https://aoe-api.worldsedgelink.com/community/leaderboard/getAvailableLobbies?title=age2&matchtype_id=0&maxplayers=8');
 let lastLobbyApiCheck=0;
-
-async function pollLobbyHttp(){
-  if(liveState==='inprogress') return;
-  if(Date.now()-lastLobbyApiCheck<3000) return;
+async function pollLobbyDirect(){
+  if(document.hidden||liveState==='inprogress') return;
+  if(Date.now()-lastLobbyApiCheck<55000) return;
   lastLobbyApiCheck=Date.now();
   try{
-    const data=await fetchWithProxy(LOBBY_API_URL);
-    const lobbies=data.matches||[];
-    const commIds=buildCommIds(players);
-    const profMap=buildProfMap(players);
-    // Update status with direct API result
-    const st=document.getElementById('liveStatus');
-    const now=new Date().toLocaleTimeString();
-    if(st&&liveState==='idle') st.textContent=`Last checked: ${now} · ${lobbies.length} lobbies · ${lobbies.filter(m=>m.matchtype_id===0&&m.maxplayers===8).length} custom 8-player (direct API)`;
+    const resp=await fetch(LOBBY_API_URL,{signal:AbortSignal.timeout(10000)});
+    if(!resp.ok) return;
+    const data=await resp.json();
+    const lobbies=data.matches||data.matchGroups||data.availableLobbies||[];
+    const profMap=Object.fromEntries(players.filter(p=>p.profileId).map(p=>[Number(p.profileId),p]));
+    const commIds=new Set(Object.keys(profMap).map(Number));
     for(const match of lobbies){
       if(match.matchtype_id!==0||match.maxplayers!==8) continue;
-      // isLotrMatch skipped — mapname is always "my map" for custom scenarios in the API
       const allIds=new Set();
       allIds.add(Number(match.host_profile_id));
       (match.matchmembers||[]).forEach(m=>allIds.add(Number(m.profile_id)));
       const slots=await decodeSlotinfo(match.slotinfo||'');
       slotProfileIds(slots).forEach(id=>allIds.add(id));
       const found=[...allIds].filter(id=>commIds.has(id));
-      if(found.length>=1){
+      if(found.length>=2){
         match._slots=slots;
         activateLobby(match,found.map(id=>profMap[id]).filter(Boolean));
+        const st=document.getElementById('liveStatus');
+        if(st) st.textContent+=' · (live API)';
         return;
       }
     }
     if(liveState==='lobby') activateInProgress();
-  }catch(e){ console.warn('[lobbyHttp]',e.message); }
-}
-
-async function pollLobbyDirect(){
-  // Kept for compatibility — now just runs the HTTP poll
-  await pollLobbyHttp();
-}
-
-// DIRECT MATCH HISTORY POLL
-// Polls AoE2 API directly every 3 min — no scraper needed for same-day games
-let lastDirectMatchCheck=0;
-let directPollRunning=false;
-
-// ─────────────────────────────────────────
-// BACKGROUND MATCH POLLER
-// Polls player history directly every 2 min — no scraper dependency
-// Runs regardless of tab visibility so games are captured even if site is open on another tab
-// ─────────────────────────────────────────
-async function autoRecordDirect(){
-  if(directPollRunning||autoRecording) return;
-  if(Date.now()-lastDirectMatchCheck < 110000) return; // min 1min50s between calls
-  directPollRunning=true;
-  lastDirectMatchCheck=Date.now();
-
-  try{
-    const commIds=buildCommIds(players);
-    const profMap=buildProfMap(players);
-    if(!commIds.size){ directPollRunning=false; return; }
-
-    const pids=players.filter(p=>p.profileId).map(p=>p.profileId);
-    if(!pids.length){ directPollRunning=false; return; }
-
-    // Batch into groups of 10 to avoid 413 URL too large
-    const BATCH=10;
-    const allMatches=[];
-    for(let i=0;i<pids.length;i+=BATCH){
-      const batch=pids.slice(i,i+BATCH);
-      try{
-        const aoeUrl=`https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=${encodeURIComponent(JSON.stringify(batch))}`;
-        const data=await fetchWithProxy(aoeUrl,15000);
-        allMatches.push(...(data.matchHistoryStats||[]));
-      }catch(e){ console.warn('[poll] Batch failed:',e.message); }
-    }
-    // Deduplicate by match ID
-    const seen=new Set();
-    const matches=allMatches.filter(m=>{ const id=String(m.id||m.match_id); return seen.has(id)?false:(seen.add(id),true); });
-    console.log(`[poll] ${matches.length} unique matches from ${pids.length} players`);
-
-    const known=new Set(history.map(h=>String(h.gameId)).filter(Boolean));
-    const EVIL_TEAMS=new Set([5,6,7,8]);
-    const GOOD_TEAMS=new Set([9,10,11,12]);
-    let added=0;
-
-    for(const match of matches){
-      const gid=String(match.id||match.match_id);
-      if(known.has(gid)) continue;
-
-      // Basic filters
-      if(match.matchtype_id!==0||match.maxplayers!==8) continue;
-      if(!isLotrMatch(match)){ console.log(`[poll] Skip ${gid}: not LOTR (desc=${match.description})`); continue; }
-      const dur=(match.completiontime&&match.startgametime)?match.completiontime-match.startgametime:null;
-      if(dur!==null&&dur<600) continue;
-
-      // Need 4+ community members
-      const members=match.matchhistorymember||match.matchhistoryreportresults||[];
-      const commMembers=members.filter(m=>commIds.has(Number(m.profile_id)));
-      if(commMembers.length<4){ console.log(`[poll] Skip ${gid}: ${commMembers.length} community`); continue; }
-
-      // Winner detection: resulttype 1=win, 2=loss
-      let evilW=0, goodW=0;
-      for(const rt of [1,2]){
-        members.forEach(m=>{
-          if(m.resulttype===rt){
-            const isEvil=EVIL_TEAMS.has(Number(m.teamid));
-            const isGood=GOOD_TEAMS.has(Number(m.teamid));
-            if(rt===1){ if(isEvil) evilW++; else if(isGood) goodW++; }
-            else      { if(isEvil) goodW++; else if(isGood) evilW++; } // loser side → other side won
-          }
-        });
-        if(evilW||goodW) break;
-      }
-      console.log(`[poll] ${gid}: comm=${commMembers.length} evil=${evilW} good=${goodW}`);
-      const winner=evilW>goodW?'evil':goodW>evilW?'good':null;
-      if(!winner) continue;
-
-      // Build team assignments using teamid for civ mapping
-      const evilM=members.filter(m=>EVIL_TEAMS.has(Number(m.teamid)));
-      const goodM=members.filter(m=>GOOD_TEAMS.has(Number(m.teamid)));
-      if(!evilM.length||!goodM.length) continue;
-
-      const mkAssign=arr=>arr.map(m=>{
-        const p=profMap[Number(m.profile_id)]||null;
-        const cid=m.civ_position||TEAMID_MAP[Number(m.teamid)]||null;
-        console.log(`[poll] player=${p?.name||m.profile_id} teamid=${m.teamid} civ_position=${m.civ_position} → civId=${cid}`);
-        return{
-          name:      p?p.name:(m.name||`Player ${m.profile_id}`),
-          civId:     cid,
-          civName:   cid?(CIVS.find(c=>c.id===cid)?.name||''):'',
-          effElo:    p?(cid?civElo(p,cid):overallElo(p)):DEFAULT_ELO,
-          isCommunity: commIds.has(Number(m.profile_id)),
-          profileId: String(m.profile_id),
-          player:    p,
-        };
-      });
-
-      const winA =winner==='evil'?mkAssign(evilM):mkAssign(goodM);
-      const loseA=winner==='evil'?mkAssign(goodM):mkAssign(evilM);
-      const ts=(match.completiontime||match.startgametime||0)*1000;
-      const date=ts?new Date(ts).toLocaleDateString('en-CA'):new Date().toLocaleDateString('en-CA');
-
-      // Use same transaction pattern as autoRecord — atomic check + write, no double-counting
-      const histRef2 = doc(db,'history',gid);
-      let alreadyDone = false;
-      await runTransaction(db, async (tx) => {
-        const existing = await tx.get(histRef2);
-        if(existing.exists()){ alreadyDone=true; return; }
-
-        // Compute team Elo totals for history entry
-        const et2=winA.reduce((s,a)=>s+a.effElo,0);
-        const gt2=loseA.reduce((s,a)=>s+a.effElo,0);
-        tx.set(histRef2,{
-          date, winner,
-          evilTotal:winner==='evil'?et2:gt2, goodTotal:winner==='evil'?gt2:et2,
-          gap:Math.abs(et2-gt2), timestamp:ts||Date.now(), source:'auto', gameId:gid,
-          duration:dur,
-          evilAssign:(winner==='evil'?winA:loseA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
-          goodAssign:(winner==='evil'?loseA:winA).map(a=>({name:a.name,civName:a.civName,effElo:a.effElo,isCommunity:a.isCommunity,profileId:String(a.profileId||'')})),
-        });
-
-        // Atomic increments for W/L
-        const commWin2=winA.filter(a=>a.isCommunity&&a.player);
-        const commLose2=loseA.filter(a=>a.isCommunity&&a.player);
-        const avgWin2=commWin2.length?commWin2.reduce((s,a)=>s+overallElo(a.player),0)/commWin2.length:DEFAULT_ELO;
-        const avgLose2=commLose2.length?commLose2.reduce((s,a)=>s+overallElo(a.player),0)/commLose2.length:DEFAULT_ELO;
-        const seenP=new Set();
-        for(const a of [...commWin2,...commLose2]){
-          const p=a.player, won2=commWin2.includes(a);
-          if(seenP.has(p.id)) continue; seenP.add(p.id);
-          const g=(p.wins||0)+(p.losses||0);
-          const pRef=doc(db,'players',String(p.id));
-          const upd={};
-          p.civElo=p.civElo||{};
-          if(a.civId){
-            const cg=(p.civWins?.[a.civId]||0)+(p.civLosses?.[a.civId]||0);
-            const newCivElo=calcElo(civElo(p,a.civId),won2?avgLose2:avgWin2,won2,g,cg);
-            upd['civElo.'+a.civId]=newCivElo; p.civElo[a.civId]=newCivElo;
-            if(won2){ upd['civWins.'+a.civId]=increment(1); }
-            else    { upd['civLosses.'+a.civId]=increment(1); }
-          }
-          if(won2){ upd.wins=increment(1); p.wins=(p.wins||0)+1; }
-          else    { upd.losses=increment(1); p.losses=(p.losses||0)+1; }
-          tx.update(pRef, upd);
-        }
-      });
-      if(alreadyDone){ console.log('[poll] Already recorded by another tab, skipping:',gid); continue; }
-      known.add(gid); added++;
-      console.log('[poll] Recorded',gid,winner);
-    }
-
-    if(added>0) toast(`${added} new match${added>1?'es':''} recorded!`);
-  }catch(e){
-    console.warn('[poll] Error:',e.message);
-  }finally{
-    directPollRunning=false;
-  }
+  }catch(e){}
 }
 
 // PLAYER PROFILES
 let profileFromPage='leaderboard';
-window.openProfile=async function(playerId,fromPage){
+window.openProfile=function(playerId,fromPage){
   const p=players.find(pl=>pl.id===playerId); if(!p) return;
   profileFromPage=fromPage||'leaderboard';
+  renderProfile(p);
   go('profile');
   window.history.pushState({page:'profile',id:playerId},'','#player/'+encodeURIComponent(p.name));
-  // Fetch ALL history from Firestore (not the live cache capped at 100)
-  let allHistory = [...history]; // start with cache as fast fallback
-  try {
-    const snap = await getDocs(query(collection(db,'history'), orderBy('timestamp','desc')));
-    allHistory = [];
-    snap.forEach(d => allHistory.push({id:d.id,...d.data()}));
-  } catch(e) { /* keep cache fallback */ }
-  renderProfile(p, allHistory);
 };
 window.goBack=function(){ window.history.back(); };
 window.addEventListener('popstate',e=>{
   if(e.state&&e.state.page==='profile'){
     const p=players.find(pl=>pl.id===e.state.id);
-    if(p){window.openProfile(p.id,profileFromPage);return;}
+    if(p){renderProfile(p);go('profile');return;}
   }
   go(profileFromPage);
   window.history.replaceState(null,'',location.pathname);
 });
 
-// ── PROFILE PAGE ─────────────────────────────────────────────────────────────
-// All display values (header, chart, civ cards) derive from a single history
-// replay via buildEloHistory. No Firestore civElo used for display here —
-// only the replay result matters so everything is internally consistent.
-// ── PROFILE RENDERING ────────────────────────────────────────────────────────
-function renderProfile(p, allHistory){
-  // Match history for this player — newest first
-  // Use passed-in allHistory (full fetch) or fall back to live cache
-  const src = (allHistory && allHistory.length >= history.length) ? allHistory : history;
-  const pm = src
-    .filter(h => [...(h.evilAssign||[]),...(h.goodAssign||[])].some(a =>
-      a.name===p.name || (a.profileId && String(a.profileId)===String(p.profileId))))
-    .sort((a,b) => (b.timestamp||0)-(a.timestamp||0));
-
-  // Overall Elo — same function used on leaderboard and everywhere else
-  const ov = overallElo(p);
-  const w = p.wins||0, l = p.losses||0, tot = w+l;
-  const wr = tot ? Math.round(w/tot*100)+'%' : '--';
-  // Chart uses forward replay - no forcing, shows natural progression
-  const ep = buildEloHistory(p, pm);
-
+function renderProfile(p){
+  const ov=Math.round(CIVS.reduce((s,c)=>s+civElo(p,c.id),0)/CIVS.length);
+  const w=p.wins||0,l=p.losses||0,tot=w+l;
+  const wr=tot?Math.round(w/tot*100)+'%':'--';
+  const pm=history.filter(h=>[...(h.evilAssign||[]),...(h.goodAssign||[])].some(a=>a.name===p.name))
+    .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
+  const ep=buildEloHistory(p,pm);
   document.getElementById('profileContent').innerHTML=`
     <div class="profile-header">
       <div class="profile-avatar">${p.name[0].toUpperCase()}</div>
@@ -3149,136 +2017,95 @@ function renderProfile(p, allHistory){
         </div>
       </div>
     </div>
-    <div style="margin-bottom:1rem">
-      <div class="card">
-        <div class="ct">Elo Over Time</div>
-        ${ep.length>1
-          ? '<div style="position:relative"><canvas id="eloChart" style="width:100%;height:240px"></canvas><div id="eloTooltip" style="display:none;position:absolute;background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:5px 10px;font-size:12px;font-family:JetBrains Mono,monospace;color:var(--gold);pointer-events:none;white-space:nowrap"></div></div>'
-          : '<p style="color:var(--muted);font-size:13px">Not enough data yet.</p>'}
-      </div>
-    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
       <div class="card">
-        <div class="ct">Win Rate by Civ</div>
-        <div class="civ-wl-grid">${buildCivStats(p,pm,id=>civElo(p,id))}</div>
+        <div class="ct">Elo Over Time</div>
+        ${ep.length>1?'<canvas id="eloChart" style="width:100%;height:160px"></canvas>':'<p style="color:var(--muted);font-size:13px">Not enough data yet.</p>'}
       </div>
+      <div class="card">
+        <div class="ct">Win Rate by Civ</div>
+        <div class="civ-wl-grid">${buildCivStats(p,pm)}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
       <div class="card" style="padding:0">
         <div class="ct" style="padding:.75rem 1rem .25rem">Recent Matches</div>
         ${pm.slice(0,10).map(h=>{
-          const onEvil=(h.evilAssign||[]).some(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
-          const won=(onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
-          const my=[...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
-          const mc=normCivName(my?.civName||'--');
-          const dur=h.duration?' · '+fmtDuration(h.duration):'';
-          return '<div style="display:flex;align-items:center;gap:.75rem;padding:8px 1rem;border-bottom:1px solid var(--border);cursor:pointer" onclick="openMatchDetail('+JSON.stringify(h).replace(/"/g,'&quot;')+')">'+
-            '<span style="font-family:Cinzel,serif;font-size:9px;padding:3px 8px;border-radius:2px;white-space:nowrap;'+(won?'background:var(--good-d);color:#80b4d4;border:1px solid var(--good)':'background:var(--evil-d);color:#e08080;border:1px solid var(--evil)')+'">'+(won?'WIN':'LOSS')+'</span>'+
+          const oe=(h.evilAssign||[]).some(a=>a.name===p.name);
+          const won=(oe&&h.winner==='evil')||(!oe&&h.winner==='good');
+          const mc=([...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name)||{}).civName||'--';
+          const dur=h.duration?' · '+Math.floor(h.duration/60)+'m'+String(h.duration%60).padStart(2,'0')+'s':'';
+          return '<div onclick="openMatchDetail(\''+h.id+'\')" style="display:flex;align-items:center;gap:.75rem;padding:8px 1rem;border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">'+
+            '<span style="font-family:Cinzel,serif;font-size:9px;padding:3px 8px;border-radius:2px;white-space:nowrap;'+(won?'background:var(--good-d);color:#80b4d4;border:1px solid var(--good)':'background:var(--evil-d);color:#e08080;border:1px solid var(--evil)')+'">'+( won?'WIN':'LOSS')+'</span>'+
             '<span style="flex:1;font-size:13px;color:var(--dim)">'+mc+'</span>'+
-            '<span style="font-size:11px;color:var(--muted)">'+( h.date||'')+dur+'</span></div>';
+            '<span style="font-size:11px;color:var(--muted)">'+(h.date||'')+dur+'</span>'+
+            '<span style="font-size:11px;color:var(--muted);margin-left:4px">›</span></div>';
         }).join('')||'<p style="color:var(--muted);font-size:13px;padding:1rem">No matches yet.</p>'}
       </div>
-    </div>
-    <div class="card" style="padding:0">
-      <div class="ct" style="padding:.75rem 1rem .25rem">Head-to-Head vs Opponents</div>
-      ${buildH2H(p,pm)}
+      <div class="card" style="padding:0">
+        <div class="ct" style="padding:.75rem 1rem .25rem">Head-to-Head vs Opponents</div>
+        ${buildH2H(p,pm)}
+      </div>
     </div>`;
   if(ep.length>1) setTimeout(()=>drawEloChart(ep),60);
 }
 
-// ── ELO CHART HISTORY ────────────────────────────────────────────────────────
-// Simple forward replay for the chart. Starts from overallElo(p) reversed back
-// to approximate the starting point, then replays forward.
-// renderProfile forces the last point to match overallElo(p) exactly.
-// ── ELO CHART HISTORY ────────────────────────────────────────────────────────
-// Builds the data points for the Elo chart by replaying matches oldest→newest.
-// Uses the same kFactor() as calcElo() and recalcAllElos for consistency.
-// The overall at each point = average of civs played SO FAR (same rule as overallElo).
-// The last point is forced to match overallElo(p) so chart end = header always.
-function buildEloHistory(p, matches){
-  const sorted = [...matches].reverse(); // oldest first
+function buildEloHistory(p,matches){
+  // Replay matches oldest→newest using the same calcElo logic as autoRecord
+  // Track overall Elo as average of all 8 civs after each game
+  const civElos={};
+  CIVS.forEach(c=>{ civElos[c.id]=1200; });
+  const overallEloNow=()=>Math.round(CIVS.reduce((s,c)=>s+civElos[c.id],0)/CIVS.length);
 
-  // Seed civElos from Firestore, then reverse-simulate to approximate start
-  const civElos = {};
-  CIVS.forEach(c => { civElos[c.id] = civElo(p, c.id); });
+  const pts=[{date:'Start',elo:1200}];
+  let gamesPlayed=0;
 
-  for(const h of [...sorted].reverse()){
-    const allA = [...(h.evilAssign||[]),...(h.goodAssign||[])];
-    const my   = allA.find(a => a.name===p.name || (a.profileId && String(a.profileId)===String(p.profileId)));
-    if(!my) continue;
-    const onEvil = (h.evilAssign||[]).some(a => a.name===p.name || (a.profileId && String(a.profileId)===String(p.profileId)));
-    const won    = (onEvil && h.winner==='evil') || (!onEvil && h.winner==='good');
-    const civ    = CIVS.find(c => normCivName(c.name)===normCivName(my.civName||''));
+  for(const h of [...matches].reverse()){
+    const oe=(h.evilAssign||[]).some(a=>a.name===p.name);
+    const won=(oe&&h.winner==='evil')||(!oe&&h.winner==='good');
+    const my=[...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name);
+    if(!my||!my.civName) continue;
+    const civ=CIVS.find(c=>c.name===my.civName);
     if(!civ) continue;
-    const opp    = onEvil ? h.goodAssign : h.evilAssign;
-    const oppAvg = (opp||[]).reduce((s,a)=>s+(a.effElo||DEFAULT_ELO),0) / Math.max(1,(opp||[]).length);
-    const E      = 1/(1+Math.pow(10,(oppAvg-civElos[civ.id])/400));
-    civElos[civ.id] = Math.max(100, Math.round(civElos[civ.id] - 32*((won?1:0)-E)));
+
+    // Get opponent average overall Elo (from stored effElo)
+    const opp=oe?h.goodAssign:h.evilAssign;
+    const oppAvg=(opp||[]).reduce((s,a)=>s+(a.effElo||1200),0)/Math.max(1,(opp||[]).length);
+
+    // Apply same calcElo formula as server
+    const K=gamesPlayed<20?128:gamesPlayed<40?64:32;
+    const E=1/(1+Math.pow(10,(oppAvg-civElos[civ.id])/400));
+    civElos[civ.id]=Math.max(100,Math.round(civElos[civ.id]+K*((won?1:0)-E)));
+    gamesPlayed++;
+    pts.push({date:h.date||'',elo:overallEloNow()});
   }
-
-  // Helper: average only played civs (same rule as overallElo)
-  const playedSoFar = new Set();
-  const avg = () => {
-    const pool = playedSoFar.size ? CIVS.filter(c=>playedSoFar.has(c.id)) : CIVS;
-    return Math.round(pool.reduce((s,c)=>s+civElos[c.id],0)/pool.length);
-  };
-
-  const pts = [{date:'Start', elo: avg()}];
-  let totalGames = 0;
-  const civGames = {};
-
-  for(const h of sorted){
-    const allA = [...(h.evilAssign||[]),...(h.goodAssign||[])];
-    const my   = allA.find(a => a.name===p.name || (a.profileId && String(a.profileId)===String(p.profileId)));
-    if(!my) continue;
-    const onEvil = (h.evilAssign||[]).some(a => a.name===p.name || (a.profileId && String(a.profileId)===String(p.profileId)));
-    const won    = (onEvil && h.winner==='evil') || (!onEvil && h.winner==='good');
-    const civ    = CIVS.find(c => normCivName(c.name)===normCivName(my.civName||''));
-    if(!civ) continue;
-    const opp    = onEvil ? h.goodAssign : h.evilAssign;
-    const oppAvg = (opp||[]).reduce((s,a)=>s+(a.effElo||DEFAULT_ELO),0) / Math.max(1,(opp||[]).length);
-    const cg     = civGames[civ.id]||0;
-    const E      = 1/(1+Math.pow(10,(oppAvg-civElos[civ.id])/400));
-    civElos[civ.id] = Math.max(100, Math.round(civElos[civ.id] + kFactor(totalGames,cg)*((won?1:0)-E)));
-    totalGames++;
-    civGames[civ.id] = cg+1;
-    playedSoFar.add(civ.id);
-    pts.push({date: h.date||'', elo: avg()});
-  }
-
-  // Force last point to match overallElo(p) so chart end always equals header
-  if(pts.length > 0) pts[pts.length-1].elo = overallElo(p);
-
   return pts;
 }
 
-function buildCivStats(p,matches,dispElo){
-  dispElo=dispElo||(id=>civElo(p,id));
+function buildCivStats(p,matches){
   const st={};
   CIVS.forEach(c=>{st[c.id]={civ:c,w:0,l:0};});
   for(const h of matches){
-    const allA=[...(h.evilAssign||[]),...(h.goodAssign||[])];
-    const my=allA.find(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
-    if(!my) continue;
-    const onEvil=(h.evilAssign||[]).some(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
-    const won=(onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
-    const civName=normCivName(my.civName||'');
-    const civ=CIVS.find(c=>normCivName(c.name)===civName);
+    const oe=(h.evilAssign||[]).some(a=>a.name===p.name);
+    const won=(oe&&h.winner==='evil')||(!oe&&h.winner==='good');
+    const my=[...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name);
+    if(!my||!my.civName) continue;
+    const civ=CIVS.find(c=>c.name===my.civName);
     if(civ){if(won)st[civ.id].w++;else st[civ.id].l++;}
   }
   return CIVS.map(c=>{
-    const s=st[c.id],tot=s.w+s.l,pct=tot?Math.round(s.w/tot*100):0,elo=dispElo(c.id);
-    const unplayed=tot===0;
-    const bar='<div class="civ-wl-bar"><div class="civ-wl-fill" style="width:'+pct+'%;background:'+(c.side==='evil'?'var(--evil)':'var(--good)')+'"></div></div>';
-    return '<div class="civ-wl-card"'+(unplayed?' style="opacity:0.45"':'')+'>'+
+    const s=st[c.id],tot=s.w+s.l,pct=tot?Math.round(s.w/tot*100):0,elo=civElo(p,c.id);
+    return '<div class="civ-wl-card">'+
       '<div class="civ-wl-name '+c.side+'">'+c.name+'</div>'+
       '<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--dim)">'+
-        '<span>'+(unplayed?'Unplayed':s.w+'W/'+s.l+'L')+'</span>'+
-        '<span style="font-family:JetBrains Mono,monospace;color:'+(unplayed?'var(--muted)':'var(--gold)')+'">'+elo+'</span>'+
-      '</div>'+bar+
+        '<span>'+s.w+'W/'+s.l+'L</span>'+
+        '<span style="font-family:JetBrains Mono,monospace;color:var(--gold)">'+elo+'</span>'+
+      '</div>'+
+      '<div class="civ-wl-bar"><div class="civ-wl-fill" style="width:'+pct+'%;background:'+(c.side==='evil'?'var(--evil)':'var(--good)')+'"></div></div>'+
       '<div style="font-size:11px;color:var(--muted);text-align:right">'+(tot?pct+'%':'--')+'</div>'+
     '</div>';
   }).join('');
 }
-
 
 function buildH2H(p,matches){
   const rec={};
@@ -3308,104 +2135,16 @@ function buildH2H(p,matches){
 function drawEloChart(pts){
   const canvas=document.getElementById('eloChart'); if(!canvas) return;
   const dpr=window.devicePixelRatio||1;
-  const W=canvas.offsetWidth,H=canvas.offsetHeight||240;
+  const W=canvas.offsetWidth,H=canvas.offsetHeight||160;
   canvas.width=W*dpr; canvas.height=H*dpr;
   const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
   const elos=pts.map(p=>p.elo);
   const minE=Math.min(...elos)-30,maxE=Math.max(...elos)+30;
-  const pad={t:10,r:10,b:30,l:42};
+  const pad={t:10,r:10,b:20,l:42};
   const cW=W-pad.l-pad.r,cH=H-pad.t-pad.b;
   const xS=i=>pad.l+i*(cW/Math.max(1,pts.length-1));
   const yS=e=>pad.t+cH-(e-minE)/(maxE-minE)*cH;
   ctx.clearRect(0,0,W,H);
-
-  // Y axis grid + labels
-  for(let i=0;i<=4;i++){
-    const y=pad.t+i*(cH/4);
-    ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1;
-    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+cW,y); ctx.stroke();
-    ctx.fillStyle='rgba(156,136,120,0.7)'; ctx.font='10px monospace'; ctx.textAlign='right';
-    ctx.fillText(Math.round(maxE-(i/4)*(maxE-minE)),pad.l-4,y+4);
-  }
-
-  // Gradient fill
-  const grad=ctx.createLinearGradient(0,pad.t,0,pad.t+cH);
-  grad.addColorStop(0,'rgba(201,168,76,0.25)'); grad.addColorStop(1,'rgba(201,168,76,0)');
-  ctx.beginPath();
-  pts.forEach((p,i)=>i===0?ctx.moveTo(xS(i),yS(p.elo)):ctx.lineTo(xS(i),yS(p.elo)));
-  ctx.lineTo(xS(pts.length-1),pad.t+cH); ctx.lineTo(xS(0),pad.t+cH);
-  ctx.closePath(); ctx.fillStyle=grad; ctx.fill();
-
-  // Line
-  ctx.strokeStyle='#c9a84c'; ctx.lineWidth=2; ctx.lineJoin='round';
-  ctx.beginPath();
-  pts.forEach((p,i)=>i===0?ctx.moveTo(xS(i),yS(p.elo)):ctx.lineTo(xS(i),yS(p.elo)));
-  ctx.stroke();
-
-  // Dots
-  pts.forEach((p,i)=>{
-    ctx.beginPath(); ctx.arc(xS(i),yS(p.elo),4,0,Math.PI*2);
-    ctx.fillStyle='#c9a84c'; ctx.fill();
-  });
-
-  // X axis date labels
-  ctx.fillStyle='rgba(156,136,120,0.6)'; ctx.font='9px monospace'; ctx.textAlign='center';
-  const labelIndices=new Set([0,pts.length-1]);
-  const step=Math.max(1,Math.floor((pts.length-1)/5));
-  for(let i=step;i<pts.length-1;i+=step) labelIndices.add(i);
-  labelIndices.forEach(i=>{
-    const label=i===0?'Start':(pts[i].date?pts[i].date.slice(5):`G${i}`);
-    ctx.fillText(label,xS(i),pad.t+cH+14);
-  });
-
-  // X axis title
-  ctx.fillStyle='rgba(156,136,120,0.4)'; ctx.font='9px monospace'; ctx.textAlign='center';
-  ctx.fillText(`${pts.length-1} games`,W/2,H-2);
-
-  // Store points for hover detection
-  canvas._chartPts=pts.map((p,i)=>({x:xS(i),y:yS(p.elo),elo:p.elo,date:p.date,idx:i}));
-
-  // Hover tooltip
-  canvas.onmousemove=function(e){
-    const rect=canvas.getBoundingClientRect();
-    const mx=(e.clientX-rect.left)*(W/rect.width);
-    const my=(e.clientY-rect.top)*(H/rect.height);
-    const tip=document.getElementById('eloTooltip');
-    if(!tip) return;
-    // Find nearest point
-    let nearest=null, minDist=Infinity;
-    for(const pt of canvas._chartPts){
-      const d=Math.hypot(pt.x-mx,pt.y-my);
-      if(d<minDist){minDist=d;nearest=pt;}
-    }
-    if(nearest&&minDist<20){
-      const label=nearest.idx===0?'Start':(nearest.date||`Game ${nearest.idx}`);
-      tip.textContent=`${label}: ${nearest.elo} Elo`;
-      // Position tooltip — keep within bounds
-      const tipX=Math.min(e.clientX-rect.left+10, rect.width-140);
-      const tipY=Math.max(e.clientY-rect.top-30, 4);
-      tip.style.left=tipX+'px';
-      tip.style.top=tipY+'px';
-      tip.style.display='block';
-      // Highlight dot
-      ctx.clearRect(0,0,W,H);
-      drawEloChartStatic(ctx,pts,pad,cW,cH,minE,maxE,xS,yS,W,H);
-      ctx.beginPath(); ctx.arc(nearest.x,nearest.y,6,0,Math.PI*2);
-      ctx.fillStyle='#fff'; ctx.fill();
-      ctx.beginPath(); ctx.arc(nearest.x,nearest.y,4,0,Math.PI*2);
-      ctx.fillStyle='#c9a84c'; ctx.fill();
-    } else {
-      tip.style.display='none';
-    }
-  };
-  canvas.onmouseleave=function(){
-    const tip=document.getElementById('eloTooltip');
-    if(tip) tip.style.display='none';
-  };
-}
-
-function drawEloChartStatic(ctx,pts,pad,cW,cH,minE,maxE,xS,yS,W,H){
-  ctx.clearRect(0,0,W,H);
   for(let i=0;i<=4;i++){
     const y=pad.t+i*(cH/4);
     ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1;
@@ -3424,315 +2163,66 @@ function drawEloChartStatic(ctx,pts,pad,cW,cH,minE,maxE,xS,yS,W,H){
   pts.forEach((p,i)=>i===0?ctx.moveTo(xS(i),yS(p.elo)):ctx.lineTo(xS(i),yS(p.elo)));
   ctx.stroke();
   pts.forEach((p,i)=>{
-    ctx.beginPath(); ctx.arc(xS(i),yS(p.elo),4,0,Math.PI*2);
+    ctx.beginPath(); ctx.arc(xS(i),yS(p.elo),3,0,Math.PI*2);
     ctx.fillStyle='#c9a84c'; ctx.fill();
   });
-  ctx.fillStyle='rgba(156,136,120,0.6)'; ctx.font='9px monospace'; ctx.textAlign='center';
-  const labelIndices=new Set([0,pts.length-1]);
-  const step=Math.max(1,Math.floor((pts.length-1)/5));
-  for(let i=step;i<pts.length-1;i+=step) labelIndices.add(i);
-  labelIndices.forEach(i=>{
-    const label=i===0?'Start':(pts[i].date?pts[i].date.slice(5):`G${i}`);
-    ctx.fillText(label,xS(i),pad.t+cH+14);
-  });
-  ctx.fillStyle='rgba(156,136,120,0.4)'; ctx.font='9px monospace'; ctx.textAlign='center';
-  ctx.fillText(`${pts.length-1} games`,W/2,H-2);
 }
 
 // ─────────────────────────────────────────
 // STATS PAGE
 // ─────────────────────────────────────────
-async function renderStats(){
-  // Fetch ALL history from Firestore (not the live cache which is capped at 100)
-  // so community stats, streaks, and records reflect every recorded game.
-  try {
-    const snap = await getDocs(query(collection(db,'history'), orderBy('timestamp','asc')));
-    fullHistory = [];
-    snap.forEach(d => fullHistory.push({id:d.id,...d.data()}));
-  } catch(e) {
-    fullHistory = [...history]; // fallback to cache if fetch fails
-  }
+function renderStats(){
   renderGamesPerDay();
   renderStreakList();
   renderCommunityRecords();
-  renderFunStats();
 }
-
-function renderFunStats(){
-  const el=document.getElementById('funStats'); if(!el) return;
-  if(!fullHistory.length||!players.length){el.innerHTML='<p style="color:var(--muted);font-size:13px">Not enough data yet.</p>';return;}
-
-  const stats={}; // playerId → aggregated stats
-  players.forEach(p=>{
-    stats[p.id]={name:p.name,wins:0,losses:0,evilGames:0,goodGames:0,
-      totalDuration:0,upsetWins:0,upsetLosses:0,biggestWinGap:0,biggestLossGap:0,
-      shortWins:0,shortGames:0,teammates:{}};
-  });
-
-  const funCards=[];
-
-  // Process fullHistory
-  for(const h of fullHistory){
-    const evilA=h.evilAssign||[], goodA=h.goodAssign||[];
-    const allA=[...evilA,...goodA];
-    const dur=h.duration||0;
-    const gap=h.gap||0;
-    const evilWon=h.winner==='evil';
-
-    // Determine if this was an upset (lower total Elo won)
-    const evilTotal=h.evilTotal||0, goodTotal=h.goodTotal||0;
-    const upset=(evilWon&&evilTotal<goodTotal)||(!evilWon&&goodTotal<evilTotal);
-
-    for(const a of allA){
-      const p=players.find(pl=>pl.name===a.name); if(!p||!stats[p.id]) continue;
-      const s=stats[p.id];
-      const onEvil=evilA.some(x=>x.name===a.name);
-      const won=(onEvil&&evilWon)||(!onEvil&&!evilWon);
-      if(won) s.wins++; else s.losses++;
-      if(onEvil) s.evilGames++; else s.goodGames++;
-      s.totalDuration+=dur;
-      if(won&&gap>s.biggestWinGap) s.biggestWinGap=gap;
-      if(!won&&gap>s.biggestLossGap) s.biggestLossGap=gap;
-      if(upset&&won) s.upsetWins++;
-      if(dur&&dur<1800&&won){ s.shortWins++; s.shortGames++; }
-      else if(dur&&dur<1800) s.shortGames++;
-
-      // Teammate tracking
-      const myTeam=onEvil?evilA:goodA;
-      for(const t of myTeam){
-        if(t.name===a.name) continue;
-        s.teammates[t.name]=s.teammates[t.name]||{w:0,l:0};
-        if(won) s.teammates[t.name].w++; else s.teammates[t.name].l++;
-      }
-    }
-  }
-
-  const ps=Object.values(stats).filter(s=>s.wins+s.losses>0);
-  const fmt=s=>fmtDuration(s);
-
-  const card=(emoji,title,winner,detail)=>`
-    <div class="fun-card">
-      <div class="fun-emoji">${emoji}</div>
-      <div class="fun-title">${title}</div>
-      <div class="fun-winner">${winner}</div>
-      <div class="fun-detail">${detail}</div>
-    </div>`;
-
-  // 1. Most games played
-  const mostGames=[...ps].sort((a,b)=>(b.wins+b.losses)-(a.wins+a.losses))[0];
-  funCards.push(card('🎮','Most Games Played',mostGames.name,`${mostGames.wins+mostGames.losses} games`));
-
-  // 2. Most wins
-  const mostWins=[...ps].sort((a,b)=>b.wins-a.wins)[0];
-  funCards.push(card('🏆','Most Wins',mostWins.name,`${mostWins.wins} wins`));
-
-  // 3. Most losses (suffering award)
-  const mostLosses=[...ps].sort((a,b)=>b.losses-a.losses)[0];
-  funCards.push(card('💀','The Suffering Award',mostLosses.name,`${mostLosses.losses} losses — hang in there`));
-
-  // 4. Evil loyalist (most % on evil)
-  const evilLoyal=[...ps].filter(s=>s.evilGames+s.goodGames>=5).sort((a,b)=>(b.evilGames/(b.evilGames+b.goodGames))-(a.evilGames/(a.evilGames+a.goodGames)))[0];
-  if(evilLoyal){
-    const pct=Math.round(evilLoyal.evilGames/(evilLoyal.evilGames+evilLoyal.goodGames)*100);
-    funCards.push(card('⚔️','Evil Loyalist',evilLoyal.name,`${pct}% of games on evil side`));
-  }
-
-  // 5. Good loyalist
-  const goodLoyal=[...ps].filter(s=>s.evilGames+s.goodGames>=5).sort((a,b)=>(b.goodGames/(b.evilGames+b.goodGames))-(a.goodGames/(a.evilGames+a.goodGames)))[0];
-  if(goodLoyal){
-    const pct=Math.round(goodLoyal.goodGames/(goodLoyal.evilGames+goodLoyal.goodGames)*100);
-    funCards.push(card('✦','Good Loyalist',goodLoyal.name,`${pct}% of games on good side`));
-  }
-
-  // 6. Marathon player — most total hours
-  const marathon=[...ps].sort((a,b)=>b.totalDuration-a.totalDuration)[0];
-  funCards.push(card('⏱️','Marathon Player',marathon.name,`${fmtDuration(marathon.totalDuration)} total playtime`));
-
-  // 7. Biggest upset winner
-  const upsetKing=[...ps].sort((a,b)=>b.upsetWins-a.upsetWins)[0];
-  if(upsetKing.upsetWins>0)
-    funCards.push(card('🌟','Upset King',upsetKing.name,`${upsetKing.upsetWins} wins against the odds`));
-
-  // 8. Speed demon — best win rate in games under 30 min
-  const speedsters=[...ps].filter(s=>s.shortGames>=3).sort((a,b)=>(b.shortWins/b.shortGames)-(a.shortWins/a.shortGames));
-  if(speedsters.length){
-    const s=speedsters[0];
-    funCards.push(card('⚡','Speed Demon',s.name,`${Math.round(s.shortWins/s.shortGames*100)}% win rate in games <30m`));
-  }
-
-  // 9. Biggest gap win (dominant victor)
-  const dominant=[...ps].sort((a,b)=>b.biggestWinGap-a.biggestWinGap)[0];
-  funCards.push(card('💪','Most Dominant Win',dominant.name,`Won with a ${dominant.biggestWinGap} Elo gap`));
-
-  // 10. Ghost — most registered, fewest games
-  const ghost=[...ps].filter(s=>s.wins+s.losses>0).sort((a,b)=>(a.wins+a.losses)-(b.wins+b.losses))[0];
-  funCards.push(card('👻','The Ghost',ghost.name,`Only ${ghost.wins+ghost.losses} games played`));
-
-  // 11. Best duo — two players with best win rate together (min 5 games)
-  let bestDuo=null, bestDuoRate=0;
-  for(const s of ps){
-    for(const [tname,rec] of Object.entries(s.teammates)){
-      if(rec.w+rec.l<5) continue;
-      const rate=rec.w/(rec.w+rec.l);
-      if(rate>bestDuoRate){bestDuoRate=rate;bestDuo={a:s.name,b:tname,w:rec.w,l:rec.l};}
-    }
-  }
-  if(bestDuo)
-    funCards.push(card('🤝','Best Duo',`${bestDuo.a} & ${bestDuo.b}`,`${bestDuo.w}W/${bestDuo.l}L together (${Math.round(bestDuoRate*100)}%)`));
-
-  // 12. Civ specialist — biggest gap between best and worst civ Elo
-  let biggestCivGap=0, civSpec=null;
-  for(const p of players){
-    if(!p.civElo) continue;
-    const elos=Object.values(p.civElo).filter(e=>e>0);
-    if(elos.length<2) continue;
-    const gap=Math.max(...elos)-Math.min(...elos);
-    if(gap>biggestCivGap){biggestCivGap=gap;civSpec=p;}
-  }
-  if(civSpec){
-    const best=CIVS.reduce((a,c)=>civElo(civSpec,c.id)>civElo(civSpec,a.id)?c:a,CIVS[0]);
-    const worst=CIVS.reduce((a,c)=>civElo(civSpec,c.id)<civElo(civSpec,a.id)?c:a,CIVS[0]);
-    funCards.push(card('🎭','Civ Specialist',civSpec.name,`${biggestCivGap} Elo gap: best ${best.name} (${civElo(civSpec,best.id)}), worst ${worst.name} (${civElo(civSpec,worst.id)})`));
-  }
-
-  // 13. Longest single game
-  const longestH=fullHistory.filter(h=>h.duration).sort((a,b)=>b.duration-a.duration)[0];
-  if(longestH){
-    const players_in=([...(longestH.evilAssign||[]),...(longestH.goodAssign||[])]).filter(a=>a.isCommunity).map(a=>a.name).join(', ');
-    funCards.push(card('🕰️','Longest Game Ever',fmtDuration(longestH.duration),`${longestH.date} — ${longestH.winner==='evil'?'Evil':'Good'} won`));
-  }
-
-  // 14. Shortest game
-  const shortestH=fullHistory.filter(h=>h.duration&&h.duration>600).sort((a,b)=>a.duration-b.duration)[0];
-  if(shortestH)
-    funCards.push(card('💨','Fastest Game Ever',fmtDuration(shortestH.duration),`${shortestH.date} — ${shortestH.winner==='evil'?'Evil':'Good'} won`));
-
-  el.innerHTML=funCards.join('');
-}
-
-let gpdRange=60; // days to show; 0 = all time
-
-window.setGpdRange=function(r){
-  gpdRange=r;
-  ['14','30','60','All'].forEach(k=>{
-    const btn=document.getElementById('gpd'+k);
-    if(!btn) return;
-    const active=(r===14&&k==='14')||(r===30&&k==='30')||(r===60&&k==='60')||(r===0&&k==='All');
-    btn.style.borderColor=active?'var(--gold-d)':'var(--border2)';
-    btn.style.color=active?'var(--gold)':'var(--dim)';
-  });
-  renderGamesPerDay();
-};
 
 function renderGamesPerDay(){
-  const wrap=document.getElementById('gamesPerDayChart'); if(!wrap) return;
-  const now=Date.now();
-
-  const allTs=fullHistory.filter(h=>h.timestamp).map(h=>h.timestamp);
-  const earliest=allTs.length?Math.min(...allTs):now-60*86400000;
-  const rangeDays=gpdRange>0?gpdRange:Math.ceil((now-earliest)/86400000)+1;
-  const useWeeks=rangeDays>90;
-
+  const canvas=document.getElementById('gamesPerDayChart'); if(!canvas) return;
+  // Build games per day from last 60 days
   const counts={};
-  fullHistory.forEach(h=>{
-    const ts=h.timestamp||0; if(!ts) return;
-    if(gpdRange>0 && now-ts > gpdRange*86400000) return;
-    if(useWeeks){
-      const d=new Date(ts); d.setHours(0,0,0,0);
-      d.setDate(d.getDate()-((d.getDay()+6)%7));
-      const k=d.toLocaleDateString('en-CA');
-      counts[k]=(counts[k]||0)+1;
-    } else {
-      const k=new Date(ts).toLocaleDateString('en-CA');
-      counts[k]=(counts[k]||0)+1;
-    }
+  const now=Date.now();
+  history.forEach(h=>{
+    if(!h.date) return;
+    const daysAgo=Math.floor((now-(h.timestamp||0))/(86400000));
+    if(daysAgo>60) return;
+    counts[h.date]=(counts[h.date]||0)+1;
   });
-
+  // Build 60-day array
   const days=[];
-  if(useWeeks){
-    const nWeeks=Math.ceil(rangeDays/7)+1;
-    for(let i=nWeeks-1;i>=0;i--){
-      const d=new Date(now-i*7*86400000); d.setHours(0,0,0,0);
-      d.setDate(d.getDate()-((d.getDay()+6)%7));
-      const k=d.toLocaleDateString('en-CA');
-      days.push({date:k,count:counts[k]||0,label:k.slice(5)});
-    }
-  } else {
-    for(let i=rangeDays-1;i>=0;i--){
-      const k=new Date(now-i*86400000).toLocaleDateString('en-CA');
-      days.push({date:k,count:counts[k]||0,label:k.slice(5)});
-    }
+  for(let i=59;i>=0;i--){
+    const d=new Date(now-i*86400000).toLocaleDateString('en-CA');
+    days.push({date:d,count:counts[d]||0});
   }
-
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.offsetWidth, H=canvas.offsetHeight||140;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
   const max=Math.max(1,...days.map(d=>d.count));
-  const H=220, padB=24, padT=10, padL=28, padR=8;
-  const chartH=H-padB-padT;
-  const n=days.length;
-  const svgW=Math.max(wrap.offsetWidth||600, 300);
-  const slotPx=svgW/n;
-  const barPx=Math.max(1, slotPx-Math.max(1,slotPx*0.15));
-  const approxBarPx=slotPx;
-  const labelStep=Math.max(1,Math.ceil(40/approxBarPx));
-
-  const nTicks=4;
-  const ylabels=Array.from({length:nTicks+1},(_,i)=>{
-    const v=Math.round(max*i/nTicks);
-    const y=(padT+chartH-(v/max)*chartH).toFixed(1);
-    return `<text x="${padL-4}" y="${y}" text-anchor="end" dominant-baseline="middle" fill="rgba(156,136,120,0.5)" font-size="9" font-family="monospace">${v}</text><line x1="${padL}" y1="${y}" x2="${(svgW-padR).toFixed(1)}" y2="${y}" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>`;
-  }).join('');
-
-  const bars=days.map((d,i)=>{
-    const bH=d.count?Math.max(2,(d.count/max)*chartH):0;
-    const x=(padL+i*slotPx).toFixed(1);
-    const y=(padT+chartH-bH).toFixed(1);
-    const fill=d.count?'rgba(201,168,76,0.6)':'rgba(255,255,255,0.04)';
-    const lbl=d.count?`${d.date}: ${d.count} match${d.count>1?'s':''}`:d.date;
-    return `<rect class="gpd-bar" x="${x}" y="${y}" width="${barPx.toFixed(1)}" height="${Math.max(0,bH).toFixed(1)}" fill="${fill}" rx="1" style="cursor:crosshair" onmouseenter="gpdHover(this,'${lbl}',${x},${y},${svgW},${padL},${(svgW-padR).toFixed(1)})" onmouseleave="gpdUnhover(this,'${fill}')"/>`;
-  }).join('');
-
-  const xlabels=days.map((d,i)=>{
-    if(i%labelStep!==0) return '';
-    const x=(padL+i*slotPx+barPx/2).toFixed(1);
-    return `<text x="${x}" y="${H-4}" text-anchor="middle" fill="rgba(156,136,120,0.65)" font-size="9" font-family="monospace">${d.label}</text>`;
-  }).join('');
-
-  wrap.innerHTML=`<svg width="100%" height="${H}" viewBox="0 0 ${svgW} ${H}" preserveAspectRatio="none" style="display:block;overflow:visible">
-    ${ylabels}${bars}${xlabels}
-    <g id="gpdTooltip" style="display:none;pointer-events:none">
-      <rect id="gpdTipBox" rx="3" fill="rgba(14,12,10,0.96)" stroke="rgba(201,168,76,0.8)" stroke-width="1"/>
-      <text id="gpdTipText" font-size="11" font-family="monospace" fill="rgba(201,168,76,1)" dominant-baseline="middle" text-anchor="middle"/>
-    </g>
-  </svg>`;
+  const pad={t:8,r:8,b:20,l:20};
+  const cW=W-pad.l-pad.r, cH=H-pad.t-pad.b;
+  const bW=cW/days.length-1;
+  ctx.clearRect(0,0,W,H);
+  days.forEach((d,i)=>{
+    const x=pad.l+i*(cW/days.length);
+    const bH=(d.count/max)*cH;
+    const y=pad.t+cH-bH;
+    ctx.fillStyle=d.count?'var(--gold)':'rgba(255,255,255,0.05)';
+    ctx.fillRect(x,y,Math.max(1,bW),bH);
+  });
+  // X axis labels (every 10 days)
+  ctx.fillStyle='rgba(156,136,120,0.6)'; ctx.font='9px monospace'; ctx.textAlign='center';
+  [0,10,20,30,40,50,59].forEach(i=>{
+    const x=pad.l+i*(cW/days.length)+bW/2;
+    ctx.fillText(days[i].date.slice(5),x,H-4);
+  });
 }
-
-window.gpdHover=function(el, lbl, bx, by, svgW, padL, padR){
-  el.setAttribute('fill','rgba(201,168,76,1)');
-  const tip=document.getElementById('gpdTooltip');
-  const box=document.getElementById('gpdTipBox');
-  const txt=document.getElementById('gpdTipText');
-  if(!tip||!box||!txt) return;
-  txt.textContent=lbl;
-  const tw=lbl.length*6.5+20, th=20;
-  let tx=Number(bx)-tw/2;
-  if(tx<padL) tx=padL;
-  if(tx+tw>padR) tx=padR-tw;
-  const ty=Math.max(Number(by)-th-4, 2);
-  box.setAttribute('x',tx); box.setAttribute('y',ty);
-  box.setAttribute('width',tw); box.setAttribute('height',th);
-  txt.setAttribute('x',tx+tw/2); txt.setAttribute('y',ty+th/2);
-  tip.style.display='';
-};
-window.gpdUnhover=function(el, origFill){
-  el.setAttribute('fill', origFill);
-  const tip=document.getElementById('gpdTooltip');
-  if(tip) tip.style.display='none';
-};
 
 function renderCivMeta(){
   const el=document.getElementById('civMetaStats'); if(!el) return;
   const stats={};
   CIVS.forEach(c=>{stats[c.id]={civ:c,w:0,l:0};});
-  fullHistory.forEach(h=>{
+  history.forEach(h=>{
     [...(h.evilAssign||[]),...(h.goodAssign||[])].forEach(a=>{
       if(!a.civName) return;
       const civ=CIVS.find(c=>c.name===a.civName); if(!civ) return;
@@ -3756,10 +2246,7 @@ function renderCivMeta(){
 function renderStreakList(){
   const el=document.getElementById('streakList'); if(!el) return;
   const streaks=calcStreaks();
-  const all=Object.entries(streaks).filter(([,s])=>s.count>=2);
-  const wins =all.filter(([,s])=>s.type==='w').sort((a,b)=>b[1].count-a[1].count);
-  const losses=all.filter(([,s])=>s.type==='l').sort((a,b)=>a[1].count-b[1].count);
-  const sorted=[...wins,...losses];
+  const sorted=Object.entries(streaks).filter(([,s])=>s.count>=2).sort((a,b)=>b[1].count-a[1].count);
   if(!sorted.length){el.innerHTML='<p style="color:var(--muted);font-size:13px">No active streaks.</p>';return;}
   el.innerHTML=sorted.map(([name,s])=>`
     <div style="display:flex;align-items:center;gap:.75rem;padding:6px 0;border-bottom:1px solid var(--border)">
@@ -3770,13 +2257,13 @@ function renderStreakList(){
 
 function renderCommunityRecords(){
   const el=document.getElementById('communityRecords'); if(!el) return;
-  if(!fullHistory.length){el.innerHTML='<p style="color:var(--muted);font-size:13px">No matches yet.</p>';return;}
-  const totalGames=fullHistory.length;
-  const avgGap=Math.round(fullHistory.reduce((s,h)=>s+(h.gap||0),0)/totalGames);
-  const longest=fullHistory.reduce((a,b)=>(b.duration||0)>(a.duration||0)?b:a,fullHistory[0]);
-  const shortest=fullHistory.filter(h=>h.duration).reduce((a,b)=>b.duration<a.duration?b:a,fullHistory.find(h=>h.duration)||fullHistory[0]);
-  const evilWins=fullHistory.filter(h=>h.winner==='evil').length;
-  const fmt=fmtDuration;
+  if(!history.length){el.innerHTML='<p style="color:var(--muted);font-size:13px">No matches yet.</p>';return;}
+  const totalGames=history.length;
+  const avgGap=Math.round(history.reduce((s,h)=>s+(h.gap||0),0)/totalGames);
+  const longest=history.reduce((a,b)=>(b.duration||0)>(a.duration||0)?b:a,history[0]);
+  const shortest=history.filter(h=>h.duration).reduce((a,b)=>b.duration<a.duration?b:a,history.find(h=>h.duration)||history[0]);
+  const evilWins=history.filter(h=>h.winner==='evil').length;
+  const fmt=s=>s?`${Math.floor(s/60)}m${String(s%60).padStart(2,'0')}s`:'—';
   el.innerHTML=`
     <div style="display:flex;flex-direction:column;gap:.5rem">
       <div style="display:flex;justify-content:space-between"><span style="color:var(--dim);font-size:13px">Total games</span><span style="font-family:'JetBrains Mono',monospace">${totalGames}</span></div>
@@ -3794,7 +2281,7 @@ let editingMatchId=null;
 
 window.openMatchEditor=function(id){
   if(!adminUnlocked){toast('Admin required','err');return;}
-  const h=fullHistory.find(x=>x.id===id); if(!h) return;
+  const h=history.find(x=>x.id===id); if(!h) return;
   editingMatchId=id;
   const fmt=a=>`<span style="font-size:13px">${a.name}${a.civName?' <span style="color:var(--muted)">— '+a.civName+'</span>':''}</span>`;
   document.getElementById('editMatchContent').innerHTML=`
@@ -3815,7 +2302,7 @@ window.openMatchEditor=function(id){
 
 window.saveMatchEdit=async function(newWinner){
   if(!editingMatchId) return;
-  const h=fullHistory.find(x=>x.id===editingMatchId); if(!h) return;
+  const h=history.find(x=>x.id===editingMatchId); if(!h) return;
   if(h.winner===newWinner){toast('Winner unchanged','err');closeModal('mEditMatch');return;}
 
   // Reverse old Elo changes then apply new ones
@@ -3836,17 +2323,15 @@ window.saveMatchEdit=async function(newWinner){
     p.losses=Math.max(0,(p.losses||0)-1);
   }
 
-  // Apply new result — use live overallElo() for opponent averages (consistent with applyResult)
-  const editWinPlayers=newWinA.map(a=>profMap[a.name]).filter(Boolean);
-  const editLosePlayers=newLoseA.map(a=>profMap[a.name]).filter(Boolean);
-  const avgWin=editWinPlayers.length?editWinPlayers.reduce((s,p)=>s+overallElo(p),0)/editWinPlayers.length:DEFAULT_ELO;
-  const avgLose=editLosePlayers.length?editLosePlayers.reduce((s,p)=>s+overallElo(p),0)/editLosePlayers.length:DEFAULT_ELO;
+  // Apply new result
+  const avgWin=newWinA.reduce((s,a)=>s+(a.effElo||1200),0)/Math.max(1,newWinA.length);
+  const avgLose=newLoseA.reduce((s,a)=>s+(a.effElo||1200),0)/Math.max(1,newLoseA.length);
   for(const a of newWinA){
     const p=profMap[a.name]; if(!p) continue;
     p.wins=(p.wins||0)+1;
     if(a.civName){
       const civ=CIVS.find(c=>c.name===a.civName);
-      if(civ){p.civElo=p.civElo||{};const cgE=(p.civWins?.[civ.id]||0)+(p.civLosses?.[civ.id]||0); p.civElo[civ.id]=calcElo(civElo(p,civ.id),avgLose,true,(p.wins||0)+(p.losses||0),cgE);}
+      if(civ){p.civElo=p.civElo||{};p.civElo[civ.id]=calcElo(civElo(p,civ.id),avgLose,true,(p.wins||0)+(p.losses||0));}
     }
     await savePl(p);
   }
@@ -3855,12 +2340,12 @@ window.saveMatchEdit=async function(newWinner){
     p.losses=(p.losses||0)+1;
     if(a.civName){
       const civ=CIVS.find(c=>c.name===a.civName);
-      if(civ){p.civElo=p.civElo||{};const cgF=(p.civWins?.[civ.id]||0)+(p.civLosses?.[civ.id]||0); p.civElo[civ.id]=calcElo(civElo(p,civ.id),avgWin,false,(p.wins||0)+(p.losses||0),cgF);}
+      if(civ){p.civElo=p.civElo||{};p.civElo[civ.id]=calcElo(civElo(p,civ.id),avgWin,false,(p.wins||0)+(p.losses||0));}
     }
     await savePl(p);
   }
 
-  // Update fullHistory doc
+  // Update history doc
   await setDoc(doc(db,'history',String(editingMatchId)),{...h,winner:newWinner,id:undefined},{merge:true});
   closeModal('mEditMatch');
   toast('Match result updated!');
@@ -3871,12 +2356,10 @@ window.saveMatchEdit=async function(newWinner){
 // MATCH DETAIL
 // ─────────────────────────────────────────
 window.openMatchDetail=function(id){
-  // Check all history sources — fullHistoryCache (history page), fullHistory (stats page), live cache
-  const h=fullHistoryCache.find(x=>x.id===id)||fullHistory.find(x=>x.id===id)||history.find(x=>x.id===id);
-  if(!h) return;
-  const dur=h.duration?fmtDuration(h.duration):'—';
+  const h=history.find(x=>x.id===id); if(!h) return;
+  const dur=h.duration?`${Math.floor(h.duration/60)}m${String(h.duration%60).padStart(2,'0')}s`:'—';
   const evilTotal=h.evilTotal||0, goodTotal=h.goodTotal||0;
-  const odds=evilTotal&&goodTotal?Math.round(100/(1+Math.pow(10,-(evilTotal-goodTotal)/2000))):null;
+  const odds=evilTotal&&goodTotal?Math.round(100/(1+Math.pow(10,-(evilTotal-goodTotal)/400))):null;
 
   const fmtSide=(assign,side)=>{
     const won=h.winner===side;
@@ -3903,21 +2386,7 @@ window.openMatchDetail=function(id){
       <div><span style="font-size:11px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase">Date</span><div style="font-size:14px;margin-top:2px">${h.date||'—'}</div></div>
       <div><span style="font-size:11px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase">Duration</span><div style="font-family:'JetBrains Mono',monospace;font-size:14px;margin-top:2px">${dur}</div></div>
       <div><span style="font-size:11px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase">Elo Gap</span><div style="font-family:'JetBrains Mono',monospace;font-size:14px;margin-top:2px">${h.gap!=null?h.gap:'—'}</div></div>
-      ${odds!=null?`<div style="min-width:160px"><span style="font-size:11px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase">Pre-game Odds</span>
-        <div style="margin-top:6px">
-          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
-            <span style="color:var(--evil)">⚔ Evil ${odds}%</span>
-            <span style="color:var(--good)">${100-odds}% Good ✦</span>
-          </div>
-          <div style="height:7px;border-radius:4px;background:var(--bg3);overflow:hidden;display:flex">
-            <div style="width:${odds}%;background:var(--evil);border-radius:4px 0 0 4px;transition:width .4s"></div>
-            <div style="width:${100-odds}%;background:var(--good);border-radius:0 4px 4px 0;transition:width .4s"></div>
-          </div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px;font-family:'Cinzel',serif;letter-spacing:.06em">
-            ${odds>50?`Evil favoured`:(odds<50?`Good favoured`:`Even match`)}
-          </div>
-        </div>
-      </div>`:''}
+      ${odds!=null?`<div><span style="font-size:11px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase">Pre-game Odds</span><div style="font-family:'JetBrains Mono',monospace;font-size:14px;margin-top:2px;color:var(--evil)">${odds}%</div></div>`:''}
       <div><span style="font-size:11px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.08em;text-transform:uppercase">Source</span><div style="font-size:14px;margin-top:2px">${h.source==='auto'?'Auto-recorded':'Manual'}</div></div>
     </div>
     <div class="teams">
@@ -3935,39 +2404,11 @@ window.openMatchDetail=function(id){
 let bulkOrder=[]; // array of player ids in ranked order
 let dragSrcIdx=null;
 
-async function loadBulkOrder(){
-  try{
-    const s=await getDoc(doc(db,'settings','bulkOrder'));
-    if(s.exists()){
-      const saved=s.data().order||[];
-      const top=s.data().top;
-      const bot=s.data().bot;
-      if(top) document.getElementById('bulkEloTop').value=top;
-      if(bot) document.getElementById('bulkEloBottom').value=bot;
-      const validSaved=saved.filter(id=>players.find(p=>p.id===id));
-      const newPlayers=players.filter(p=>!saved.includes(p.id))
-        .sort((a,b)=>overallElo(b)-overallElo(a)).map(p=>p.id);
-      bulkOrder=[...validSaved,...newPlayers];
-    } else {
-      bulkOrder=[...players].sort((a,b)=>overallElo(b)-overallElo(a)).map(p=>p.id);
-    }
-  }catch(e){
-    bulkOrder=[...players].sort((a,b)=>overallElo(b)-overallElo(a)).map(p=>p.id);
-  }
-}
-
-async function saveBulkOrder(){
-  try{
-    const top=Number(document.getElementById('bulkEloTop')?.value)||1400;
-    const bot=Number(document.getElementById('bulkEloBottom')?.value)||1050;
-    await setDoc(doc(db,'settings','bulkOrder'),{order:bulkOrder,top,bot});
-  }catch(e){ console.warn('Could not save bulk order',e); }
-}
-
-window.openBulkElo=async function(){
+window.openBulkElo=function(){
   if(!adminUnlocked){toast('Admin required','err');return;}
   openModal('mBulkElo');
-  await loadBulkOrder();
+  // Init order sorted by current overall Elo descending
+  bulkOrder=[...players].sort((a,b)=>overallElo(b)-overallElo(a)).map(p=>p.id);
   renderBulkList();
   updateBulkPreview();
 };
@@ -3988,6 +2429,7 @@ function updateBulkPreview(){
   const elos=calcBulkElos();
   const el=document.getElementById('bulkEloPreview');
   if(el) el.textContent=`Step: ${elos.length>1?Math.round((elos[0]-elos[elos.length-1])/(elos.length-1)):0} Elo between players`;
+  // Update elo previews on rows
   document.querySelectorAll('.bulk-elo').forEach((el,i)=>{ el.textContent=elos[i]||''; });
   document.querySelectorAll('.bulk-rank').forEach((el,i)=>{ el.textContent='#'+(i+1); });
 }
@@ -4009,6 +2451,11 @@ function renderBulkList(){
       <span class="bulk-elo">${elos[i]}</span>
     </div>`;
   }).join('');
+  // Attach input listeners for live preview
+  ['bulkEloTop','bulkEloBottom'].forEach(id=>{
+    const inp=document.getElementById(id);
+    if(inp) inp.oninput=()=>{ renderBulkList(); updateBulkPreview(); };
+  });
 }
 
 window.bulkDragStart=function(idx){
@@ -4023,14 +2470,13 @@ window.bulkDragOver=function(e,idx){
 window.bulkDragLeave=function(e){
   e.currentTarget.classList.remove('drag-over');
 };
-window.bulkDrop=async function(toIdx){
+window.bulkDrop=function(toIdx){
   if(dragSrcIdx===null||dragSrcIdx===toIdx) return;
   const moved=bulkOrder.splice(dragSrcIdx,1)[0];
   bulkOrder.splice(toIdx,0,moved);
   dragSrcIdx=null;
   renderBulkList();
   updateBulkPreview();
-  await saveBulkOrder(); // auto-save on every drag
 };
 window.bulkDragEnd=function(){
   document.querySelectorAll('.bulk-row').forEach(r=>{
@@ -4050,285 +2496,10 @@ window.applyBulkElo=async function(){
     CIVS.forEach(c=>{ p.civElo[c.id]=elo; });
     await savePl(p);
   }
-  await saveBulkOrder(); // save final order
   closeModal('mBulkElo');
   toast(`Applied Elo ratings to ${bulkOrder.length} players!`);
   renderLB(); renderPTable();
 };
-
-// ─────────────────────────────────────────
-// AUTH — LOGIN / REGISTER / PROFILE
-// ─────────────────────────────────────────
-
-// Update the navbar button based on auth state
-function renderNavAuth(){
-  const btn=document.getElementById('navAuthBtn');
-  if(!btn) return;
-  if(currentUser){
-    const name=linkedPlayer?linkedPlayer.name:(currentUser.email.split('@')[0]);
-    btn.textContent=name;
-    btn.style.color='var(--gold)';
-    btn.style.borderColor='var(--gold-d)';
-    btn.onclick=()=>openMyProfile();
-  } else {
-    btn.textContent='Connexion';
-    btn.style.color='var(--dim)';
-    btn.style.borderColor='var(--border2)';
-    btn.onclick=()=>openAuthModal('login');
-  }
-}
-
-// When players list updates, re-resolve linkedPlayer
-function resolveLinkedPlayer(){
-  if(!currentUser) return;
-  getDoc(doc(db,'auth_profiles',currentUser.uid)).then(d=>{
-    if(d.exists()){
-      const pid=d.data().profileId;
-      linkedPlayer=players.find(p=>String(p.profileId)===String(pid)||String(p.id)===String(pid))||null;
-      renderNavAuth();
-    }
-  }).catch(()=>{});
-}
-
-// ── AUTH MODAL ────────────────────────────
-function openAuthModal(mode='login'){
-  renderAuthModal(mode);
-  openModal('mAuth');
-}
-
-function renderAuthModal(mode){
-  const el=document.getElementById('authModalContent');
-  el.innerHTML=`
-    <div class="mtitle">${mode==='login'?'Connexion':'Créer un compte'}</div>
-    <div style="margin-bottom:1rem">
-      <label>Email</label>
-      <input type="text" id="authEmail" placeholder="votre@email.com" style="margin-bottom:.6rem">
-      <label>Mot de passe</label>
-      <input type="password" id="authPass" placeholder="••••••••"
-        onkeydown="if(event.key==='Enter') submitAuth('${mode}')">
-      ${mode==='register'?`
-      <label style="margin-top:.6rem">Confirmer le mot de passe</label>
-      <input type="password" id="authPass2" placeholder="••••••••"
-        onkeydown="if(event.key==='Enter') submitAuth('register')">
-      `:''}
-    </div>
-    <p id="authErr" style="display:none;font-size:13px;color:var(--evil);margin-bottom:.75rem;padding:6px 10px;background:#2e1010;border:1px solid var(--evil-d);border-radius:3px"></p>
-    <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
-      <button class="btn-p" onclick="submitAuth('${mode}')" id="authSubmitBtn">
-        ${mode==='login'?'Se connecter':'Créer le compte'}
-      </button>
-      <button class="btn" onclick="renderAuthModal('${mode==='login'?'register':'login'}')">
-        ${mode==='login'?'Pas de compte ? S\'inscrire':'Déjà un compte ? Se connecter'}
-      </button>
-    </div>`;
-}
-
-window.submitAuth=async function(mode){
-  const email=document.getElementById('authEmail')?.value?.trim();
-  const pass=document.getElementById('authPass')?.value;
-  const pass2=document.getElementById('authPass2')?.value;
-  const errEl=document.getElementById('authErr');
-  const btn=document.getElementById('authSubmitBtn');
-  const showErr=msg=>{ errEl.textContent=msg; errEl.style.display='block'; };
-  errEl.style.display='none';
-
-  if(!email||!pass){ showErr('Email et mot de passe requis.'); return; }
-  if(mode==='register'&&pass!==pass2){ showErr('Les mots de passe ne correspondent pas.'); return; }
-  if(mode==='register'&&pass.length<6){ showErr('Mot de passe trop court (6 caractères min).'); return; }
-
-  btn.disabled=true; btn.textContent='…';
-  try{
-    if(mode==='login'){
-      await signInWithEmailAndPassword(auth, email, pass);
-    } else {
-      await createUserWithEmailAndPassword(auth, email, pass);
-    }
-    closeModal('mAuth');
-    toast(mode==='login'?'Connecté !':'Compte créé !');
-    // After register/login, prompt to link profile if not yet linked
-    setTimeout(()=>{
-      if(!linkedPlayer) openMyProfile();
-    }, 400);
-  } catch(e){
-    btn.disabled=false;
-    btn.textContent=mode==='login'?'Se connecter':'Créer le compte';
-    showErr(authErrMsg(e.code));
-  }
-};
-
-function authErrMsg(code){
-  const map={
-    'auth/user-not-found':'Aucun compte avec cet email.',
-    'auth/wrong-password':'Mot de passe incorrect.',
-    'auth/invalid-credential':'Email ou mot de passe incorrect.',
-    'auth/email-already-in-use':'Cet email est déjà utilisé.',
-    'auth/weak-password':'Mot de passe trop faible (6 caractères min).',
-    'auth/invalid-email':'Adresse email invalide.',
-    'auth/too-many-requests':'Trop de tentatives. Réessayez plus tard.',
-  };
-  return map[code]??`Erreur : ${code}`;
-}
-
-// ── PLAYER PROFILE MODAL ──────────────────
-function openMyProfile(){
-  renderMyProfile();
-  openModal('mMyProfile');
-}
-
-function renderMyProfile(){
-  const el=document.getElementById('myProfileContent');
-  const titleEl=document.getElementById('myProfileTitle');
-
-  if(!currentUser){
-    el.innerHTML=`<p style="color:var(--dim);font-size:14px">Vous n'êtes pas connecté.</p>
-      <button class="btn-p" onclick="closeModal('mMyProfile');openAuthModal('login')">Se connecter</button>`;
-    return;
-  }
-
-  titleEl.textContent=linkedPlayer?`Mon Profil — ${linkedPlayer.name}`:'Mon Profil';
-
-  // ── Linked player section ──
-  const linkSection=linkedPlayer?`
-    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:.85rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-      <div style="font-size:22px">✅</div>
-      <div>
-        <div style="font-family:'Cinzel',serif;font-size:12px;color:var(--gold);letter-spacing:.08em">${linkedPlayer.name}</div>
-        <div style="font-size:13px;color:var(--dim);margin-top:2px">Profile ID : ${linkedPlayer.profileId||linkedPlayer.id} · Elo : ${overallElo(linkedPlayer)}</div>
-      </div>
-      <button class="btn btn-del" onclick="unlinkProfile()" style="margin-left:auto">Délier</button>
-    </div>`:`
-    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:1rem;margin-bottom:1rem">
-      <div class="ct" style="margin-bottom:.5rem">Lier votre profil joueur</div>
-      <p style="font-size:13px;color:var(--dim);margin-bottom:.75rem">Entrez votre AoE2 Profile ID pour lier votre compte à votre profil joueur. Votre Profile ID se trouve sur <a href="https://www.aoe2insights.com" target="_blank" style="color:var(--gold)">aoe2insights.com</a> ou dans l'URL de votre profil.</p>
-      <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-        <input type="number" id="linkPidInput" placeholder="ex: 1234567" style="max-width:180px">
-        <button class="btn-p" onclick="linkProfile()">🔗 Lier le profil</button>
-      </div>
-      <p id="linkErr" style="display:none;font-size:13px;color:var(--evil);margin-top:.5rem"></p>
-    </div>`;
-
-  // ── Bans/favs section (only shown when linked) ──
-  const prefsSection=linkedPlayer?buildPrefsSection():'<p style="font-size:13px;color:var(--muted);padding:.5rem 0">Liez votre profil joueur pour gérer vos préférences.</p>';
-
-  el.innerHTML=`
-    <div style="font-size:13px;color:var(--muted);margin-bottom:1rem">${currentUser.email}
-      <button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:var(--evil);font-size:12px;font-family:'Cinzel',serif;letter-spacing:.06em;text-transform:uppercase;margin-left:1rem">Déconnexion</button>
-    </div>
-    ${linkSection}
-    ${linkedPlayer?`
-    <div class="ct" style="margin-bottom:.75rem">Mes préférences de civs</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:.75rem;font-family:'Cinzel',serif;letter-spacing:.05em">
-      ⭐ Favori (+15%, max 2) &nbsp;·&nbsp; 👎 Éviter (−40%) &nbsp;·&nbsp; 🚫 Bannir (jamais attribué, max 2)
-    </p>
-    ${prefsSection}
-    <div style="margin-top:1rem;text-align:right">
-      <button class="btn-p" onclick="saveMyPrefs()">✓ Sauvegarder mes préférences</button>
-    </div>`:''}`;
-}
-
-function buildPrefsSection(){
-  if(!linkedPlayer) return '';
-  const favs=new Set(linkedPlayer.favCivs||[]);
-  const avoids=new Set(linkedPlayer.avoidCivs||[]);
-  const bans=new Set(linkedPlayer.bannedCivs||[]);
-  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.4rem">
-    ${CIVS.map(c=>`
-      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:5px 8px;display:flex;align-items:center;gap:4px">
-        <span style="font-size:11px;flex:1;color:${c.side==='evil'?'var(--evil)':'var(--good)'}">${c.name}</span>
-        <button class="fa-btn ${favs.has(c.id)?'active':''}" id="mp_fav_${c.id}" onclick="toggleMyPref('${c.id}','fav')" title="Favori (max 2)">⭐</button>
-        <button class="fa-btn ${avoids.has(c.id)?'active':''}" id="mp_avoid_${c.id}" onclick="toggleMyPref('${c.id}','avoid')" title="Éviter (−40%)">👎</button>
-        <button class="fa-btn ${bans.has(c.id)?'active':''}" id="mp_ban_${c.id}" onclick="toggleMyPref('${c.id}','ban')" title="Bannir (max 2)">🚫</button>
-      </div>`).join('')}
-  </div>`;
-}
-
-window.toggleMyPref=function(civId, type){
-  const favBtn  =document.getElementById('mp_fav_'+civId);
-  const avoidBtn=document.getElementById('mp_avoid_'+civId);
-  const banBtn  =document.getElementById('mp_ban_'+civId);
-  const countActive=prefix=>CIVS.filter(c=>document.getElementById(prefix+c.id)?.classList.contains('active')).length;
-
-  if(type==='fav'){
-    const isActive=favBtn.classList.contains('active');
-    if(!isActive&&countActive('mp_fav_')>=2){toast('Max 2 favoris','err');return;}
-    favBtn.classList.toggle('active');
-    if(favBtn.classList.contains('active')){avoidBtn.classList.remove('active');banBtn.classList.remove('active');}
-  } else if(type==='avoid'){
-    avoidBtn.classList.toggle('active');
-    if(avoidBtn.classList.contains('active')){favBtn.classList.remove('active');banBtn.classList.remove('active');}
-  } else if(type==='ban'){
-    const isActive=banBtn.classList.contains('active');
-    if(!isActive&&countActive('mp_ban_')>=2){toast('Max 2 bans','err');return;}
-    banBtn.classList.toggle('active');
-    if(banBtn.classList.contains('active')){favBtn.classList.remove('active');avoidBtn.classList.remove('active');}
-  }
-};
-
-window.saveMyPrefs=async function(){
-  if(!linkedPlayer||!currentUser){toast('Profil non lié','err');return;}
-  linkedPlayer.favCivs  =CIVS.filter(c=>document.getElementById('mp_fav_'+c.id)?.classList.contains('active')).map(c=>c.id);
-  linkedPlayer.avoidCivs=CIVS.filter(c=>document.getElementById('mp_avoid_'+c.id)?.classList.contains('active')).map(c=>c.id);
-  linkedPlayer.bannedCivs=CIVS.filter(c=>document.getElementById('mp_ban_'+c.id)?.classList.contains('active')).map(c=>c.id);
-  await savePl(linkedPlayer);
-  toast('Préférences sauvegardées !');
-  renderMyProfile(); // refresh display
-};
-
-// Link account to player profile by profile ID
-window.linkProfile=async function(){
-  const pidRaw=document.getElementById('linkPidInput')?.value?.trim();
-  const errEl=document.getElementById('linkErr');
-  errEl.style.display='none';
-  if(!pidRaw){errEl.textContent='Entrez un Profile ID.';errEl.style.display='block';return;}
-  const pid=Number(pidRaw);
-  // Find player in local list
-  const match=players.find(p=>Number(p.profileId)===pid||(p.altProfileIds||[]).map(Number).includes(pid)||Number(p.id)===pid);
-  if(!match){
-    errEl.textContent=`Aucun joueur trouvé avec le Profile ID ${pid}. Contactez l'admin pour vous ajouter.`;
-    errEl.style.display='block';
-    return;
-  }
-  // Check if this profileId is already claimed by another account
-  try{
-    const existing=await getDocs(query(collection(db,'auth_profiles')));
-    for(const d of existing.docs){
-      if(d.id!==currentUser.uid&&String(d.data().profileId)===String(pid)){
-        errEl.textContent='Ce Profile ID est déjà lié à un autre compte.';
-        errEl.style.display='block';
-        return;
-      }
-    }
-    // Save the link
-    await setDoc(doc(db,'auth_profiles',currentUser.uid),{
-      profileId:pid, email:currentUser.email, linkedAt:Date.now()
-    });
-    linkedPlayer=match;
-    renderNavAuth();
-    renderMyProfile();
-    toast(`Profil lié à ${match.name} !`);
-  } catch(e){ errEl.textContent='Erreur lors de la liaison. Réessayez.'; errEl.style.display='block'; }
-};
-
-window.unlinkProfile=async function(){
-  if(!confirm('Délier votre compte de ce profil joueur ?')) return;
-  try{
-    await deleteDoc(doc(db,'auth_profiles',currentUser.uid));
-    linkedPlayer=null;
-    renderNavAuth();
-    renderMyProfile();
-    toast('Profil délié.');
-  } catch(e){ toast('Erreur','err'); }
-};
-
-window.doSignOut=async function(){
-  await signOut(auth);
-  closeModal('mMyProfile');
-  toast('Déconnecté.');
-};
-
-// ─────────────────────────────────────────
-// END AUTH
-// ─────────────────────────────────────────
 
 // START
 init();
