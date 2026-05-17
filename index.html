@@ -669,7 +669,7 @@ function go(name){
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc, query, orderBy, limit, writeBatch, runTransaction, increment } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
 // ─────────────────────────────────────────
 // CONFIG
@@ -4100,6 +4100,18 @@ window.renderAuthModal=function(mode){
   const el=document.getElementById('authModalContent');
   el.innerHTML=`
     <div class="mtitle">${mode==='login'?'Login':'Create Account'}</div>
+
+    <button onclick="signInWithGoogle()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:9px 16px;border-radius:3px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);cursor:pointer;font-family:'Cinzel',serif;font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:1rem;transition:border-color .15s,color .15s;" onmouseover="this.style.borderColor='var(--gold-d)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text)'">
+      <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 29.8 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/></svg>
+      Continue with Google
+    </button>
+
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:1rem">
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+      <span style="font-size:11px;color:var(--muted);font-family:'Cinzel',serif;letter-spacing:.08em">OR</span>
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+    </div>
+
     <div style="margin-bottom:1rem">
       <label>Email</label>
       <input type="text" id="authEmail" placeholder="your@email.com" style="margin-bottom:.6rem">
@@ -4156,7 +4168,19 @@ window.submitAuth=async function(mode){
   }
 };
 
-function authErrMsg(code){
+window.signInWithGoogle=async function(){
+  try{
+    const provider=new GoogleAuthProvider();
+    await signInWithPopup(auth, provider);
+    closeModal('mAuth');
+    toast('Signed in with Google!');
+    setTimeout(()=>{ if(!linkedPlayer) openMyProfile(); }, 400);
+  } catch(e){
+    const errEl=document.getElementById('authErr');
+    if(errEl){ errEl.textContent=authErrMsg(e.code); errEl.style.display='block'; }
+    else toast(authErrMsg(e.code),'err');
+  }
+};
   const map={
     'auth/user-not-found':'No account found with this email.',
     'auth/wrong-password':'Incorrect password.',
@@ -4289,24 +4313,26 @@ window.linkProfile=async function(){
     return;
   }
   // Check if this profileId is already claimed by another account
+  // We can't read other users' auth_profiles docs (rules block it),
+  // so instead we store a reverse lookup: profiles_claimed/{profileId} → uid
   try{
-    const existing=await getDocs(query(collection(db,'auth_profiles')));
-    for(const d of existing.docs){
-      if(d.id!==currentUser.uid&&String(d.data().profileId)===String(pid)){
-        errEl.textContent='This Profile ID is already linked to another account.';
-        errEl.style.display='block';
-        return;
-      }
+    const claimRef=doc(db,'profiles_claimed',String(pid));
+    const claimSnap=await getDoc(claimRef);
+    if(claimSnap.exists()&&claimSnap.data().uid!==currentUser.uid){
+      errEl.textContent='This Profile ID is already linked to another account.';
+      errEl.style.display='block';
+      return;
     }
-    // Save the link
+    // Save the link in both directions
     await setDoc(doc(db,'auth_profiles',currentUser.uid),{
       profileId:pid, email:currentUser.email, linkedAt:Date.now()
     });
+    await setDoc(claimRef,{ uid:currentUser.uid, linkedAt:Date.now() });
     linkedPlayer=match;
     renderNavAuth();
     renderMyProfile();
     toast(`Profile linked to ${match.name}!`);
-  } catch(e){ errEl.textContent='Error linking profile. Please try again.'; errEl.style.display='block'; }
+  } catch(e){ console.error(e); errEl.textContent='Error linking profile. Please try again.'; errEl.style.display='block'; }
 };
 
 window.unlinkProfile=async function(){
