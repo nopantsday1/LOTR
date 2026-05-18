@@ -669,7 +669,7 @@ function go(name){
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc, query, orderBy, limit, writeBatch, runTransaction, increment } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
 // ─────────────────────────────────────────
 // CONFIG
@@ -913,6 +913,16 @@ function matchupScore(evilAssign, goodAssign){
 async function init(){
   sync('spin');
   const app=initializeApp(FB); db=getFirestore(app); auth=getAuth(app);
+
+  // Handle Google redirect result (fires after returning from Google sign-in)
+  try{
+    const result = await getRedirectResult(auth);
+    if(result?.user){
+      toast('Signed in with Google!');
+      setTimeout(()=>{ if(!linkedPlayer) openMyProfile(); }, 600);
+    }
+  } catch(e){ console.warn('Redirect result error:', e.code); }
+
   // Auth state listener
   onAuthStateChanged(auth, async user=>{
     currentUser=user;
@@ -3175,15 +3185,35 @@ function renderProfile(p, allHistory){
       </div>
       <div class="card" style="padding:0">
         <div class="ct" style="padding:.75rem 1rem .25rem">Recent Matches</div>
-        ${pm.slice(0,10).map(h=>{
+        ${pm.slice(0,10).map((h,idx)=>{
           const onEvil=(h.evilAssign||[]).some(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
           const won=(onEvil&&h.winner==='evil')||(!onEvil&&h.winner==='good');
           const my=[...(h.evilAssign||[]),...(h.goodAssign||[])].find(a=>a.name===p.name||(a.profileId&&String(a.profileId)===String(p.profileId)));
           const mc=normCivName(my?.civName||'--');
           const dur=h.duration?' · '+fmtDuration(h.duration):'';
+          // Compute Elo delta for this match using same logic as buildEloHistory
+          let eloDelta = null;
+          if(my?.civName){
+            const civ=CIVS.find(c=>normCivName(c.name)===normCivName(my.civName||''));
+            if(civ){
+              // Use Elo chart history to get before/after — build from this match's index
+              const ep = buildEloHistory(p, pm);
+              // ep is newest-first from pm; idx 0 = most recent
+              // ep[idx] = elo AFTER this match, ep[idx+1] = elo before (or starting elo)
+              if(ep.length > idx){
+                const after  = ep[idx]?.elo   ?? null;
+                const before = ep[idx+1]?.elo ?? null;
+                if(after!=null && before!=null) eloDelta = after - before;
+              }
+            }
+          }
+          const deltaHtml = eloDelta!=null
+            ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;min-width:52px;text-align:right;color:${eloDelta>=0?'var(--green)':'var(--evil)'}">${eloDelta>=0?'+':''}${eloDelta}</span>`
+            : '';
           return '<div style="display:flex;align-items:center;gap:.75rem;padding:8px 1rem;border-bottom:1px solid var(--border);cursor:pointer" onclick="openMatchDetail('+JSON.stringify(h).replace(/"/g,'&quot;')+')">'+
             '<span style="font-family:Cinzel,serif;font-size:9px;padding:3px 8px;border-radius:2px;white-space:nowrap;'+(won?'background:var(--good-d);color:#80b4d4;border:1px solid var(--good)':'background:var(--evil-d);color:#e08080;border:1px solid var(--evil)')+'">'+(won?'WIN':'LOSS')+'</span>'+
             '<span style="flex:1;font-size:13px;color:var(--dim)">'+mc+'</span>'+
+            deltaHtml+
             '<span style="font-size:11px;color:var(--muted)">'+( h.date||'')+dur+'</span></div>';
         }).join('')||'<p style="color:var(--muted);font-size:13px;padding:1rem">No matches yet.</p>'}
       </div>
@@ -4182,10 +4212,8 @@ window.submitAuth=async function(mode){
 window.signInWithGoogle=async function(){
   try{
     const provider=new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
-    closeModal('mAuth');
-    toast('Signed in with Google!');
-    setTimeout(()=>{ if(!linkedPlayer) openMyProfile(); }, 400);
+    await signInWithRedirect(auth, provider);
+    // Page will redirect to Google and come back — result handled in init()
   } catch(e){
     const errEl=document.getElementById('authErr');
     if(errEl){ errEl.textContent=authErrMsg(e.code); errEl.style.display='block'; }
