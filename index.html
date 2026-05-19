@@ -2293,8 +2293,9 @@ window.recalcAllElos=async function(){
           else   {p.civLosses=p.civLosses||{};p.civLosses[civ.id]=(p.civLosses[civ.id]||0)+1;}
         }
         if(won)p.wins=(p.wins||0)+1; else p.losses=(p.losses||0)+1;
-        // Track last game timestamp for decay
-        if(h.timestamp) p.lastPlayedAt=Math.max(p.lastPlayedAt||0, h.timestamp);
+        // Track last game timestamp for decay — fall back to date string if no timestamp
+        const matchTs = h.timestamp || (h.date ? new Date(h.date).getTime() : 0);
+        if(matchTs) p.lastPlayedAt=Math.max(p.lastPlayedAt||0, matchTs);
       }
     }
     done++;
@@ -2303,6 +2304,9 @@ window.recalcAllElos=async function(){
 
   // ── Step 6: Save all players ──────────────────────────────────────────────
   log(`Saving ${players.length} players…`);
+  const withLastPlayed = players.filter(p=>p.lastPlayedAt).length;
+  console.log(`[recalc] ${withLastPlayed}/${players.length} players have lastPlayedAt set`);
+  players.slice(0,3).forEach(p=>console.log(`[recalc] ${p.name}: lastPlayedAt=${p.lastPlayedAt?new Date(p.lastPlayedAt).toLocaleDateString():'MISSING'}`));
   for(const p of players) await savePl(p);
   log(`✓ Done — ${sorted.length} matches, ${dupeRefs.length} duplicates removed.`);
   toast('Elos recalculated!');
