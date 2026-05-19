@@ -795,20 +795,44 @@ const overallElo = p => {
   return Math.round(weightedSum / totalWeight);
 };
 
+// ── RATING DECAY ─────────────────────────────────────────────────────────────
+// After 30 days of inactivity: -1 Elo/day, max -150, floor at 600
+const DECAY_GRACE_DAYS  = 30;
+const DECAY_RATE_PER_DAY = 1;
+const DECAY_MAX          = 150;
+const DECAY_FLOOR        = 600;
+
+const decayAmount = p => {
+  if(!p.lastPlayedAt) return 0;
+  const daysSince = (Date.now() - p.lastPlayedAt) / 86400000;
+  if(daysSince <= DECAY_GRACE_DAYS) return 0;
+  const decay = Math.floor((daysSince - DECAY_GRACE_DAYS) * DECAY_RATE_PER_DAY);
+  return Math.min(decay, DECAY_MAX);
+};
+
+// decayedElo: what the player's Elo effectively is today after decay
+const decayedElo = p => {
+  const base = overallElo(p);
+  const decay = decayAmount(p);
+  return Math.max(base - decay, DECAY_FLOOR);
+};
+
 // effCivElo: used only for balancing assignments.
 // < 5 games on this civ → use the player's lowest Elo across all civs with 5+ games
-// (penalises unfamiliar civs without being as harsh as their worst ever game).
-// If no civ has 5+ games yet, fall back to overall Elo.
+// Also applies rating decay for inactive players.
 const effCivElo = (p, cid) => {
   const games = (p.civWins?.[cid]||0) + (p.civLosses?.[cid]||0);
-  if(games >= 5) return civElo(p, cid);
-  // Find lowest Elo among civs the player has played 5+ times
-  const experiencedElos = CIVS
-    .filter(c => (p.civWins?.[c.id]||0) + (p.civLosses?.[c.id]||0) >= 5)
-    .map(c => civElo(p, c.id));
-  if(experiencedElos.length > 0) return Math.min(...experiencedElos);
-  // No civ with 5+ games — fall back to overall Elo
-  return overallElo(p);
+  const decay  = decayAmount(p);
+  let base;
+  if(games >= 5){
+    base = civElo(p, cid);
+  } else {
+    const experiencedElos = CIVS
+      .filter(c => (p.civWins?.[c.id]||0) + (p.civLosses?.[c.id]||0) >= 5)
+      .map(c => civElo(p, c.id));
+    base = experiencedElos.length > 0 ? Math.min(...experiencedElos) : overallElo(p);
+  }
+  return Math.max(base - decay, DECAY_FLOOR);
 };
 
 // kFactor: K=200 for first 5 games on a civ (provisional),
@@ -1029,9 +1053,14 @@ function renderGrid(){
     const d=document.createElement('div');
     d.className='pci'+(selected.has(p.id)?' on':'');
     d.dataset.id=p.id;
+    const decay=decayAmount(p);
+    const dElo=decayedElo(p);
+    const decayHtml=decay>0
+      ? `<span title="Inactive ${Math.floor((Date.now()-p.lastPlayedAt)/86400000)}d — decay: -${decay}" style="font-size:10px;color:var(--evil);margin-left:2px">↓${decay}</span>`
+      : '';
     d.innerHTML=`<input type="checkbox" ${selected.has(p.id)?'checked':''} onchange="toggle('${p.id}')">
       <span class="pci-name">${p.name}</span>
-      <span class="pci-elo">${overallElo(p)}</span>`;
+      <span class="pci-elo" style="${decay>0?'color:var(--evil)':''}">${dElo}</span>${decayHtml}`;
     d.onclick=e=>{if(e.target.tagName!=='INPUT') toggle(p.id);};
     el.appendChild(d);
   });
@@ -1260,6 +1289,7 @@ async function applyResult(winA,loseA,winner,evilTotal,goodTotal,date,source,gam
       }
       if(won){ upd.wins=increment(1); p.wins=(p.wins||0)+1; }
       else   { upd.losses=increment(1); p.losses=(p.losses||0)+1; }
+      upd.lastPlayedAt=Date.now(); p.lastPlayedAt=Date.now();
       tx.update(pRef, upd);
     }
   });
@@ -1627,6 +1657,9 @@ async function autoRecord(){
           }
           if(won){ updates.wins=increment(1); p.wins=(p.wins||0)+1; }
           else   { updates.losses=increment(1); p.losses=(p.losses||0)+1; }
+          // Track last game timestamp for decay calculation
+          updates.lastPlayedAt = ts||Date.now();
+          p.lastPlayedAt = ts||Date.now();
           tx.update(pRef, updates);
         }
       });
@@ -1736,13 +1769,16 @@ function renderLB(){
   const civF=document.getElementById('lbCivFilter')?.value||'';
   let list=[...players];
   if(q) list=list.filter(p=>p.name.toLowerCase().includes(q));
-  list.sort((a,b)=>civF?civElo(b,civF)-civElo(a,civF):overallElo(b)-overallElo(a));
+  list.sort((a,b)=>civF?civElo(b,civF)-civElo(a,civF):decayedElo(b)-decayedElo(a));
   // Calculate streaks from history
   const streaks=calcStreaks();
   el.innerHTML=list.map((p,i)=>{
     const ov=overallElo(p);
-    const displayElo=civF?civElo(p,civF):ov;
-    const subElo=civF?`<span style="font-size:11px;color:var(--muted);margin-left:4px">(${ov})</span>`:'';
+    const dElo=decayedElo(p);
+    const decay=decayAmount(p);
+    const displayElo=civF?civElo(p,civF):dElo;
+    const subElo=civF?`<span style="font-size:11px;color:var(--muted);margin-left:4px">(${ov})</span>`
+      : decay>0?`<span style="font-size:11px;color:var(--evil);margin-left:4px" title="Base: ${ov} — Decay: -${decay}">↓${decay}</span>`:'';
     const w=civF?(p.civWins?.[civF]||0):(p.wins||0);
     const l=civF?(p.civLosses?.[civF]||0):(p.losses||0);
     const tot=w+l;
@@ -1752,7 +1788,7 @@ function renderLB(){
     return `<div class="lbrow">
       <span class="lbrank">${i+1}</span>
       <span class="lbname" onclick="openProfile('${p.id}')" style="cursor:pointer" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color=''">${p.name}${streakHtml}</span>
-      <span class="lbelo">${displayElo}${subElo}</span>
+      <span class="lbelo" style="${decay>0?'color:var(--evil)':''}">${displayElo}${subElo}</span>
       <span class="lbwl">${w}W / ${l}L</span>
       <span class="lbwr">${wr}</span>
     </div>`;
@@ -2257,6 +2293,8 @@ window.recalcAllElos=async function(){
           else   {p.civLosses=p.civLosses||{};p.civLosses[civ.id]=(p.civLosses[civ.id]||0)+1;}
         }
         if(won)p.wins=(p.wins||0)+1; else p.losses=(p.losses||0)+1;
+        // Track last game timestamp for decay
+        if(h.timestamp) p.lastPlayedAt=Math.max(p.lastPlayedAt||0, h.timestamp);
       }
     }
     done++;
