@@ -2901,14 +2901,7 @@ window.forceEndGame=function(){
   toast('Live view reset');
 };
 
-// Start polling on page load
-setInterval(pollLobby, LIVE_INTERVAL_MS);       // lobby.json every 15s
-setTimeout(pollLobby, 5000);
-// WebSocket for real-time lobby detection
-setTimeout(connectLobbyWs, 3000);
-// Direct API poll every 30s regardless of WebSocket — don't depend on scraper
-setInterval(()=>{ if(liveState!=='inprogress') pollLobbyHttp(); }, 30000);
-setTimeout(pollLobbyHttp, 8000); // first check after 8s
+// Live tab removed — all lobby polling and WebSocket disabled
 
 // Poll match history directly — every 2 minutes, regardless of tab visibility
 setInterval(autoRecordDirect, 2*60*1000);
@@ -2941,7 +2934,9 @@ let lobbyWsReconnectTimer=null;
 let lobbyWsAlive=false;
 
 function connectLobbyWs(){
-  if(lobbyWs&&(lobbyWs.readyState===WebSocket.OPEN||lobbyWs.readyState===WebSocket.CONNECTING)) return;
+  // Live tab removed — WebSocket disabled
+  return;
+}
   try{
     lobbyWs=new WebSocket('wss://data.aoe2lobby.com/ws/');
     lobbyWs.onopen=()=>{
