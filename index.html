@@ -3014,40 +3014,13 @@ const LOBBY_API_URL='https://aoe-api.worldsedgelink.com/community/advertisement/
 let lastLobbyApiCheck=0;
 
 async function pollLobbyHttp(){
-  if(liveState==='inprogress') return;
-  if(Date.now()-lastLobbyApiCheck<3000) return;
-  lastLobbyApiCheck=Date.now();
-  try{
-    const data=await fetchWithProxy(LOBBY_API_URL);
-    const lobbies=data.matches||[];
-    const commIds=buildCommIds(players);
-    const profMap=buildProfMap(players);
-    // Update status with direct API result
-    const st=document.getElementById('liveStatus');
-    const now=new Date().toLocaleTimeString();
-    if(st&&liveState==='idle') st.textContent=`Last checked: ${now} · ${lobbies.length} lobbies · ${lobbies.filter(m=>m.matchtype_id===0&&m.maxplayers===8).length} custom 8-player (direct API)`;
-    for(const match of lobbies){
-      if(match.matchtype_id!==0||match.maxplayers!==8) continue;
-      // isLotrMatch skipped — mapname is always "my map" for custom scenarios in the API
-      const allIds=new Set();
-      allIds.add(Number(match.host_profile_id));
-      (match.matchmembers||[]).forEach(m=>allIds.add(Number(m.profile_id)));
-      const slots=await decodeSlotinfo(match.slotinfo||'');
-      slotProfileIds(slots).forEach(id=>allIds.add(id));
-      const found=[...allIds].filter(id=>commIds.has(id));
-      if(found.length>=1){
-        match._slots=slots;
-        activateLobby(match,found.map(id=>profMap[id]).filter(Boolean));
-        return;
-      }
-    }
-    if(liveState==='lobby') activateInProgress();
-  }catch(e){ console.warn('[lobbyHttp]',e.message); }
+  // Live tab removed — lobby polling disabled
+  return;
 }
 
 async function pollLobbyDirect(){
-  // Kept for compatibility — now just runs the HTTP poll
-  await pollLobbyHttp();
+  // Live tab removed — lobby polling disabled
+  return;
 }
 
 // DIRECT MATCH HISTORY POLL
@@ -3089,6 +3062,15 @@ async function autoRecordDirect(){
 
     const pids=players.filter(p=>p.profileId).map(p=>p.profileId);
     if(!pids.length){ directPollRunning=false; return; }
+    console.log('[poll] Checking '+pids.length+' players, first pid: '+pids[0]);
+    // Quick API test to verify response format
+    try{
+      const testUrl='https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids='+encodeURIComponent(JSON.stringify([pids[0]]));
+      const testData=await fetchWithProxy(testUrl,10000);
+      console.log('[poll] API keys:', Object.keys(testData||{}));
+      const sample=testData?.matchHistoryStats||testData?.matches||testData?.result||[];
+      console.log('[poll] Sample count:', sample.length);
+    }catch(e){ console.warn('[poll] API test:', e.message); }
 
     // Batch into groups of 10 to avoid 413 URL too large
     const BATCH=10;
@@ -3096,12 +3078,13 @@ async function autoRecordDirect(){
     for(let i=0;i<pids.length;i+=BATCH){
       const batch=pids.slice(i,i+BATCH);
       try{
-        // Try both formats — newer API uses repeated params, older used JSON array
-        const params = new URLSearchParams({title:'age2'});
-        batch.forEach(pid => params.append('profile_ids[]', pid));
-        const aoeUrl=`https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?${params}`;
+        // Try bracket array format: profile_ids=[pid1,pid2]
+        const batchStr = JSON.stringify(batch);
+        const aoeUrl=`https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=${encodeURIComponent(batchStr)}&count=30`;
         const data=await fetchWithProxy(aoeUrl,15000);
-        allMatches.push(...(data.matchHistoryStats||data.matches||[]));
+        const found = data.matchHistoryStats||data.matches||data.result||[];
+        console.log(`[poll] batch ${i}-${i+BATCH}: got ${found.length} matches`);
+        allMatches.push(...found);
       }catch(e){ console.warn('[poll] Batch failed:',e.message); }
     }
     // Deduplicate by match ID
