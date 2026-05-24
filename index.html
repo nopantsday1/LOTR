@@ -1387,7 +1387,7 @@ async function lookupAoe2Profile(profileId){
   // getLeaderboard2 accepts a profile_id filter and returns the player row with alias
   for(const lbId of [0,1,2,3,4]){
     try{
-      const url=`https://aoe-api.worldsedgelink.com/community/leaderboard/getLeaderboard2?title=age2&leaderboard_id=${lbId}&profile_id=${pid}&count=1`;
+      const url=`https://pb-live-release1-api.worldsedgelink.com/community/leaderboard/getLeaderboard2?title=age2&leaderboard_id=${lbId}&profile_id=${pid}&count=1`;
       const data=await fetchWithProxy(url, 8000);
       const rows=data.items||data.leaderboard||data.players||[];
       const row=rows.find(r=>Number(r.profile_id||r.profileId)===pid);
@@ -1400,7 +1400,7 @@ async function lookupAoe2Profile(profileId){
 
   // ── Attempt 2: Personal stats endpoint ──────────────────────────────────
   try{
-    const url=`https://aoe-api.worldsedgelink.com/community/leaderboard/getPersonalStatsByProfileId?title=age2&profile_id=${pid}`;
+    const url=`https://pb-live-release1-api.worldsedgelink.com/community/leaderboard/getPersonalStatsByProfileId?title=age2&profile_id=${pid}`;
     const data=await fetchWithProxy(url, 10000);
     const alias=data?.playerInfo?.alias||data?.playerInfo?.name
       ||data?.statGroups?.[0]?.members?.[0]?.alias
@@ -1412,7 +1412,7 @@ async function lookupAoe2Profile(profileId){
   try{
     const params = new URLSearchParams({title:'age2'});
     params.append('profile_ids[]', pid);
-    const url=`https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?${params}`;
+    const url=`https://pb-live-release1-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?${params}`;
     const data=await fetchWithProxy(url, 12000);
     console.log('[lookup] matchHistory keys:', Object.keys(data));
     // profiles[] — each entry should have profile_id + alias
@@ -2908,22 +2908,30 @@ setInterval(autoRecordDirect, 2*60*1000);
 setTimeout(autoRecordDirect, 45000); // first check after 45s
 
 // DIRECT LOBBY API POLL (browser-side via corsproxy.io)
+// AoE2 API moved to pb-live-release{N}-api.worldsedgelink.com in March 2025
+// Try release 1-4 in sequence until one works
 async function fetchWithProxy(aoeUrl, timeout=12000){
-  // corsproxy.io - try with x-cors-api-key header for better reliability
-  const proxyUrl=`https://corsproxy.io/?url=${encodeURIComponent(aoeUrl)}`;
-  try{
-    const resp=await fetch(proxyUrl,{
-      signal:AbortSignal.timeout(timeout),
-      headers:{'x-requested-with':'XMLHttpRequest'}
-    });
-    if(resp.ok){
-      const text=await resp.text();
-      if(text.startsWith('<')){ throw new Error('Got HTML instead of JSON'); }
-      return JSON.parse(text);
-    }
-    console.warn('[proxy] HTTP',resp.status);
-  }catch(e){ console.warn('[proxy] Error:',e.message); }
-  throw new Error('Proxy failed');
+  const urls = [1,2,3,4].map(n =>
+    aoeUrl.replace('pb-live-release1-api.worldsedgelink.com', `pb-live-release${n}-api.worldsedgelink.com`)
+  );
+  // Deduplicate in case url didn't have the domain
+  const uniqueUrls = [...new Set(urls)];
+  for(const baseUrl of uniqueUrls){
+    const proxyUrl=`https://corsproxy.io/?url=${encodeURIComponent(baseUrl)}`;
+    try{
+      const resp=await fetch(proxyUrl,{
+        signal:AbortSignal.timeout(timeout),
+        headers:{'x-requested-with':'XMLHttpRequest'}
+      });
+      if(resp.ok){
+        const text=await resp.text();
+        if(text.startsWith('<')){ continue; } // got HTML, try next
+        return JSON.parse(text);
+      }
+      console.warn('[proxy] HTTP',resp.status,'on',baseUrl);
+    }catch(e){ console.warn('[proxy] Error on release server:',e.message); }
+  }
+  throw new Error('All proxy attempts failed');
 }
 
 // ─────────────────────────────────────────
@@ -2937,75 +2945,10 @@ function connectLobbyWs(){
   // Live tab removed — WebSocket disabled
   return;
 }
-  try{
-    lobbyWs=new WebSocket('wss://data.aoe2lobby.com/ws/');
-    lobbyWs.onopen=()=>{
-      lobbyWsAlive=true;
-      console.log('[ws] Connected to aoe2lobby.com');
-      // Subscribe to all lobby matches
-      lobbyWs.send(JSON.stringify({action:'subscribe',type:'matches',context:'lobby'}));
-      // Also subscribe to our specific community player IDs for instant notifications
-      const pids=players.filter(p=>p.profileId).map(p=>String(p.profileId));
-      if(pids.length) lobbyWs.send(JSON.stringify({action:'subscribe',type:'players',context:'lobby',ids:pids}));
-      const st=document.getElementById('liveStatus');
-      if(st) st.textContent='Live — connected to aoe2lobby.com WebSocket';
-    };
-    lobbyWs.onmessage=async(e)=>{
-      try{
-        const msg=JSON.parse(e.data);
-        // Player status update — one of our community members changed status
-        if(msg.player_status){
-          const commIds=buildCommIds(players);
-          for(const[pid,status]of Object.entries(msg.player_status)){
-            if(!commIds.has(Number(pid))) continue;
-            if(!status||!status.status) continue; // ignore null/initial snapshots
-            console.log('[ws] Player update:',pid,status.status);
-            if(status.status==='lobby'&&liveState!=='lobby'&&liveState!=='inprogress'){
-              // A community player entered a lobby — fetch it
-              setTimeout(()=>pollLobbyHttp(), 1000);
-            } else if(status.status==='ingame'&&liveState==='lobby'){
-              activateInProgress();
-            } else if(status.status==='offline'||status.status==='menu'){
-              // ignore
-            }
-          }
-        }
-        // Full match update — check for LOTR community match
-        if(msg.matches){
-          const commIds=buildCommIds(players);
-          if(liveState==='inprogress') return;
-          for(const match of (Array.isArray(msg.matches)?msg.matches:Object.values(msg.matches))){
-            if(!match||typeof match!=='object') continue;
-            if(match.matchtype_id!==0||match.maxplayers!==8) continue;
-            // isLotrMatch skipped — mapname is always "my map" for custom scenarios
-            const allIds=new Set();
-            if(match.host_profile_id) allIds.add(Number(match.host_profile_id));
-            (match.matchmembers||[]).forEach(m=>allIds.add(Number(m.profile_id)));
-            const found=[...allIds].filter(id=>commIds.has(id));
-            if(found.length>=1){
-              console.log('[ws] LOTR lobby with',found.length,'community members — fetching full data');
-              // Always fetch full data from API to get slotinfo for civ positions
-              setTimeout(()=>pollLobbyHttp(), 500);
-              return;
-            }
-          }
-        }
-      }catch(err){ console.warn('[ws] parse error',err.message); }
-    };
-    lobbyWs.onerror=()=>{ console.warn('[ws] Error'); lobbyWsAlive=false; };
-    lobbyWs.onclose=()=>{
-      lobbyWsAlive=false;
-      console.warn('[ws] Disconnected — reconnecting in 10s');
-      const st=document.getElementById('liveStatus');
-      if(st&&liveState==='idle') st.textContent='WebSocket disconnected — reconnecting…';
-      lobbyWsReconnectTimer=setTimeout(connectLobbyWs, 10000);
-    };
-  }catch(e){ console.warn('[ws] Failed to connect:',e.message); }
-}
 
 // HTTP fallback — used when WebSocket finds a community player in a lobby
 // but we need full match details
-const LOBBY_API_URL='https://aoe-api.worldsedgelink.com/community/advertisement/findAdvertisements?title=age2&count=200';
+const LOBBY_API_URL='https://pb-live-release1-api.worldsedgelink.com/community/advertisement/findAdvertisements?title=age2&count=200';
 let lastLobbyApiCheck=0;
 
 async function pollLobbyHttp(){
@@ -3060,7 +3003,7 @@ async function autoRecordDirect(){
     console.log('[poll] Checking '+pids.length+' players, first pid: '+pids[0]);
     // Quick API test to verify response format
     try{
-      const testUrl='https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids='+encodeURIComponent(JSON.stringify([pids[0]]));
+      const testUrl='https://pb-live-release1-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids='+encodeURIComponent(JSON.stringify([pids[0]]));
       const testData=await fetchWithProxy(testUrl,10000);
       console.log('[poll] API keys:', Object.keys(testData||{}));
       const sample=testData?.matchHistoryStats||testData?.matches||testData?.result||[];
@@ -3075,7 +3018,7 @@ async function autoRecordDirect(){
       try{
         // Try bracket array format: profile_ids=[pid1,pid2]
         const batchStr = JSON.stringify(batch);
-        const aoeUrl=`https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=${encodeURIComponent(batchStr)}&count=30`;
+        const aoeUrl=`https://pb-live-release1-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids=${encodeURIComponent(batchStr)}&count=30`;
         const data=await fetchWithProxy(aoeUrl,15000);
         const found = data.matchHistoryStats||data.matches||data.result||[];
         console.log(`[poll] batch ${i}-${i+BATCH}: got ${found.length} matches`);
