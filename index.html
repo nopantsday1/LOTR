@@ -1377,69 +1377,72 @@ function renderHist(){
 }
 
 // ─────────────────────────────────────────
-// AOE2 PROFILE LOOKUP (via corsproxy.io)
+// AOE2 PROFILE LOOKUP
+// Primary: aoe2insights.com (reliable, no auth needed)
+// Fallback: World's Edge new API servers
 // ─────────────────────────────────────────
 async function lookupAoe2Profile(profileId){
   if(!profileId) return null;
   const pid=Number(profileId);
 
-  // ── Attempt 1: Leaderboard endpoint — most reliable, returns alias by profile_id ──
-  // getLeaderboard2 accepts a profile_id filter and returns the player row with alias
-  for(const lbId of [0,1,2,3,4]){
-    try{
-      const url=`https://pb-live-release1-api.worldsedgelink.com/community/leaderboard/getLeaderboard2?title=age2&leaderboard_id=${lbId}&profile_id=${pid}&count=1`;
-      const data=await fetchWithProxy(url, 8000);
-      const rows=data.items||data.leaderboard||data.players||[];
-      const row=rows.find(r=>Number(r.profile_id||r.profileId)===pid);
-      if(row){
-        const n=row.alias||row.name||row.Name;
-        if(n){ console.log(`[lookup] Found via leaderboard ${lbId}:`,n); return n; }
-      }
-    }catch(e){}
-  }
-
-  // ── Attempt 2: Personal stats endpoint ──────────────────────────────────
+  // ── Attempt 1: aoe2insights.com — scrape the user page for their name ──
   try{
-    const url=`https://pb-live-release1-api.worldsedgelink.com/community/leaderboard/getPersonalStatsByProfileId?title=age2&profile_id=${pid}`;
-    const data=await fetchWithProxy(url, 10000);
-    const alias=data?.playerInfo?.alias||data?.playerInfo?.name
-      ||data?.statGroups?.[0]?.members?.[0]?.alias
-      ||data?.statGroups?.[0]?.members?.[0]?.name;
-    if(alias){ console.log('[lookup] Found via personalStats:',alias); return alias; }
-  }catch(e){ console.warn('[lookup] personalStats failed:', e.message); }
-
-  // ── Attempt 3: Match history — scan ALL matches for the player's own entry ──
-  try{
-    const params = new URLSearchParams({title:'age2'});
-    params.append('profile_ids[]', pid);
-    const url=`https://pb-live-release1-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?${params}`;
-    const data=await fetchWithProxy(url, 12000);
-    console.log('[lookup] matchHistory keys:', Object.keys(data));
-    // profiles[] — each entry should have profile_id + alias
-    for(const prof of (data.profiles||[])){
-      const profId=Number(prof.profile_id||prof.profileId||prof.id||0);
-      if(profId===pid){
-        const n=prof.alias||prof.name||prof.Name;
-        if(n){ console.log('[lookup] Found in profiles[]:', n); return n; }
-      }
-    }
-    // statGroups[] — another possible location
-    for(const sg of (data.statGroups||[])){
-      for(const m of (sg.members||[])){
-        if(Number(m.profile_id||m.profileId)===pid){
-          const n=m.alias||m.name;
-          if(n){ console.log('[lookup] Found in statGroups:', n); return n; }
+    const url=`https://www.aoe2insights.com/user/${pid}/`;
+    const proxyUrl=`https://corsproxy.io/?url=${encodeURIComponent(url)}`;
+    const resp=await fetch(proxyUrl,{signal:AbortSignal.timeout(8000)});
+    if(resp.ok){
+      const html=await resp.text();
+      // The page title is: "PlayerName's profile - AoE2 Insights"
+      const titleMatch=html.match(/<title>([^<']+)'s\s+profile/i)
+        || html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+      if(titleMatch){
+        const name=titleMatch[1].trim();
+        if(name && !name.toLowerCase().includes('aoe2') && name.length<40){
+          console.log('[lookup] Found via aoe2insights:', name);
+          return name;
         }
       }
+      // Also try og:title meta tag
+      const ogMatch=html.match(/property="og:title"\s+content="([^"']+)['"]s profile/i);
+      if(ogMatch){
+        const name=ogMatch[1].trim();
+        if(name){ console.log('[lookup] Found via og:title:', name); return name; }
+      }
     }
-    // matchhistorymember — scan every match, every member
-    for(const match of (data.matchHistoryStats||[])){
-      const members=match.matchhistorymember||match.matchhistoryreportresults||[];
-      const m=members.find(x=>Number(x.profile_id)===pid);
-      if(m?.name){ console.log('[lookup] Found in match member:', m.name); return m.name; }
-    }
-  }catch(e){ console.warn('[lookup] matchHistory failed:', e.message); }
+  }catch(e){ console.warn('[lookup] aoe2insights failed:', e.message); }
 
+  // ── Attempt 2: World's Edge new API servers (try release 1-4) ──
+  for(const n of [1,2,3,4]){
+    for(const lbId of [3,4,0,1,2]){
+      try{
+        const url=`https://pb-live-release${n}-api.worldsedgelink.com/community/leaderboard/GetLeaderBoard?title=age2&leaderboard_id=${lbId}&profile_id=${pid}&count=1`;
+        const data=await fetchWithProxy(url, 6000);
+        const rows=data.leaderboard||data.items||data.players||[];
+        const row=rows.find(r=>Number(r.profile_id||r.profileId)===pid);
+        if(row){
+          const name=row.alias||row.name||row.Name;
+          if(name){ console.log(`[lookup] Found via WE release${n} lb${lbId}:`, name); return name; }
+        }
+      }catch(e){}
+    }
+  }
+
+  // ── Attempt 3: aoe2insights match history page ──
+  try{
+    const url=`https://www.aoe2insights.com/user/${pid}/matches/`;
+    const proxyUrl=`https://corsproxy.io/?url=${encodeURIComponent(url)}`;
+    const resp=await fetch(proxyUrl,{signal:AbortSignal.timeout(8000)});
+    if(resp.ok){
+      const html=await resp.text();
+      const match=html.match(/<title>([^<']+)'s\s+match/i);
+      if(match){
+        const name=match[1].trim();
+        if(name){ console.log('[lookup] Found via aoe2insights matches:', name); return name; }
+      }
+    }
+  }catch(e){}
+
+  console.warn('[lookup] All attempts failed for profile:', pid);
   return null;
 }
 
