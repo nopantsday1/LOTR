@@ -1,0 +1,43 @@
+:root {
+  --bg: #0f1110;
+  --bg2: #171a17;
+  --bg3: #20241f;
+  --text: #ece6d2;
+  --dim: #b9ad92;
+  --muted: #817968;
+  --gold: #d7b56d;
+  --evil: #c05b4d;
+  --good: #7ea36d;
+  --border: #34372f;
+  --border2: #5d5136;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+h1, h2, h3, .brand, .card-title {
+  font-family: "Cinzel", serif;
+}
+
+a { color: inherit; text-decoration: none; }
+
+button, input, select {
+  font: inherit;
+}
+
+input, select {
+  background: var(--bg3);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: .55rem .7rem;
+}
+
+.muted { color: var(--muted); }
+.error, .danger-text { color: var(--evil); }

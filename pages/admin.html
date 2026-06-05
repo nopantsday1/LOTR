@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hobbit Balancer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/layout.css">
+<link rel="stylesheet" href="/css/components.css">
+<link rel="stylesheet" href="/css/pages.css">
+<script type="module" src="/js/app.js"></script>
+
+</head>
+
+<body>
+
+<header class="topbar">
+  <a class="brand" href="/">⚔ Hobbit Balancer</a>
+  <nav class="tabs">
+    <a data-page="balance" href="/pages/balance.html">Balance</a>
+    <a data-page="history" href="/pages/history.html">History</a>
+    <a data-page="players" href="/pages/players.html">Players</a>
+    <a data-page="leaderboard" href="/pages/leaderboard.html">Leaderboard</a>
+    <a data-page="stats" href="/pages/stats.html">Stats</a>
+    <a data-page="live" href="/pages/live.html">Live</a>
+    <a data-page="admin" href="/pages/admin.html">Admin</a>
+    <button id="authBtn" class="tab-button">Connexion</button>
+  </nav>
+  <span id="sync" class="sync"></span>
+</header>
+
+<main class="shell">
+
+
+<section class="page" data-page="admin">
+  <div class="page-header">
+    <div>
+      <h1>Admin Panel</h1>
+      <p>Use sandbox mode locally unless you intentionally want to write to Firestore.</p>
+    </div>
+    <button id="adminLockBtn" class="btn">Lock</button>
+  </div>
+
+  <section id="adminLogin" class="card">
+    <h2>Admin Access</h2>
+    <input type="password" id="adminPass" placeholder="Password">
+    <p id="adminError" class="error" hidden>Incorrect password.</p>
+    <button id="adminUnlockBtn" class="btn primary">Unlock</button>
+  </section>
+
+  <section id="adminTools" hidden>
+    <section class="card">
+      <h2>Bulk Elo Seeder</h2>
+      <p>Drag players to rank them by skill. Elos are auto-assigned from top to bottom across a range you set.</p>
+      <button id="openBulkSeederBtn" class="btn">⇅ Open Bulk Seeder</button>
+    </section>
+
+    <section class="card">
+      <h2>Ratings & History</h2>
+      <button id="removeDupesBtn" class="btn">Find & Remove Duplicates</button>
+      <button id="recalcAllBtn" class="btn primary">⟳ Recalculate All Elos</button>
+      <label><input type="checkbox" id="importReset" checked> Reset all ratings before import</label>
+      <button id="runImportBtn" class="btn primary">▶ Run Import</button>
+      <button id="fullResetBtn" class="btn danger">Reset Everything</button>
+      <div id="adminLog" class="log"></div>
+    </section>
+
+    <section class="card">
+      <h2>Players</h2>
+      <button id="addPlayerBtn" class="btn">+ Add Player</button>
+      <div id="adminPlayerList"></div>
+    </section>
+  </section>
+</section>
+
+
+</main>
+<div class="toast" id="toast"></div>
+<div class="modal-root" id="modalRoot"></div>
+</body>
+
+</html>

@@ -1,0 +1,137 @@
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.card-title {
+  color: var(--gold);
+  letter-spacing: .06em;
+  margin-bottom: .75rem;
+}
+
+.btn {
+  background: var(--bg3);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: .55rem .85rem;
+  cursor: pointer;
+}
+
+.btn:hover { border-color: var(--border2); }
+
+.btn.primary {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.btn.danger {
+  border-color: var(--evil);
+  color: var(--evil);
+}
+
+.actions {
+  display: flex;
+  gap: .75rem;
+  margin: 1rem 0;
+}
+
+.teams {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 1rem;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  border-bottom: 1px solid var(--border);
+  padding: .55rem;
+  text-align: left;
+}
+
+.toast {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  border: 1px solid var(--border2);
+  background: var(--bg2);
+  color: var(--text);
+  padding: .75rem 1rem;
+  border-radius: 4px;
+  transition: .18s ease;
+}
+
+.toast.on {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.centered { text-align: center; }
+.big-icon { font-size: 32px; opacity: .45; }
+.eyebrow {
+  color: var(--gold);
+  font-family: "Cinzel", serif;
+  font-size: 10px;
+  letter-spacing: .15em;
+}
+.timer {
+  font-family: "Cinzel", serif;
+  font-size: 40px;
+  letter-spacing: .05em;
+}
+.log {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  color: var(--dim);
+  white-space: pre-wrap;
+}
+
+.match-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.match-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+}
+
+.winner-badge {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: .25rem .55rem;
+  font-size: 12px;
+  color: var(--gold);
+}
+
+.team h3 {
+  margin-top: 0;
+}
+
+.assignment-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--border);
+  padding: .35rem 0;
+}
+
+.match-meta {
+  font-size: 13px;
+}

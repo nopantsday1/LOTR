@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hobbit Balancer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/layout.css">
+<link rel="stylesheet" href="/css/components.css">
+<link rel="stylesheet" href="/css/pages.css">
+<script type="module" src="/js/app.js"></script>
+
+</head>
+
+<body>
+
+<header class="topbar">
+  <a class="brand" href="/">⚔ Hobbit Balancer</a>
+  <nav class="tabs">
+    <a data-page="balance" href="/pages/balance.html">Balance</a>
+    <a data-page="history" href="/pages/history.html">History</a>
+    <a data-page="players" href="/pages/players.html">Players</a>
+    <a data-page="leaderboard" href="/pages/leaderboard.html">Leaderboard</a>
+    <a data-page="stats" href="/pages/stats.html">Stats</a>
+    <a data-page="live" href="/pages/live.html">Live</a>
+    <a data-page="admin" href="/pages/admin.html">Admin</a>
+    <button id="authBtn" class="tab-button">Connexion</button>
+  </nav>
+  <span id="sync" class="sync"></span>
+</header>
+
+<main class="shell">
+
+
+<section class="page" data-page="history">
+  <div class="page-header">
+    <div>
+      <h1>Match History</h1>
+      <p>Auto-populated from matches.json · add manually if needed</p>
+    </div>
+    <button id="historyCheckNowBtn" class="btn">↻ Check Now</button>
+  </div>
+
+  <section class="card">
+    <input id="historySearch" type="search" placeholder="Search">
+    <button id="historyClearSearch" class="btn">✕</button>
+  </section>
+
+  <section id="historyList"></section>
+</section>
+
+
+</main>
+<div class="toast" id="toast"></div>
+<div class="modal-root" id="modalRoot"></div>
+</body>
+
+</html>
