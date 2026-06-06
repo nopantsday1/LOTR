@@ -44,7 +44,37 @@
     </div>
   </div>
 
-  <section id="profileContent" class="card"></section>
+  <section id="profileContent" class="card">
+    <div class="profile-header" id="profileHeader"></div>
+
+    <h2>Elo Progress</h2>
+    <div class="progress-controls">
+      <select id="profileCivSelect">
+        <option value="overall">Main Elo</option>
+        <option value="p1">P1</option>
+        <option value="p2">P2</option>
+        <option value="p3">P3</option>
+        <option value="p4">P4</option>
+        <option value="p5">P5</option>
+        <option value="p6">P6</option>
+        <option value="p7">P7</option>
+        <option value="p8">P8</option>
+      </select>
+    </div>
+
+    <canvas id="profileEloProgressCanvas" width="1100" height="360"></canvas>
+    <p id="profileEloProgressMeta" class="muted small"></p>
+  </section>
+
+  <section class="card">
+    <div class="profile-history-heading">
+      <div>
+        <h2>Game History</h2>
+        <p id="profileHistoryMeta" class="muted small"></p>
+      </div>
+    </div>
+    <div id="profileHistoryList"></div>
+  </section>
 </section>
 
 

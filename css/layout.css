@@ -1,25 +1,27 @@
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: .75rem 1rem;
-  background: rgba(15,17,16,.94);
-  border-bottom: 1px solid var(--border);
+  padding: .9rem 1.25rem;
+  background: rgba(12,14,12,0.6);
+  backdrop-filter: blur(6px) saturate(120%);
+  border-bottom: 1px solid rgba(255,255,255,0.03);
 }
 
 .brand {
   color: var(--gold);
   font-weight: 700;
   white-space: nowrap;
+  letter-spacing: 0.04em;
 }
 
 .tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: .35rem;
+  gap: .45rem;
   align-items: center;
 }
 
@@ -28,21 +30,24 @@
   border: 1px solid transparent;
   background: transparent;
   color: var(--dim);
-  border-radius: 4px;
-  padding: .35rem .55rem;
+  border-radius: 6px;
+  padding: .4rem .65rem;
   cursor: pointer;
+  transition: color var(--transition), background var(--transition), transform var(--transition);
 }
 
 .tabs a.active,
 .tabs a:hover,
 .tab-button:hover {
   color: var(--text);
-  border-color: var(--border);
+  border-color: rgba(255,255,255,0.04);
+  background: rgba(255,255,255,0.02);
+  transform: translateY(-1px);
 }
 
 .shell {
   width: min(1180px, calc(100% - 2rem));
-  margin: 1.25rem auto 4rem;
+  margin: 1.5rem auto 4rem;
 }
 
 .page-header {

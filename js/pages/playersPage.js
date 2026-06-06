@@ -1,6 +1,13 @@
 import { state } from "../core/state.js";
 import { CIVS } from "../core/constants.js";
-import { overallElo, civElo, decayedElo } from "../elo/elo.js";
+import {
+  civElo,
+  civGames,
+  civModifier,
+  decayedElo,
+  effectiveCivElo,
+  overallElo
+} from "../elo/elo.js";
 import { buildPlayerEloProgress } from "../elo/progress.js";
 
 export function initPlayersPage() {
@@ -61,7 +68,7 @@ export function initPlayersPage() {
 
     const player = state.players.find(p => p.id === playerId);
     if (progressMeta) {
-      progressMeta.textContent = `${player?.name || "Player"} · ${points.length} recorded points · ${civId === "overall" ? "Overall Elo" : civId.toUpperCase()}`;
+      progressMeta.textContent = `${player?.name || "Player"} · ${points.length} recorded points · ${civId === "overall" ? "Main Elo" : civId.toUpperCase()}`;
     }
   }
 
@@ -198,7 +205,7 @@ export function initPlayersPage() {
       const winRate = total ? Math.round((wins / total) * 100) : 0;
 
       return `
-        <tr class="player-row">
+        <tr class="player-row" data-player-id="${escapeHtml(player.id)}" style="cursor: pointer;">
           <td>
             <div class="player-name">${escapeHtml(player.name || "Unknown")}</div>
             <div class="player-sub muted">
@@ -224,6 +231,14 @@ export function initPlayersPage() {
       `;
     }).join("");
 
+    // Add click handlers to player rows
+    tbody.querySelectorAll("tr.player-row").forEach(row => {
+      row.addEventListener("click", () => {
+        const playerId = row.dataset.playerId;
+        window.location.href = `/pages/profile.html?playerId=${encodeURIComponent(playerId)}`;
+      });
+    });
+
     renderProgressControls();
     renderProgressGraph();
   }
@@ -242,9 +257,10 @@ function renderCivs(player, selectedCiv) {
     .filter(civ => !selectedCiv || civ.id === selectedCiv)
     .map(civ => {
       const elo = civElo(player, civ.id);
-      const wins = player.civWins?.[civ.id] || 0;
-      const losses = player.civLosses?.[civ.id] || 0;
-      const games = wins + losses;
+      const effective = effectiveCivElo(player, civ.id);
+      const modifier = civModifier(player, civ.id);
+      const games = civGames(player, civ.id);
+      const wins = player.civStats?.[civ.id]?.wins || 0;
       const wr = games ? Math.round((wins / games) * 100) : 0;
       const pct = eloToPercent(elo);
 
@@ -262,12 +278,16 @@ function renderCivs(player, selectedCiv) {
           </div>
 
           <div class="civ-meta">
-            <span>${games}g</span>
-            <span>${wr}% WR</span>
+            <span>${formatSigned(modifier)} mod · ${games}g</span>
+            <span>${effective} eff</span>
           </div>
         </div>
       `;
     }).join("");
+}
+
+function formatSigned(value) {
+  return `${value > 0 ? "+" : ""}${value}`;
 }
 
 function eloToPercent(elo) {

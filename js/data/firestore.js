@@ -2,13 +2,14 @@ import { LOCAL_SANDBOX } from "../core/config.js";
 import { state } from "../core/state.js";
 import { firestoreApi as fb } from "./firebase.js";
 import { toast } from "../ui/toast.js";
+import { normalizePlayerRatings } from "../elo/elo.js";
 
 export function subscribeCoreData(onChange) {
   const playersRef = fb.collection(state.db, "players");
   const historyRef = fb.collection(state.db, "history");
 
   const unsubPlayers = fb.onSnapshot(playersRef, snap => {
-    state.players = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    state.players = normalizePlayerRatings(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     onChange?.();
   });
 

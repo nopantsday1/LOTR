@@ -1,6 +1,13 @@
 import { CIVS, normalizeCivName } from "../core/constants.js";
 import { state } from "../core/state.js";
-import { effectiveCivElo } from "../elo/elo.js";
+import {
+  assignmentPenalty,
+  civModifier,
+  confidenceWeight,
+  effectiveCivElo,
+  preferenceBonus,
+  uncertaintyPenalty
+} from "../elo/elo.js";
 
 export function* permutations(items) {
   if (items.length <= 1) {
@@ -8,75 +15,89 @@ export function* permutations(items) {
     return;
   }
 
-  for (let i = 0; i < items.length; i++) {
-    const rest = [...items.slice(0, i), ...items.slice(i + 1)];
-    for (const p of permutations(rest)) {
-      yield [items[i], ...p];
+  for (let index = 0; index < items.length; index++) {
+    const rest = [...items.slice(0, index), ...items.slice(index + 1)];
+    for (const permutation of permutations(rest)) {
+      yield [items[index], ...permutation];
     }
   }
 }
 
-export function bestAssign(players, civs) {
-  const recentCivs = {};
-  const playedCivs = {};
+export function assignmentOptions(players, civs) {
+  const recentCivs = recentCivsByPlayer(players);
+  const options = [];
 
-  for (const player of players) {
-    const matches = state.history
-      .filter(h => [...(h.evilAssign || []), ...(h.goodAssign || [])].some(a => a.name === player.name))
-      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  for (const permutation of permutations(civs)) {
+    const assignment = players.map((player, index) => {
+      const civ = permutation[index];
+      const recent = recentCivs[player.id] || [];
 
-    recentCivs[player.id] = [];
-    playedCivs[player.id] = new Set();
-
-    for (const match of matches) {
-      const assignment = [...(match.evilAssign || []), ...(match.goodAssign || [])].find(a => a.name === player.name);
-      if (!assignment?.civName) continue;
-
-      const civ = CIVS.find(c => normalizeCivName(c.name) === normalizeCivName(assignment.civName));
-      if (!civ) continue;
-
-      if (civs.some(c => c.id === civ.id)) {
-        if (recentCivs[player.id].length < 3) recentCivs[player.id].push(civ.id);
-        playedCivs[player.id].add(civ.id);
-      }
-    }
-  }
-
-  function adjustedElo(player, civId) {
-    if ((player.bannedCivs || []).includes(civId)) return -Infinity;
-
-    let elo = effectiveCivElo(player, civId);
-
-    if ((player.favCivs || []).includes(civId)) elo = Math.round(elo * 1.40);
-    if ((player.avoidCivs || []).includes(civId)) elo = Math.round(elo * 0.60);
-
-    const recent = recentCivs[player.id] || [];
-    if (recent[0] === civId) elo = Math.round(elo * 0.65);
-    if (recent[1] === civId) elo = Math.round(elo * 0.80);
-    if (recent[2] === civId) elo = Math.round(elo * 0.90);
-
-    return elo;
-  }
-
-  let best = null;
-
-  for (const perm of permutations(civs)) {
-    const assignment = players.map((player, i) => {
-      const civ = perm[i];
       return {
         player,
         civ,
-        elo: adjustedElo(player, civ.id),
+        elo: effectiveCivElo(player, civ.id),
+        modifier: civModifier(player, civ.id),
+        confidence: confidenceWeight(player, civ.id),
+        preferenceBonus: preferenceBonus(player, civ.id),
+        uncertaintyPenalty: uncertaintyPenalty(player, civ.id),
+        penalty: assignmentPenalty(player, civ.id, recent)
       };
     });
 
-    if (assignment.some(a => a.elo === -Infinity)) continue;
+    if (assignment.some(item => !Number.isFinite(item.penalty))) continue;
 
-    const total = assignment.reduce((sum, a) => sum + a.elo, 0);
-    if (!best || total > best.total) {
-      best = { assignment, total };
-    }
+    options.push({
+      assignment,
+      total: assignment.reduce((sum, item) => sum + item.elo, 0),
+      penalty: assignment.reduce((sum, item) => sum + item.penalty, 0)
+    });
   }
 
-  return best;
+  return options;
+}
+
+export function bestAssign(players, civs) {
+  return assignmentOptions(players, civs)
+    .sort((a, b) => a.penalty - b.penalty || b.total - a.total)[0] || null;
+}
+
+function recentCivsByPlayer(players) {
+  const result = {};
+  const history = state.fullHistory?.length ? state.fullHistory : state.history;
+
+  for (const player of players) {
+    result[player.id] = history
+      .filter(match => [...(match.evilAssign || []), ...(match.goodAssign || [])]
+        .some(assignment => assignmentMatchesPlayer(assignment, player)))
+      .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0))
+      .map(match => [...(match.evilAssign || []), ...(match.goodAssign || [])]
+        .find(assignment => assignmentMatchesPlayer(assignment, player)))
+      .map(assignment => findCivId(assignment?.civName || assignment?.civ || assignment?.civId))
+      .filter(Boolean)
+      .slice(0, 3);
+  }
+
+  return result;
+}
+
+function assignmentMatchesPlayer(assignment, player) {
+  if (
+    assignment.profileId &&
+    player.profileId &&
+    String(assignment.profileId) === String(player.profileId)
+  ) {
+    return true;
+  }
+
+  return String(assignment.name || assignment.playerName || "") === String(player.name || "");
+}
+
+function findCivId(value) {
+  if (!value) return null;
+  const normalized = normalizeCivName(String(value)).toLowerCase();
+
+  return CIVS.find(civ => (
+    normalizeCivName(civ.name).toLowerCase() === normalized ||
+    civ.id === normalized
+  ))?.id || normalized.match(/\bp[1-8]\b/)?.[0] || null;
 }

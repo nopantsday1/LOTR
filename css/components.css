@@ -1,9 +1,10 @@
 .card {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  background: linear-gradient(180deg, var(--bg2), rgba(23,26,23,0.98));
+  border: 1px solid rgba(255,255,255,0.03);
+  border-radius: var(--radius);
   padding: 1rem;
   margin-bottom: 1rem;
+  box-shadow: 0 6px 18px rgba(3,4,3,0.45);
 }
 
 .card-title {
@@ -15,22 +16,39 @@
 .btn {
   background: var(--bg3);
   color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: .55rem .85rem;
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 6px;
+  padding: .5rem .9rem;
   cursor: pointer;
+  transition: transform var(--transition), box-shadow var(--transition), background var(--transition);
 }
 
-.btn:hover { border-color: var(--border2); }
+.btn:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.4); }
 
 .btn.primary {
-  border-color: var(--gold);
+  background: linear-gradient(90deg, rgba(215,181,109,0.12), rgba(215,181,109,0.06));
+  border-color: rgba(215,181,109,0.18);
   color: var(--gold);
 }
 
 .btn.danger {
-  border-color: var(--evil);
+  background: linear-gradient(90deg, rgba(192,91,77,0.06), rgba(192,91,77,0.03));
+  border-color: rgba(192,91,77,0.18);
   color: var(--evil);
+}
+
+.player-link {
+  cursor: pointer;
+  transition: opacity var(--transition), text-decoration var(--transition);
+  opacity: 0.9;
+  text-decoration: underline;
+  text-decoration-color: rgba(215,181,109,0.3);
+  text-underline-offset: 2px;
+}
+
+.player-link:hover {
+  opacity: 1;
+  text-decoration-color: rgba(215,181,109,0.6);
 }
 
 .actions {
@@ -55,9 +73,17 @@ table {
 }
 
 th, td {
-  border-bottom: 1px solid var(--border);
-  padding: .55rem;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  padding: .65rem;
   text-align: left;
+}
+
+tbody tr:nth-child(odd) {
+  background: rgba(255,255,255,0.01);
+}
+
+tbody tr:hover {
+  background: rgba(255,255,255,0.02);
 }
 
 .toast {

@@ -1,5 +1,6 @@
 import { LOCAL_SANDBOX } from "../core/config.js";
 import { state } from "../core/state.js";
+import { normalizePlayerRatings } from "../elo/elo.js";
 
 const PLAYERS_KEY = "lotr_sandbox_players";
 const HISTORY_KEY = "lotr_sandbox_history";
@@ -17,7 +18,7 @@ export function loadSandboxSnapshot() {
   const history = localStorage.getItem(HISTORY_KEY);
   if (!players || !history) return false;
 
-  state.players = JSON.parse(players);
+  state.players = normalizePlayerRatings(JSON.parse(players));
   state.history = JSON.parse(history);
   return true;
 }

@@ -1,7 +1,7 @@
 .player-picker {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: .5rem;
+  gap: .6rem;
 }
 
 .sort-buttons,
@@ -50,15 +50,16 @@
 .civ-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
-  gap: .45rem;
-  min-width: 520px;
+  gap: .6rem;
+  min-width: 480px;
 }
 
 .civ-card {
-  border: 1px solid var(--border);
-  background: rgba(255,255,255,.025);
-  border-radius: 6px;
-  padding: .45rem;
+  border: 1px solid rgba(255,255,255,0.03);
+  background: linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));
+  border-radius: 8px;
+  padding: .5rem;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.35);
 }
 
 .civ-card.good {
@@ -97,17 +98,18 @@
 }
 
 .elo-bar {
-  height: 5px;
+  height: 6px;
   background: var(--bg3);
   border-radius: 999px;
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255,255,255,0.03);
 }
 
 .elo-fill {
   height: 100%;
   background: var(--gold);
   border-radius: inherit;
+  transition: width var(--transition) ease;
 }
 
 .civ-card.good .elo-fill {
@@ -143,7 +145,172 @@
   max-width: 100%;
   height: 360px;
   display: block;
-  background: rgba(255,255,255,.025);
+  background: rgba(255,255,255,.02);
+  border: 1px solid rgba(255,255,255,0.03);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+}
+
+#profileEloProgressCanvas {
+  width: 100%;
+  max-width: 100%;
+  height: 360px;
+  display: block;
+  background: rgba(255,255,255,.02);
+  border: 1px solid rgba(255,255,255,0.03);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+}
+
+.profile-history-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+  margin-bottom: 1rem;
+}
+
+.profile-history-heading h2 {
+  margin-bottom: .25rem;
+}
+
+.profile-match {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.profile-match:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.profile-match-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.profile-match-result {
+  display: inline-block;
+  margin-bottom: .35rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 999px;
+  padding: .2rem .55rem;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.profile-match-result.win,
+.profile-match-elo.positive {
+  color: var(--good);
+}
+
+.profile-match-result.loss,
+.profile-match-elo.negative {
+  color: var(--evil);
+}
+
+.profile-match-elo {
+  display: grid;
+  text-align: right;
+}
+
+.profile-match-elo span {
+  font-family: "Cinzel", serif;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.profile-match-elo small {
+  margin-top: .25rem;
+  color: var(--muted);
+}
+
+.profile-match-teams {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.profile-match-team {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .75rem;
+}
+
+.profile-match-team.evil {
+  border-color: rgba(192, 91, 77, .35);
+}
+
+.profile-match-team.good {
+  border-color: rgba(126, 163, 109, .35);
+}
+
+.profile-match-team h3 {
+  margin: 0 0 .5rem;
+}
+
+.profile-assignment {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) minmax(0, 1fr);
+  gap: .65rem;
+  align-items: center;
+  padding: .4rem;
+  border-top: 1px solid var(--border);
+}
+
+.profile-assignment.selected {
+  background: rgba(215,181,109,.08);
+  color: var(--gold);
+}
+
+.position-badge {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  color: var(--gold);
+}
+
+.balance-assignment {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .65rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.balance-elo-details {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: .65rem;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.balance-elo-details strong {
+  color: var(--gold);
+}
+
+.balance-score {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 760px) {
+  .profile-match-teams {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-assignment {
+    grid-template-columns: 2.5rem minmax(0, 1fr);
+  }
+
+  .profile-assignment .muted {
+    grid-column: 2;
+  }
 }
