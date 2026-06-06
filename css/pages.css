@@ -1,73 +1,172 @@
 .player-picker {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: .6rem;
+  gap: 1.25rem;
+  margin-top: .9rem;
+}
+
+.selection-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding-bottom: .85rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.selection-card-head .card-title {
+  margin-bottom: .2rem;
+}
+
+.selection-actions {
+  margin: 0;
+}
+
+.player-experience-group {
+  display: grid;
+  gap: .65rem;
+}
+
+.player-experience-group + .player-experience-group {
+  border-top: 1px solid var(--border);
+  padding-top: 1.15rem;
+}
+
+.experience-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  color: var(--muted);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+}
+
+.experience-heading strong {
+  color: var(--gold);
+  font-family: "Cinzel", serif;
+  font-size: 11px;
+}
+
+.experience-player-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+  gap: .55rem;
+}
+
+.player-picker-button {
+  min-height: 46px;
+  text-align: left;
+}
+
+.player-picker-button.primary {
+  position: relative;
+  padding-left: 1.65rem;
+}
+
+.player-picker-button.primary::before {
+  position: absolute;
+  top: 50%;
+  left: .72rem;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gold);
+  content: "";
+  transform: translateY(-50%);
+  box-shadow: 0 0 9px var(--gold);
 }
 
 .sort-buttons,
-.range-buttons {
+.range-buttons,
+.progress-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: .4rem;
-  margin-bottom: .75rem;
+  align-items: center;
+  gap: .55rem;
+  margin-bottom: 1rem;
 }
 
-@media (max-width: 760px) {
-  .topbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .page-header {
-    flex-direction: column;
-  }
-
-  .teams {
-    grid-template-columns: 1fr;
-  }
+.progress-controls select {
+  min-width: min(230px, 100%);
 }
+
 .player-row td {
   vertical-align: top;
 }
 
-.player-name {
-  font-weight: 700;
-  color: var(--text);
+.player-row {
+  cursor: pointer;
 }
 
-.player-sub,
-.small {
-  font-size: 12px;
+.player-name {
+  color: var(--text);
+  font-family: "Cinzel", serif;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.player-sub {
+  margin-top: .2rem;
+  color: var(--muted);
+  font-size: 10px;
 }
 
 .elo-main {
+  color: var(--gold-bright);
   font-family: "Cinzel", serif;
-  font-size: 24px;
-  color: var(--gold);
+  font-size: 1.55rem;
   line-height: 1;
+  text-shadow: 0 0 20px rgba(221,185,104,.15);
 }
 
 .civ-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
-  gap: .6rem;
-  min-width: 480px;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: .55rem;
+  min-width: 500px;
 }
 
 .civ-card {
-  border: 1px solid rgba(255,255,255,0.03);
-  background: linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));
-  border-radius: 8px;
-  padding: .5rem;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(5,7,5,.32);
+  padding: .62rem;
+  box-shadow: inset 0 1px rgba(255,255,255,.02);
+  transition: border-color var(--transition), background var(--transition), transform var(--transition);
+}
+
+.civ-card:hover {
+  background: rgba(255,255,255,.025);
+  transform: translateY(-1px);
 }
 
 .civ-card.good {
-  border-color: rgba(126, 163, 109, .45);
+  border-color: rgba(142,183,125,.28);
 }
 
 .civ-card.evil {
-  border-color: rgba(192, 91, 77, .45);
+  border-color: rgba(208,107,92,.28);
+}
+
+.civ-card.good::before,
+.civ-card.evil::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  content: "";
+}
+
+.civ-card.good::before {
+  background: var(--good);
+}
+
+.civ-card.evil::before {
+  background: var(--evil);
 }
 
 .civ-top {
@@ -77,39 +176,41 @@
   align-items: center;
 }
 
-.civ-id {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 11px;
-  color: var(--muted);
+.civ-id,
+.position-badge {
+  color: var(--gold);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
 }
 
 .civ-elo {
-  font-weight: 700;
   color: var(--text);
+  font-family: "Cinzel", serif;
+  font-weight: 700;
 }
 
 .civ-name {
-  font-size: 12px;
-  color: var(--dim);
-  white-space: nowrap;
+  margin: .18rem 0 .42rem;
   overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
   text-overflow: ellipsis;
-  margin: .2rem 0 .35rem;
+  white-space: nowrap;
 }
 
 .elo-bar {
-  height: 6px;
-  background: var(--bg3);
-  border-radius: 999px;
+  height: 4px;
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.03);
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
 }
 
 .elo-fill {
   height: 100%;
-  background: var(--gold);
   border-radius: inherit;
-  transition: width var(--transition) ease;
+  background: var(--gold);
+  transition: width 300ms ease;
 }
 
 .civ-card.good .elo-fill {
@@ -123,67 +224,99 @@
 .civ-meta {
   display: flex;
   justify-content: space-between;
-  gap: .5rem;
-  margin-top: .3rem;
-  font-size: 11px;
+  gap: .4rem;
+  margin-top: .38rem;
   color: var(--muted);
+  font-size: 8px;
 }
 
-.progress-controls {
-  display: flex;
-  gap: .75rem;
-  flex-wrap: wrap;
-  margin-bottom: 1rem;
-}
-
-.progress-controls select {
-  min-width: 220px;
-}
-
-#eloProgressCanvas {
-  width: 100%;
-  max-width: 100%;
-  height: 360px;
-  display: block;
-  background: rgba(255,255,255,.02);
-  border: 1px solid rgba(255,255,255,0.03);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
-}
-
+#eloProgressCanvas,
 #profileEloProgressCanvas {
+  display: block;
   width: 100%;
   max-width: 100%;
   height: 360px;
-  display: block;
-  background: rgba(255,255,255,.02);
-  border: 1px solid rgba(255,255,255,0.03);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.014) 1px, transparent 1px),
+    rgba(3,5,3,.3);
+  background-size: 48px 48px;
+  box-shadow: inset 0 0 40px rgba(0,0,0,.18);
+}
+
+.player-profile {
+  display: grid;
+  grid-template-columns: minmax(240px, .7fr) minmax(0, 1.5fr);
+  gap: clamp(1.2rem, 4vw, 2.5rem);
+  align-items: start;
+}
+
+.player-info h2 {
+  margin-bottom: .25rem;
+  color: var(--gold-bright);
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+}
+
+.profile-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .55rem;
+  margin-top: 1.25rem;
+}
+
+.stat-item {
+  display: grid;
+  gap: .18rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(0,0,0,.12);
+  padding: .65rem;
+}
+
+.stat-label {
+  color: var(--muted);
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+}
+
+.stat-value {
+  color: var(--text);
+  font-family: "Cinzel", serif;
+  font-size: 1rem;
 }
 
 .profile-history-heading {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  align-items: start;
-  margin-bottom: 1rem;
+  align-items: flex-start;
+  margin-bottom: .5rem;
 }
 
 .profile-history-heading h2 {
-  margin-bottom: .25rem;
+  margin-bottom: .2rem;
 }
 
 .profile-match {
+  position: relative;
   display: grid;
   gap: 1rem;
-  padding: 1rem 0;
-  border-top: 1px solid var(--border);
+  margin-top: .75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(0,0,0,.12);
+  padding: 1rem;
 }
 
-.profile-match:first-child {
-  border-top: 0;
-  padding-top: 0;
+.profile-match.win {
+  border-left: 3px solid var(--good);
+}
+
+.profile-match.loss {
+  border-left: 3px solid var(--evil);
 }
 
 .profile-match-summary {
@@ -194,123 +327,333 @@
 }
 
 .profile-match-result {
-  display: inline-block;
+  display: inline-flex;
   margin-bottom: .35rem;
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: .2rem .55rem;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: .08em;
+  letter-spacing: .1em;
 }
 
-.profile-match-result.win,
-.profile-match-elo.positive {
+.profile-match-result.win {
+  border-color: rgba(142,183,125,.34);
+  background: var(--good-soft);
   color: var(--good);
 }
 
-.profile-match-result.loss,
-.profile-match-elo.negative {
+.profile-match-result.loss {
+  border-color: rgba(208,107,92,.34);
+  background: var(--evil-soft);
   color: var(--evil);
 }
 
 .profile-match-elo {
   display: grid;
+  min-width: 80px;
   text-align: right;
 }
 
 .profile-match-elo span {
   font-family: "Cinzel", serif;
-  font-size: 24px;
+  font-size: 1.6rem;
   line-height: 1;
 }
 
+.profile-match-elo.positive {
+  color: var(--good);
+}
+
+.profile-match-elo.negative {
+  color: var(--evil);
+}
+
 .profile-match-elo small {
-  margin-top: .25rem;
+  margin-top: .22rem;
   color: var(--muted);
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
 }
 
 .profile-match-teams {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+  gap: .75rem;
 }
 
 .profile-match-team {
+  min-width: 0;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,.012);
   padding: .75rem;
 }
 
 .profile-match-team.evil {
-  border-color: rgba(192, 91, 77, .35);
+  border-color: rgba(208,107,92,.2);
 }
 
 .profile-match-team.good {
-  border-color: rgba(126, 163, 109, .35);
+  border-color: rgba(142,183,125,.2);
 }
 
 .profile-match-team h3 {
-  margin: 0 0 .5rem;
+  margin: 0 0 .4rem;
+  font-size: .85rem;
+}
+
+.profile-match-team.evil h3 {
+  color: var(--evil);
+}
+
+.profile-match-team.good h3 {
+  color: var(--good);
 }
 
 .profile-assignment {
   display: grid;
-  grid-template-columns: 2.5rem minmax(0, 1fr) minmax(0, 1fr);
-  gap: .65rem;
+  grid-template-columns: 2rem minmax(0, 1fr) minmax(0, .85fr);
+  gap: .55rem;
   align-items: center;
-  padding: .4rem;
   border-top: 1px solid var(--border);
+  padding: .46rem .35rem;
+  font-size: 10px;
 }
 
 .profile-assignment.selected {
-  background: rgba(215,181,109,.08);
-  color: var(--gold);
-}
-
-.position-badge {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 11px;
-  color: var(--gold);
+  border-radius: 5px;
+  background: var(--gold-soft);
+  color: var(--gold-bright);
 }
 
 .balance-assignment {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  padding: .65rem 0;
+  align-items: center;
   border-top: 1px solid var(--border);
+  padding: .8rem 0;
 }
 
 .balance-elo-details {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: .65rem;
+  gap: .5rem;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 9px;
+}
+
+.balance-elo-details span,
+.balance-elo-details strong {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(0,0,0,.12);
+  padding: .2rem .45rem;
 }
 
 .balance-elo-details strong {
-  color: var(--gold);
+  border-color: rgba(221,185,104,.2);
+  color: var(--gold-bright);
 }
 
 .balance-score {
   grid-column: 1 / -1;
 }
 
+#topSplits:empty,
+#communityWinRates:empty,
+#playerStreaks:empty,
+#communityRecords:empty,
+#funStats:empty {
+  display: none;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.stats-grid .card {
+  margin: 0;
+}
+
+.stats-wide {
+  grid-column: 1 / -1;
+}
+
+#adminLogin {
+  max-width: 480px;
+  margin-inline: auto;
+}
+
+#adminLogin input {
+  width: 100%;
+  margin: .35rem 0 .75rem;
+}
+
+#adminTools label {
+  display: inline-flex;
+  gap: .45rem;
+  align-items: center;
+  margin: .6rem;
+  color: var(--dim);
+}
+
+#adminTools input[type="checkbox"] {
+  min-height: auto;
+  accent-color: var(--gold);
+}
+
+#historyList {
+  display: grid;
+  gap: 1rem;
+}
+
+#leaderboardList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: .75rem;
+}
+
+#leaderboardList .card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  margin: 0;
+  padding: .9rem 1rem;
+}
+
+.leaderboard-rank {
+  min-width: 2.2rem;
+  color: var(--gold);
+  font-family: "Cinzel", serif;
+  font-size: .9rem;
+}
+
+.leaderboard-name {
+  overflow: hidden;
+  font-family: "Cinzel", serif;
+  font-size: .9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboard-elo {
+  color: var(--gold-bright);
+  font-family: "Cinzel", serif;
+  font-size: 1.05rem;
+}
+
+.leaderboard-elo small {
+  color: var(--muted);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 7px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.redirect-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 1rem;
+}
+
+.redirect-card {
+  width: min(520px, 100%);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: rgba(18,22,18,.9);
+  padding: clamp(1.5rem, 5vw, 3rem);
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+
+#adminTools > .card {
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 900px) {
+  .player-profile {
+    grid-template-columns: 1fr;
+  }
+
+  .civ-grid {
+    min-width: 420px;
+  }
+}
+
 @media (max-width: 760px) {
+  .teams,
   .profile-match-teams {
     grid-template-columns: 1fr;
   }
 
+  .card {
+    border-radius: 10px;
+  }
+
+  #eloProgressCanvas,
+  #profileEloProgressCanvas {
+    height: 300px;
+  }
+
   .profile-assignment {
-    grid-template-columns: 2.5rem minmax(0, 1fr);
+    grid-template-columns: 2rem minmax(0, 1fr);
   }
 
   .profile-assignment .muted {
     grid-column: 2;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-wide {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .selection-card-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .selection-actions .btn {
+    flex: 1;
+  }
+
+  .experience-player-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .profile-match-summary,
+  .balance-assignment {
+    align-items: flex-start;
+  }
+
+  .balance-assignment {
+    flex-direction: column;
+  }
+
+  .balance-elo-details {
+    justify-content: flex-start;
+  }
+
+  #leaderboardList {
+    grid-template-columns: 1fr;
   }
 }

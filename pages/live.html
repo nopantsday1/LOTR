@@ -40,15 +40,15 @@
   <div class="page-header">
     <div>
       <h1>Live</h1>
-      <p>Auto-detects community lobbies · switches to in-progress when game starts</p>
+      <p>Monitor community lobbies and follow active matches in real time.</p>
     </div>
-    <button id="livePollNowBtn" class="btn">↻ Check Now</button>
+    <button id="livePollNowBtn" class="btn">Check Now</button>
   </div>
 
   <p id="liveStatus" class="muted">Last checked: never</p>
 
   <section id="liveIdle" class="card centered">
-    <div class="big-icon">⚔</div>
+    <div class="big-icon">LOTR</div>
     <p>Watching for community lobbies every 30s</p>
     <p class="muted">When 2+ community members join a LOTR/Hobbit lobby, this tab activates automatically.</p>
   </section>
@@ -58,7 +58,7 @@
       <div class="eyebrow">LOBBY DETECTED</div>
       <h2 id="lobbyName"></h2>
       <p id="lobbyInfo"></p>
-      <button id="lobbyBalanceBtn" class="btn primary">⚖ Balance These Players</button>
+      <button id="lobbyBalanceBtn" class="btn primary">Balance These Players</button>
     </div>
     <div id="lobbyTeams" class="teams"></div>
     <div id="lobbyOdds"></div>
@@ -66,10 +66,10 @@
 
   <section id="liveInProgress" hidden>
     <div class="card centered">
-      <div class="eyebrow danger-text">⚔ MATCH IN PROGRESS</div>
+      <div class="eyebrow danger-text">Match in progress</div>
       <div id="liveTimer" class="timer">00:00</div>
       <p id="progressStatus"></p>
-      <button id="forceEndGameBtn" class="btn">✕ End Game / Reset</button>
+      <button id="forceEndGameBtn" class="btn">End Game / Reset</button>
     </div>
     <div id="inProgressTeams" class="teams"></div>
   </section>

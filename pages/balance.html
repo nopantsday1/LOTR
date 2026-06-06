@@ -40,23 +40,26 @@
   <div class="page-header">
     <div>
       <h1>Team Balancer</h1>
-      <p>Select 8 players — teams are balanced using main Elo, civ modifiers, experience, and preferences.</p>
+      <p>Select eight players. Teams are evaluated using Main Elo, position modifiers, experience, and preferences.</p>
     </div>
   </div>
 
-  <section class="card">
-    <div class="card-title">Select Players</div>
-    <div id="selectedCount" class="muted">0 / 8 selected</div>
-    <div id="playerPicker" class="player-picker"></div>
-  </section>
-
-  <section class="actions">
-    <button id="balanceBtn" class="btn primary">⚖ Balance Teams</button>
-    <button id="randomSplitBtn" class="btn">↻ Random Split</button>
-  </section>
-
   <section id="balanceResult" class="teams"></section>
   <section id="topSplits" class="card"></section>
+
+  <section class="card player-selection-card">
+    <div class="selection-card-head">
+      <div>
+        <div class="card-title">Select Players</div>
+        <div id="selectedCount" class="muted">0 / 8 selected</div>
+      </div>
+      <div class="actions selection-actions">
+        <button id="balanceBtn" class="btn primary">Balance Teams</button>
+        <button id="randomSplitBtn" class="btn">Random Split</button>
+      </div>
+    </div>
+    <div id="playerPicker" class="player-picker"></div>
+  </section>
 </section>
 
 

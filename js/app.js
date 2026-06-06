@@ -3,6 +3,7 @@ import { subscribeCoreData } from "./data/firestore.js";
 import { loadSandboxSnapshot, saveSandboxSnapshot } from "./data/localSandbox.js";
 import { LOCAL_SANDBOX } from "./core/config.js";
 import { initNavigation } from "./ui/nav.js";
+import { initRatingModeToggle } from "./ui/ratingModeToggle.js";
 import { toast } from "./ui/toast.js";
 
 import { loadLocalData } from "./data/localData.js";
@@ -22,6 +23,7 @@ function emitDataChanged() {
 
 function initCurrentPage() {
   initNavigation();
+  initRatingModeToggle();
 
   const page = document.querySelector("main .page[data-page]")?.dataset.page;
 

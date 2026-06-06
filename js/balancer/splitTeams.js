@@ -1,10 +1,41 @@
 import { EVIL_CIVS, GOOD_CIVS } from "../core/constants.js";
 import { assignmentOptions } from "./assignments.js";
 
-export function splitTeams(selectedPlayers) {
+export const BALANCED_SCORE_RANGE = 60;
+export const RANDOM_SCORE_RANGE = 200;
+
+export function splitTeams(selectedPlayers, options = {}) {
   if (selectedPlayers.length !== 8) return null;
 
-  let best = null;
+  const candidates = buildCandidates(selectedPlayers);
+  if (!candidates.length) return null;
+
+  candidates.sort((a, b) => a.score - b.score);
+
+  const bestScore = candidates[0].score;
+  const scoreRange = options.random
+    ? RANDOM_SCORE_RANGE
+    : BALANCED_SCORE_RANGE;
+  const eligible = candidates.filter(candidate => candidate.score <= bestScore + scoreRange);
+  const alternatives = options.random && options.previousTeamSignature
+    ? eligible.filter(candidate => candidate.teamSignature !== options.previousTeamSignature)
+    : options.previousSignature
+      ? eligible.filter(candidate => candidate.signature !== options.previousSignature)
+      : eligible;
+  const pool = alternatives.length ? alternatives : eligible;
+  const chosen = pool[Math.floor(Math.random() * pool.length)];
+
+  return {
+    ...chosen,
+    bestScore,
+    scoreRange,
+    eligibleCount: eligible.length,
+    selectionMode: options.random ? "random" : "balanced"
+  };
+}
+
+function buildCandidates(selectedPlayers) {
+  const candidates = [];
 
   for (const evilPlayers of combinations(selectedPlayers, 4)) {
     const evilIds = new Set(evilPlayers.map(player => player.id));
@@ -18,20 +49,34 @@ export function splitTeams(selectedPlayers) {
         const assignmentPenalty = evil.penalty + good.penalty;
         const score = diff + assignmentPenalty;
 
-        if (!best || score < best.score) {
-          best = {
-            evil,
-            good,
-            diff,
-            assignmentPenalty,
-            score
-          };
-        }
+        candidates.push({
+          evil,
+          good,
+          diff,
+          assignmentPenalty,
+          score,
+          signature: assignmentSignature(evil, good),
+          teamSignature: teamSignature(evil, good)
+        });
       }
     }
   }
 
-  return best;
+  return candidates;
+}
+
+function teamSignature(evil, good) {
+  return [
+    `evil:${evil.assignment.map(item => item.player.id).sort().join(",")}`,
+    `good:${good.assignment.map(item => item.player.id).sort().join(",")}`
+  ].join("|");
+}
+
+function assignmentSignature(evil, good) {
+  return [
+    ...evil.assignment.map(item => `evil:${item.civ.id}:${item.player.id}`),
+    ...good.assignment.map(item => `good:${item.civ.id}:${item.player.id}`)
+  ].sort().join("|");
 }
 
 function* combinations(items, size, start = 0, chosen = []) {

@@ -9,8 +9,9 @@ export function initLeaderboardPage() {
     const players = state.players.slice().sort((a, b) => overallElo(b) - overallElo(a));
     list.innerHTML = players.map((p, i) => `
       <article class="card">
-        <strong>#${i + 1} <a href="/pages/profile.html?playerId=${encodeURIComponent(p.id)}" class="player-link">${escapeHtml(p.name || "Unknown")}</a></strong>
-        <span class="muted">${overallElo(p)} Elo</span>
+        <span class="leaderboard-rank">#${i + 1}</span>
+        <a href="/pages/profile.html?playerId=${encodeURIComponent(p.id)}" class="player-link leaderboard-name">${escapeHtml(p.name || "Unknown")}</a>
+        <span class="leaderboard-elo">${overallElo(p)} <small>Elo</small></span>
       </article>
     `).join("");
   }

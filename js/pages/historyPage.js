@@ -49,7 +49,7 @@ function renderMatchCard(match) {
       <div class="match-head">
         <div>
           <strong>${escapeHtml(match.mapName || match.map || match.name || "LOTR Match")}</strong>
-          <div class="muted">${escapeHtml(date)}</div>
+          <div class="muted small">${escapeHtml(date)}</div>
         </div>
         <div class="winner-badge ${winner}">
           ${escapeHtml(String(winner).toUpperCase())}
@@ -80,11 +80,11 @@ function renderAssignment(a) {
   const playerName = a.name || a.playerName || "Unknown";
   const player = state.players.find(p => p.name === playerName);
   const profileLink = player ? `/pages/profile.html?playerId=${encodeURIComponent(player.id)}` : null;
-  
-  const nameHtml = profileLink 
+
+  const nameHtml = profileLink
     ? `<a href="${profileLink}" class="player-link">${escapeHtml(playerName)}</a>`
     : escapeHtml(playerName);
-  
+
   return `
     <div class="assignment-row">
       <span>${nameHtml}</span>

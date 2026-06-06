@@ -1,5 +1,5 @@
 import { state } from "../core/state.js";
-import { normalizePlayerRatings } from "../elo/elo.js";
+import { initializeRatingModes } from "../elo/ratingModes.js";
 
 export async function loadLocalData() {
   const res = await fetch("/js/data/lotr-local-data.json", {
@@ -12,9 +12,9 @@ export async function loadLocalData() {
 
   const data = await res.json();
 
-  state.players = normalizePlayerRatings(data.players || []);
   state.history = data.history || data.fullHistory?.slice(0, 100) || [];
   state.fullHistory = data.fullHistory || data.history || [];
+  initializeRatingModes(data.players || [], state.fullHistory);
 
   console.log("[LOCAL DATA] loaded", {
     players: state.players.length,

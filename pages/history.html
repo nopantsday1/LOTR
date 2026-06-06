@@ -40,14 +40,15 @@
   <div class="page-header">
     <div>
       <h1>Match History</h1>
-      <p>Auto-populated from matches.json · add manually if needed</p>
+      <p>Browse recorded results, team assignments, positions, and match details.</p>
     </div>
-    <button id="historyCheckNowBtn" class="btn">↻ Check Now</button>
+    <button id="historyCheckNowBtn" class="btn">Check Now</button>
   </div>
 
-  <section class="card">
-    <input id="historySearch" type="search" placeholder="Search">
-    <button id="historyClearSearch" class="btn">✕</button>
+  <section class="card toolbar search-toolbar">
+    <label class="field-label" for="historySearch">Find a match</label>
+    <input id="historySearch" type="search" placeholder="Player, result, map, or match ID">
+    <button id="historyClearSearch" class="btn">Clear</button>
   </section>
 
   <section id="historyList"></section>

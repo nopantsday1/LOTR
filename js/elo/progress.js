@@ -45,9 +45,10 @@ export function buildPlayerEloProgress(players, history, playerId, civId = "over
 }
 
 function resetPlayer(player) {
+  const startingElo = Number(player.ratingSeed?.mainElo);
   const reset = {
     ...structuredClone(player),
-    mainElo: DEFAULT_ELO,
+    mainElo: Number.isFinite(startingElo) ? startingElo : DEFAULT_ELO,
     gamesPlayed: 0,
     wins: 0,
     losses: 0,

@@ -1,52 +1,188 @@
 :root {
-  --bg: #0f1110;
-  --bg2: #171a17;
-  --bg3: #20241f;
-  --text: #ece6d2;
-  --dim: #b9ad92;
-  --muted: #817968;
-  --gold: #d7b56d;
-  --evil: #c05b4d;
-  --good: #7ea36d;
-  --border: #34372f;
-  --border2: #5d5136;
-  --radius: 8px;
-  --transition: 180ms ease;
+  --bg: #090b09;
+  --bg-deep: #050605;
+  --surface: #121612;
+  --surface-raised: #181d18;
+  --surface-soft: #202620;
+  --text: #f0ead8;
+  --dim: #c2b99f;
+  --muted: #8f8977;
+  --gold: #ddb968;
+  --gold-bright: #f0cf80;
+  --gold-soft: rgba(221,185,104,.12);
+  --evil: #d06b5c;
+  --evil-soft: rgba(208,107,92,.1);
+  --good: #8eb77d;
+  --good-soft: rgba(142,183,125,.1);
+  --border: rgba(240,234,216,.09);
+  --border-strong: rgba(221,185,104,.28);
+  --shadow: 0 18px 55px rgba(0,0,0,.28);
+  --shadow-soft: 0 8px 24px rgba(0,0,0,.22);
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --transition: 170ms ease;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--bg-deep);
+  color-scheme: dark;
+  scrollbar-color: var(--border-strong) var(--bg-deep);
+}
 
 body {
+  min-height: 100vh;
   margin: 0;
-  background: linear-gradient(180deg, var(--bg) 0%, #070806 100%);
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 14% -10%, rgba(221,185,104,.09), transparent 35rem),
+    radial-gradient(circle at 90% 18%, rgba(80,110,74,.08), transparent 30rem),
+    linear-gradient(180deg, #101410 0%, var(--bg) 38%, var(--bg-deep) 100%);
   color: var(--text);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  line-height: 1.45;
-  font-size: 15px;
+  text-rendering: optimizeLegibility;
 }
 
-/* Small utilities */
-.muted { opacity: 0.9; }
-
-h1, h2, h3, .brand, .card-title {
-  font-family: "Cinzel", serif;
+body::before {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+  opacity: .32;
+  background-image:
+    linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.014) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(to bottom, black, transparent 75%);
 }
 
-a { color: inherit; text-decoration: none; }
+::selection {
+  background: rgba(221,185,104,.28);
+  color: var(--text);
+}
 
-button, input, select {
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-deep);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3b3b31;
+  border: 3px solid var(--bg-deep);
+  border-radius: 999px;
+}
+
+h1,
+h2,
+h3,
+.brand,
+.card-title {
+  margin-top: 0;
+  font-family: "Cinzel", Georgia, serif;
+  line-height: 1.18;
+}
+
+h1 {
+  margin-bottom: .4rem;
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  font-weight: 600;
+  letter-spacing: -.025em;
+}
+
+h2 {
+  margin-bottom: .8rem;
+  font-size: clamp(1.2rem, 2vw, 1.55rem);
+  font-weight: 600;
+}
+
+h3 {
+  margin-bottom: .6rem;
+  font-size: 1rem;
+  color: var(--dim);
+  letter-spacing: .02em;
+}
+
+p {
+  margin-top: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select {
   font: inherit;
 }
 
-input, select {
-  background: var(--bg3);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: .55rem .7rem;
+button,
+a,
+input,
+select {
+  outline: none;
 }
 
-.muted { color: var(--muted); }
-.error, .danger-text { color: var(--evil); }
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  box-shadow: 0 0 0 3px rgba(221,185,104,.2);
+}
+
+input,
+select {
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(7,9,7,.72);
+  color: var(--text);
+  padding: .65rem .8rem;
+  transition: border-color var(--transition), background var(--transition), box-shadow var(--transition);
+}
+
+input:hover,
+select:hover {
+  border-color: rgba(221,185,104,.24);
+}
+
+input:focus,
+select:focus {
+  border-color: rgba(221,185,104,.48);
+  background: rgba(18,22,18,.94);
+}
+
+input::placeholder {
+  color: #777363;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 11px;
+}
+
+.error,
+.danger-text {
+  color: var(--evil);
+}
+
+[hidden] {
+  display: none !important;
+}

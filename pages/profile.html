@@ -39,16 +39,22 @@
 <section class="page" data-page="profile">
   <div class="page-header">
     <div>
-      <h1>Mon Profil</h1>
-      <p>Your linked player profile.</p>
+      <h1>Player Profile</h1>
+      <p>Rating breakdown, position performance, and complete match history.</p>
     </div>
   </div>
 
   <section id="profileContent" class="card">
     <div class="profile-header" id="profileHeader"></div>
 
-    <h2>Elo Progress</h2>
+    <div class="section-heading">
+      <div>
+        <div class="eyebrow">Rating Timeline</div>
+        <h2>Elo Progress</h2>
+      </div>
+    </div>
     <div class="progress-controls">
+      <label class="sr-only" for="profileCivSelect">Rating type</label>
       <select id="profileCivSelect">
         <option value="overall">Main Elo</option>
         <option value="p1">P1</option>

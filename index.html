@@ -1,7 +1,6 @@
 <!doctype html>
 <html lang="en">
 <head>
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Hobbit Balancer</title>
@@ -9,40 +8,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/base.css">
-<link rel="stylesheet" href="/css/layout.css">
 <link rel="stylesheet" href="/css/components.css">
 <link rel="stylesheet" href="/css/pages.css">
-<script type="module" src="/js/app.js"></script>
-
 <meta http-equiv="refresh" content="0; url=/pages/balance.html">
 </head>
-<body>
-  <p>Redirecting to <a href="/pages/balance.html">Balance</a>…</p>
-
-  <script>
-    window.exportLotrData = function exportLotrData() {
-      const exportData = {
-        exportedAt: new Date().toISOString(),
-        players,
-        history,
-        fullHistoryCache: typeof fullHistoryCache !== "undefined"
-          ? fullHistoryCache
-          : []
-      };
-
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-        type: "application/json"
-      });
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-
-      a.href = url;
-      a.download = "lotr-local-data.json";
-      a.click();
-
-      URL.revokeObjectURL(url);
-    };  
-  </script>
+<body class="redirect-page">
+  <main class="redirect-card">
+    <div class="eyebrow">Hobbit Balancer</div>
+    <h1>Entering the war room</h1>
+    <p class="muted">Redirecting to team balance...</p>
+    <a class="btn primary" href="/pages/balance.html">Continue</a>
+  </main>
 </body>
 </html>

@@ -9,6 +9,7 @@ import {
   overallElo
 } from "../elo/elo.js";
 import { buildPlayerEloProgress } from "../elo/progress.js";
+import { RATING_MODES } from "../elo/ratingModes.js";
 import { fmtDuration } from "../utils/format.js";
 
 export function initProfilePage() {
@@ -184,7 +185,8 @@ export function initProfilePage() {
       .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
 
     if (historyMeta) {
-      historyMeta.textContent = `${matches.length} recorded ${matches.length === 1 ? "game" : "games"} · Main Elo changes are estimated from match history`;
+      const modeLabel = RATING_MODES[state.ratingMode]?.label || "Original";
+      historyMeta.textContent = `${matches.length} recorded ${matches.length === 1 ? "game" : "games"} · ${modeLabel} Main Elo changes`;
     }
 
     historyList.innerHTML = matches.length
