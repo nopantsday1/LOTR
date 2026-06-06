@@ -117,7 +117,7 @@
   font-family: "Cinzel", serif;
   font-size: 1.55rem;
   line-height: 1;
-  text-shadow: 0 0 20px rgba(221,185,104,.15);
+  text-shadow: 0 0 20px var(--accent-soft);
 }
 
 .civ-grid {
@@ -132,23 +132,23 @@
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: rgba(5,7,5,.32);
+  background: var(--subtle-bg);
   padding: .62rem;
-  box-shadow: inset 0 1px rgba(255,255,255,.02);
+  box-shadow: inset 0 1px var(--card-glint);
   transition: border-color var(--transition), background var(--transition), transform var(--transition);
 }
 
 .civ-card:hover {
-  background: rgba(255,255,255,.025);
+  background: var(--control-hover-bg);
   transform: translateY(-1px);
 }
 
 .civ-card.good {
-  border-color: rgba(142,183,125,.28);
+  border-color: var(--good-border);
 }
 
 .civ-card.evil {
-  border-color: rgba(208,107,92,.28);
+  border-color: var(--evil-border);
 }
 
 .civ-card.good::before,
@@ -203,7 +203,7 @@
   height: 4px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(255,255,255,.06);
+  background: var(--track-bg);
 }
 
 .elo-fill {
@@ -239,11 +239,11 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background:
-    linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.014) 1px, transparent 1px),
-    rgba(3,5,3,.3);
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+    var(--canvas-bg);
   background-size: 48px 48px;
-  box-shadow: inset 0 0 40px rgba(0,0,0,.18);
+  box-shadow: inset 0 0 40px var(--subtle-bg);
 }
 
 .player-profile {
@@ -271,7 +271,7 @@
   gap: .18rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: rgba(0,0,0,.12);
+  background: var(--subtle-bg);
   padding: .65rem;
 }
 
@@ -307,7 +307,7 @@
   margin-top: .75rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: rgba(0,0,0,.12);
+  background: var(--subtle-bg);
   padding: 1rem;
 }
 
@@ -340,13 +340,13 @@
 }
 
 .profile-match-result.win {
-  border-color: rgba(142,183,125,.34);
+  border-color: var(--good-border);
   background: var(--good-soft);
   color: var(--good);
 }
 
 .profile-match-result.loss {
-  border-color: rgba(208,107,92,.34);
+  border-color: var(--evil-border);
   background: var(--evil-soft);
   color: var(--evil);
 }
@@ -389,16 +389,16 @@
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: rgba(255,255,255,.012);
+  background: var(--row-alt);
   padding: .75rem;
 }
 
 .profile-match-team.evil {
-  border-color: rgba(208,107,92,.2);
+  border-color: var(--evil-border);
 }
 
 .profile-match-team.good {
-  border-color: rgba(142,183,125,.2);
+  border-color: var(--good-border);
 }
 
 .profile-match-team h3 {
@@ -452,12 +452,12 @@
 .balance-elo-details strong {
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: rgba(0,0,0,.12);
+  background: var(--subtle-bg);
   padding: .2rem .45rem;
 }
 
 .balance-elo-details strong {
-  border-color: rgba(221,185,104,.2);
+  border-color: var(--border-strong);
   color: var(--gold-bright);
 }
 
@@ -570,7 +570,7 @@
   width: min(520px, 100%);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
-  background: rgba(18,22,18,.9);
+  background: var(--card-bg-top);
   padding: clamp(1.5rem, 5vw, 3rem);
   text-align: center;
   box-shadow: var(--shadow);

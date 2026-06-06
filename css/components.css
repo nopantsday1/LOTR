@@ -5,8 +5,8 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background:
-    linear-gradient(145deg, rgba(255,255,255,.025), transparent 45%),
-    linear-gradient(180deg, rgba(24,29,24,.96), rgba(15,18,15,.96));
+    linear-gradient(145deg, var(--card-glint), transparent 45%),
+    linear-gradient(180deg, var(--card-bg-top), var(--card-bg-bottom));
   padding: clamp(1rem, 2.2vw, 1.35rem);
   box-shadow: var(--shadow-soft);
 }
@@ -18,7 +18,7 @@
   left: 1.25rem;
   height: 1px;
   content: "";
-  background: linear-gradient(90deg, transparent, rgba(221,185,104,.18), transparent);
+  background: linear-gradient(90deg, transparent, var(--accent-soft), transparent);
 }
 
 .card-title {
@@ -33,7 +33,7 @@
   min-height: 40px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: linear-gradient(180deg, rgba(40,46,40,.86), rgba(26,31,26,.86));
+  background: linear-gradient(180deg, var(--button-bg-top), var(--button-bg-bottom));
   color: var(--dim);
   padding: .58rem .95rem;
   cursor: pointer;
@@ -46,11 +46,11 @@
 }
 
 .btn:hover:not(:disabled) {
-  border-color: rgba(221,185,104,.26);
-  background: linear-gradient(180deg, rgba(49,55,47,.96), rgba(29,35,29,.96));
+  border-color: var(--border-strong);
+  background: linear-gradient(180deg, var(--button-hover-top), var(--button-hover-bottom));
   color: var(--text);
   transform: translateY(-1px);
-  box-shadow: 0 8px 22px rgba(0,0,0,.2);
+  box-shadow: var(--shadow-soft);
 }
 
 .btn:active:not(:disabled) {
@@ -63,32 +63,32 @@
 }
 
 .btn.primary {
-  border-color: rgba(221,185,104,.38);
-  background: linear-gradient(135deg, rgba(221,185,104,.2), rgba(221,185,104,.08));
+  border-color: var(--border-strong);
+  background: linear-gradient(135deg, var(--accent-soft), var(--control-hover-bg));
   color: var(--gold-bright);
 }
 
 .btn.primary:hover:not(:disabled) {
-  border-color: rgba(221,185,104,.6);
-  background: linear-gradient(135deg, rgba(221,185,104,.28), rgba(221,185,104,.11));
+  border-color: var(--accent);
+  background: linear-gradient(135deg, var(--selection-bg), var(--accent-soft));
 }
 
 .btn.danger {
-  border-color: rgba(208,107,92,.32);
+  border-color: var(--evil-border);
   background: var(--evil-soft);
-  color: #e98c7e;
+  color: var(--evil);
 }
 
 .player-link {
   color: var(--gold-bright);
   text-decoration: underline;
-  text-decoration-color: rgba(221,185,104,.25);
+  text-decoration-color: var(--border-strong);
   text-underline-offset: 3px;
   transition: color var(--transition), text-decoration-color var(--transition);
 }
 
 .player-link:hover {
-  color: #ffe1a1;
+  color: var(--accent);
   text-decoration-color: currentColor;
 }
 
@@ -152,11 +152,11 @@
 }
 
 .evil-team {
-  border-color: rgba(208,107,92,.22);
+  border-color: var(--evil-border);
 }
 
 .good-team {
-  border-color: rgba(142,183,125,.22);
+  border-color: var(--good-border);
 }
 
 .table-wrap {
@@ -183,7 +183,7 @@ th {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: rgba(15,18,15,.96);
+  background: var(--table-head-bg);
   color: var(--muted);
   font-size: 10px;
   font-weight: 600;
@@ -196,11 +196,11 @@ tbody tr {
 }
 
 tbody tr:nth-child(odd) {
-  background: rgba(255,255,255,.012);
+  background: var(--row-alt);
 }
 
 tbody tr:hover {
-  background: rgba(221,185,104,.045);
+  background: var(--row-hover);
 }
 
 tbody tr:last-child td {
@@ -215,7 +215,7 @@ tbody tr:last-child td {
   max-width: min(420px, calc(100vw - 2rem));
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  background: rgba(20,24,20,.96);
+  background: var(--toast-bg);
   color: var(--text);
   padding: .8rem 1rem;
   opacity: 0;
@@ -258,7 +258,7 @@ tbody tr:last-child td {
 .log {
   margin-top: 1rem;
   border-radius: var(--radius-sm);
-  background: rgba(0,0,0,.18);
+  background: var(--subtle-bg);
   color: var(--dim);
   padding: .75rem;
   font-size: 11px;
@@ -290,13 +290,13 @@ tbody tr:last-child td {
 }
 
 .winner-badge.good {
-  border-color: rgba(142,183,125,.35);
+  border-color: var(--good-border);
   background: var(--good-soft);
   color: var(--good);
 }
 
 .winner-badge.evil {
-  border-color: rgba(208,107,92,.35);
+  border-color: var(--evil-border);
   background: var(--evil-soft);
   color: var(--evil);
 }

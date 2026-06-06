@@ -22,6 +22,12 @@ export function initProfilePage() {
 
   if (!profileHeader) return;
 
+  function themeColor(variable, fallback) {
+    return getComputedStyle(document.documentElement)
+      .getPropertyValue(variable)
+      .trim() || fallback;
+  }
+
   // Get player ID from URL query parameter or use linked player
   function getSelectedPlayer() {
     const params = new URLSearchParams(window.location.search);
@@ -41,7 +47,7 @@ export function initProfilePage() {
 
     ctx.clearRect(0, 0, width, height);
     ctx.font = "16px system-ui";
-    ctx.fillStyle = "#817968";
+    ctx.fillStyle = themeColor("--muted", "#8491a8");
     ctx.textAlign = "center";
     ctx.fillText(message, width / 2, height / 2);
   }
@@ -91,7 +97,7 @@ export function initProfilePage() {
     }
 
     // grid
-    ctx.strokeStyle = "rgba(255,255,255,.08)";
+    ctx.strokeStyle = themeColor("--chart-grid", "rgba(207,218,238,.1)");
     ctx.lineWidth = 1;
 
     const gridLines = 5;
@@ -103,14 +109,14 @@ export function initProfilePage() {
       ctx.stroke();
 
       const label = Math.round(max - (i / gridLines) * (max - min));
-      ctx.fillStyle = "#817968";
+      ctx.fillStyle = themeColor("--muted", "#8491a8");
       ctx.font = "12px system-ui";
       ctx.textAlign = "right";
       ctx.fillText(String(label), padding.left - 8, y + 4);
     }
 
     // line
-    ctx.strokeStyle = "#d7b56d";
+    ctx.strokeStyle = themeColor("--accent", "#d79a4b");
     ctx.lineWidth = 2;
     ctx.beginPath();
 
@@ -125,7 +131,7 @@ export function initProfilePage() {
     ctx.stroke();
 
     // points
-    ctx.fillStyle = "#d7b56d";
+    ctx.fillStyle = themeColor("--accent", "#d79a4b");
     points.forEach((point, index) => {
       const x = xAt(index);
       const y = yAt(point.value);
@@ -136,7 +142,7 @@ export function initProfilePage() {
     });
 
     // x labels
-    ctx.fillStyle = "#817968";
+    ctx.fillStyle = themeColor("--muted", "#8491a8");
     ctx.font = "12px system-ui";
     ctx.textAlign = "center";
 
@@ -148,7 +154,7 @@ export function initProfilePage() {
 
     // current value label
     const latest = points[points.length - 1];
-    ctx.fillStyle = "#ece6d2";
+    ctx.fillStyle = themeColor("--text", "#f3f6fb");
     ctx.font = "14px system-ui";
     ctx.textAlign = "right";
     ctx.fillText(`Latest: ${latest.value}`, width - padding.right, padding.top - 6);
@@ -253,6 +259,7 @@ export function initProfilePage() {
 
   render();
   window.addEventListener("lotr:dataChanged", render);
+  window.addEventListener("lotr:themeChanged", renderProgressGraph);
 }
 
 function renderPlayerMatch(match, player, eloChange) {
