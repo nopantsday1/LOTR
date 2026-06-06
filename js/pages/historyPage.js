@@ -79,7 +79,7 @@ function renderMatchCard(match) {
 function renderAssignment(a) {
   const playerName = a.name || a.playerName || "Unknown";
   const player = state.players.find(p => p.name === playerName);
-  const profileLink = player ? `/pages/profile.html?playerId=${encodeURIComponent(player.id)}` : null;
+  const profileLink = player ? `./profile.html?playerId=${encodeURIComponent(player.id)}` : null;
 
   const nameHtml = profileLink
     ? `<a href="${profileLink}" class="player-link">${escapeHtml(playerName)}</a>`

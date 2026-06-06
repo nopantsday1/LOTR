@@ -67,7 +67,7 @@ export function initPlayersPage() {
     tbody.querySelectorAll("tr.player-row").forEach(row => {
       row.addEventListener("click", () => {
         const playerId = row.dataset.playerId;
-        window.location.href = `/pages/profile.html?playerId=${encodeURIComponent(playerId)}`;
+        window.location.href = `./profile.html?playerId=${encodeURIComponent(playerId)}`;
       });
     });
 

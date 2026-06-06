@@ -1,6 +1,5 @@
 import { initFirebase } from "./data/firebase.js";
 import { subscribeCoreData } from "./data/firestore.js";
-import { loadSandboxSnapshot, saveSandboxSnapshot } from "./data/localSandbox.js";
 import { LOCAL_SANDBOX } from "./core/config.js";
 import { initNavigation } from "./ui/nav.js";
 import { initRatingModeToggle } from "./ui/ratingModeToggle.js";
@@ -43,38 +42,26 @@ function initCurrentPage() {
   pageInitializers[page]?.();
 }
 
-// For production with Firebase, subscribe to live updates and optionally save a local snapshot for development
-// async function main() {
-//   initCurrentPage();
-
-//   try {
-//     initFirebase();
-
-//     if (LOCAL_SANDBOX && loadSandboxSnapshot()) {
-//       emitDataChanged();
-//       toast("Loaded local sandbox snapshot");
-//     }
-
-//     subscribeCoreData(() => {
-//       if (LOCAL_SANDBOX) saveSandboxSnapshot();
-//       emitDataChanged();
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     toast("Firebase failed to initialize. Static UI still loaded.", "err");
-//   }
-// }
-
-// For local development without Firebase, load data from a static JSON file instead
 async function main() {
   initCurrentPage();
 
   try {
-    await loadLocalData();
-    toast("Loaded local JSON data");
+    if (LOCAL_SANDBOX) {
+      await loadLocalData();
+      toast("Loaded local JSON data");
+      return;
+    }
+
+    initFirebase();
+    subscribeCoreData(emitDataChanged);
   } catch (err) {
     console.error(err);
-    toast("Could not load local JSON data", "err");
+    toast(
+      LOCAL_SANDBOX
+        ? "Could not load local JSON data"
+        : "Firebase failed to initialize",
+      "err"
+    );
   }
 }
 

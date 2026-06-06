@@ -10,7 +10,7 @@ export function initLeaderboardPage() {
     list.innerHTML = players.map((p, i) => `
       <article class="card">
         <span class="leaderboard-rank">#${i + 1}</span>
-        <a href="/pages/profile.html?playerId=${encodeURIComponent(p.id)}" class="player-link leaderboard-name">${escapeHtml(p.name || "Unknown")}</a>
+        <a href="./profile.html?playerId=${encodeURIComponent(p.id)}" class="player-link leaderboard-name">${escapeHtml(p.name || "Unknown")}</a>
         <span class="leaderboard-elo">${overallElo(p)} <small>Elo</small></span>
       </article>
     `).join("");

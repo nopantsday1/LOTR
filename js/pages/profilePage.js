@@ -314,7 +314,7 @@ function renderProfileTeam(label, assignments, selectedPlayer) {
         const isSelected = assignmentMatchesPlayer(assignment, selectedPlayer);
         const position = assignmentPosition(assignment);
         const name = linkedPlayer
-          ? `<a class="player-link" href="/pages/profile.html?playerId=${encodeURIComponent(linkedPlayer.id)}">${escapeHtml(playerName)}</a>`
+          ? `<a class="player-link" href="./profile.html?playerId=${encodeURIComponent(linkedPlayer.id)}">${escapeHtml(playerName)}</a>`
           : escapeHtml(playerName);
 
         return `

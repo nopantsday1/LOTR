@@ -2,22 +2,32 @@ import { LOCAL_SANDBOX } from "../core/config.js";
 import { state } from "../core/state.js";
 import { firestoreApi as fb } from "./firebase.js";
 import { toast } from "../ui/toast.js";
-import { normalizePlayerRatings } from "../elo/elo.js";
+import { initializeRatingModes } from "../elo/ratingModes.js";
 
 export function subscribeCoreData(onChange) {
   const playersRef = fb.collection(state.db, "players");
   const historyRef = fb.collection(state.db, "history");
+  let sourcePlayers = [];
+  let playersLoaded = false;
+  let fullHistoryLoaded = false;
+
+  function publishRatingDatasets() {
+    if (!playersLoaded || !fullHistoryLoaded) return;
+    initializeRatingModes(sourcePlayers, state.fullHistory);
+    onChange?.();
+  }
 
   const unsubPlayers = fb.onSnapshot(playersRef, snap => {
-    state.players = normalizePlayerRatings(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    onChange?.();
+    sourcePlayers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    playersLoaded = true;
+    publishRatingDatasets();
   });
 
   const unsubHistory = fb.onSnapshot(
     fb.query(historyRef, fb.orderBy("timestamp", "desc"), fb.limit(100)),
     snap => {
       state.history = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      onChange?.();
+      if (playersLoaded && fullHistoryLoaded) onChange?.();
     }
   );
 
@@ -25,7 +35,8 @@ export function subscribeCoreData(onChange) {
     fb.query(historyRef, fb.orderBy("timestamp", "desc")),
     snap => {
       state.fullHistory = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      onChange?.();
+      fullHistoryLoaded = true;
+      publishRatingDatasets();
     }
   );
 

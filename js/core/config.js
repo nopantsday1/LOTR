@@ -3,8 +3,7 @@ export const LOCAL_SANDBOX =
   location.hostname === "127.0.0.1";
 
 export const FIREBASE_CONFIG = {
-  // apiKey: "AIzaSyDDrsJEQ0OOESWLYmyNJWGaWhFAm0fDUVg", 
-  apiKey: "goofy",
+  apiKey: "AIzaSyDDrsJEQ0OOESWLYmyNJWGaWhFAm0fDUVg",
   authDomain: "lotr-9a2f2.firebaseapp.com",
   projectId: "lotr-9a2f2",
   storageBucket: "lotr-9a2f2.firebasestorage.app",

@@ -2,7 +2,8 @@ import { state } from "../core/state.js";
 import { initializeRatingModes } from "../elo/ratingModes.js";
 
 export async function loadLocalData() {
-  const res = await fetch("/js/data/lotr-local-data.json", {
+  const dataUrl = new URL("./lotr-local-data.json", import.meta.url);
+  const res = await fetch(dataUrl, {
     cache: "no-store"
   });
 
