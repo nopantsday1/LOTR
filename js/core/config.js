@@ -1,6 +1,7 @@
+// Firebase is the default in development too. Add ?localSandbox=1 to the URL
+// only when an isolated, read-only local JSON session is intentionally needed.
 export const LOCAL_SANDBOX =
-  location.hostname === "localhost" ||
-  location.hostname === "127.0.0.1";
+  new URLSearchParams(location.search).get("localSandbox") === "1";
 
 export const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDDrsJEQ0OOESWLYmyNJWGaWhFAm0fDUVg",

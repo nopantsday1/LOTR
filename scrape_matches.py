@@ -1,4 +1,4 @@
-import base64, json, os, time, zlib, urllib.request, urllib.parse
+import base64, json, os, sys, time, zlib, urllib.request, urllib.parse
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -10,29 +10,72 @@ HEADERS      = {"User-Agent": "HobbitBalancer/1.0"}
 
 API_DELAY   = 2.0
 MAX_RETRIES = 4
+MAX_BACKOFF_SECONDS = 30
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 # ── Rate-limited fetch with exponential backoff ───────────────────────────────
 
-def fetch_url(url: str, timeout: int = 20) -> Dict[str, Any]:
+def fetch_url(url: str, timeout: int = 20, max_retries: int = MAX_RETRIES) -> Dict[str, Any]:
     req = urllib.request.Request(url, headers=HEADERS)
-    for attempt in range(1, MAX_RETRIES + 1):
+    for attempt in range(1, max_retries + 1):
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 return json.loads(r.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             if e.code == 429:
-                wait = API_DELAY * (4 ** attempt)
-                print(f"  429 Rate limited — waiting {wait:.0f}s (attempt {attempt}/{MAX_RETRIES})")
+                if attempt == max_retries:
+                    raise
+                wait = min(API_DELAY * (4 ** attempt), MAX_BACKOFF_SECONDS)
+                print(f"  429 Rate limited — waiting {wait:.0f}s (attempt {attempt}/{max_retries})")
                 time.sleep(wait)
             else:
                 raise
         except Exception as e:
-            if attempt == MAX_RETRIES:
+            if attempt == max_retries:
                 raise
             wait = API_DELAY * attempt
             print(f"  Error: {e} — retrying in {wait:.0f}s")
             time.sleep(wait)
-    raise RuntimeError(f"Failed after {MAX_RETRIES} attempts: {url}")
+    raise RuntimeError(f"Failed after {max_retries} attempts: {url}")
+
+def load_firestore_players() -> List[Dict[str, Any]]:
+    docs = fetch_url(FIREBASE_URL, timeout=10, max_retries=2).get("documents", [])
+    result = []
+
+    for doc in docs:
+        f = doc.get("fields", {})
+        pid = (f.get("profileId", {}).get("integerValue") or
+               f.get("profileId", {}).get("stringValue"))
+        name = f.get("name", {}).get("stringValue", "Unknown")
+        if pid:
+            result.append({"name": name, "profileId": int(pid)})
+        alt_values = f.get("altProfileIds", {}).get("arrayValue", {}).get("values", [])
+        for value in alt_values:
+            alt_pid = value.get("integerValue") or value.get("stringValue")
+            if alt_pid:
+                result.append({"name": name, "profileId": int(alt_pid)})
+
+    return result
+
+def load_local_players() -> List[Dict[str, Any]]:
+    path = os.path.join("js", "data", "lotr-local-data.json")
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    result = []
+    for player in data.get("players", []):
+        name = player.get("name", "Unknown")
+        pid = player.get("profileId")
+        if pid:
+            result.append({"name": name, "profileId": int(pid)})
+        for alt_pid in player.get("altProfileIds", []) or []:
+            if alt_pid:
+                result.append({"name": name, "profileId": int(alt_pid)})
+
+    return result
 
 # ── metaData blob decoder (from ScenarioPlayerIndex) ─────────────────────────
 
@@ -131,26 +174,16 @@ def decode_slotinfo(b64: str) -> List[Dict[str, Any]]:
 # ── Load players from Firestore ───────────────────────────────────────────────
 
 print("Loading players from Firestore...")
-docs = fetch_url(FIREBASE_URL, timeout=10).get("documents", [])
-
-players = []
-for doc in docs:
-    f   = doc.get("fields", {})
-    pid = (f.get("profileId", {}).get("integerValue") or
-           f.get("profileId", {}).get("stringValue"))
-    name = f.get("name", {}).get("stringValue", "Unknown")
-    if pid:
-        players.append({"name": name, "profileId": int(pid)})
-    alt_values = f.get("altProfileIds", {}).get("arrayValue", {}).get("values", [])
-    for value in alt_values:
-        alt_pid = value.get("integerValue") or value.get("stringValue")
-        if alt_pid:
-            players.append({"name": name, "profileId": int(alt_pid)})
+try:
+    players = load_firestore_players()
+except Exception as e:
+    print(f"Could not load Firestore players ({e}); using local JSON snapshot")
+    players = load_local_players()
 
 print(f"Found {len(players)} players with profile IDs")
 community_ids   = {str(p["profileId"]) for p in players}
 community_names = {str(p["profileId"]): p["name"] for p in players}
-all_pids        = [p["profileId"] for p in players]
+all_pids        = sorted({p["profileId"] for p in players})
 
 # ── Load existing matches.json ────────────────────────────────────────────────
 
@@ -337,31 +370,25 @@ def process(page, label=""):
     print(f"  {label}: {added} added, {already_known} known, {skipped} skipped")
     return added
 
-# ── Step 1: Bulk query ────────────────────────────────────────────────────────
+# ── Batched history queries ───────────────────────────────────────────────────
 
-print(f"\nStep 1: Bulk query — {len(all_pids)} profile IDs...")
-try:
-    page = fetch_page(all_pids)
-    print(f"  API returned {len(page)} matches:")
-    process(page, "Bulk")
-except Exception as e:
-    print(f"  FAILED: {e}")
-
-time.sleep(API_DELAY)
-
-# ── Step 2: Individual queries ────────────────────────────────────────────────
-
-print(f"\nStep 2: Individual queries ({API_DELAY}s delay each)...")
-for player in players:
-    pid, name = player["profileId"], player["name"]
-    print(f"\n  {name} ({pid}):")
+# Large profile arrays make this endpoint extremely slow, while querying every
+# profile separately quickly hits its rate limit. Ten IDs per request is fast
+# and shared matches are merged by ID in process().
+BATCH_SIZE = 10
+print(f"\nHistory queries: {len(all_pids)} profile IDs in batches of {BATCH_SIZE}...")
+for start in range(0, len(all_pids), BATCH_SIZE):
+    batch = all_pids[start:start + BATCH_SIZE]
+    label = f"Batch {start // BATCH_SIZE + 1}"
+    print(f"\n  {label}: {len(batch)} profile IDs")
     try:
-        page = fetch_page([pid])
+        page = fetch_page(batch)
         print(f"  API returned {len(page)} matches:")
-        process(page, name)
+        process(page, label)
     except Exception as e:
         print(f"  FAILED: {e}")
-    time.sleep(API_DELAY)
+    if start + BATCH_SIZE < len(all_pids):
+        time.sleep(API_DELAY)
 
 # ── Name lookup ───────────────────────────────────────────────────────────────
 

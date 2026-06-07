@@ -1,9 +1,10 @@
 # Deployment Checklist
 
-This modular version uses two data sources:
+This modular version uses Firebase project `lotr-9a2f2` by default on both
+localhost and deployed hostnames.
 
-- `localhost` and `127.0.0.1`: local `js/data/lotr-local-data.json`
-- Any deployed hostname: Firebase project `lotr-9a2f2`
+Add `?localSandbox=1` to the URL to intentionally use the read-only local
+`js/data/lotr-local-data.json` snapshot instead.
 
 The deployed app reads the existing Firestore `players` and `history`
 collections. Switching rating modes only changes browser state and does not

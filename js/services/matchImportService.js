@@ -22,6 +22,10 @@ let pollTimer = null;
 export function startAutoMatchImport() {
   if (LOCAL_SANDBOX || pollTimer) return;
 
+  window.addEventListener("lotr:dataChanged", () => {
+    importNewMatches().catch(error => console.warn("[match import]", error));
+  }, { once: true });
+
   window.setTimeout(() => {
     importNewMatches().catch(error => console.warn("[match import]", error));
   }, 5000);
@@ -63,23 +67,74 @@ async function runImport() {
     : state.players;
   const communityIds = buildCommunityIdSet(identityPlayers);
   const profileMap = buildProfileMap(identityPlayers);
+  const normalizedMatches = matches
+    .map(rawMatch => normalizeMatch(rawMatch, communityIds, profileMap))
+    .filter(Boolean);
+  const previewAdded = mergeFeedMatchesIntoState(normalizedMatches, known);
   let added = 0;
+  let writeError = null;
 
-  for (const rawMatch of matches) {
-    const normalized = normalizeMatch(rawMatch, communityIds, profileMap);
-    if (!normalized || known.has(normalized.gameId)) continue;
+  for (const normalized of normalizedMatches) {
+    if (known.has(normalized.gameId)) continue;
 
-    if (await recordMatch(normalized)) {
-      known.add(normalized.gameId);
-      added += 1;
+    try {
+      if (await recordMatch(normalized)) {
+        known.add(normalized.gameId);
+        added += 1;
+      }
+    } catch (error) {
+      writeError = error;
+      console.warn("[match import] Firebase write failed", error);
+      break;
     }
   }
 
   return {
     added,
+    previewAdded,
+    writeError,
     checked: matches.length,
     feedUpdatedAt: Number(data.updated || 0) * 1000 || null,
   };
+}
+
+function mergeFeedMatchesIntoState(matches, known) {
+  const previewMatches = matches
+    .filter(match => !known.has(match.gameId))
+    .map(match => {
+      const evilTotal = teamTotal(match.evilAssign);
+      const goodTotal = teamTotal(match.goodAssign);
+
+      return {
+        id: match.gameId,
+        date: new Date(match.timestamp).toLocaleDateString("en-CA"),
+        winner: match.winner,
+        evilTotal,
+        goodTotal,
+        gap: Math.abs(evilTotal - goodTotal),
+        timestamp: match.timestamp,
+        source: "feed",
+        gameId: match.gameId,
+        duration: match.duration,
+        mapName: match.mapName,
+        evilAssign: serializeAssignments(match.evilAssign),
+        goodAssign: serializeAssignments(match.goodAssign),
+      };
+    });
+
+  if (!previewMatches.length) return 0;
+
+  const byGameId = new Map();
+  for (const match of [...previewMatches, ...(state.fullHistory || [])]) {
+    byGameId.set(String(match.gameId || match.id), match);
+  }
+
+  state.fullHistory = [...byGameId.values()]
+    .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
+  state.history = state.fullHistory.slice(0, 100);
+  window.dispatchEvent(new CustomEvent("lotr:dataChanged"));
+
+  return previewMatches.length;
 }
 
 function normalizeMatch(rawMatch, communityIds, profileMap) {

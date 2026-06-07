@@ -41,6 +41,8 @@ export function initHistoryPage() {
           ? "Local sandbox: production imports are disabled."
           : result.added
             ? `${result.added} new match${result.added === 1 ? "" : "es"} recorded.`
+            : result.previewAdded
+              ? `${result.previewAdded} new feed match${result.previewAdded === 1 ? "" : "es"} loaded; Firebase write failed.`
             : "No new matches found.";
       if (status) {
         status.textContent = `${message} Last checked: ${new Date().toLocaleTimeString()}`;
