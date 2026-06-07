@@ -11,6 +11,7 @@ export function initStatsPage() {
   const sideBalance = document.getElementById("sideBalance");
   const streaks = document.getElementById("playerStreaks");
   const records = document.getElementById("communityRecords");
+  const stackers = document.getElementById("stackers");
   const funStats = document.getElementById("funStats");
   const rangeButtons = [...document.querySelectorAll("[data-range]")];
   if (!gamesPerDay) return;
@@ -26,6 +27,7 @@ export function initStatsPage() {
     if (sideBalance) sideBalance.innerHTML = renderSideBalance(completed);
     if (streaks) streaks.innerHTML = renderStreaks(completed);
     if (records) records.innerHTML = renderRecords(completed);
+    if (stackers) stackers.innerHTML = renderStackers(matches);
     if (funStats) funStats.innerHTML = renderFunFacts(matches, completed);
 
     rangeButtons.forEach(button => {
@@ -196,6 +198,21 @@ function renderRecords(matches) {
   `;
 }
 
+function renderStackers(matches) {
+  const players = calculateStackers(matches).slice(0, 5);
+  if (!players.length) return emptyState("No players have 10 comparable games yet.");
+
+  return `
+    <div class="stats-list">
+      ${players.map((player, index) => statRow(
+        `${index + 1}. ${player.name}`,
+        `${player.strongerSideGames}/${player.comparableGames} · ${player.rate}%`
+      )).join("")}
+    </div>
+    <p class="muted small">Share of games on the higher-rated side in the active rating mode · minimum 10 games.</p>
+  `;
+}
+
 function renderFunFacts(matches, completed) {
   if (!matches.length) return emptyState("Record some matches to unlock fun facts.");
 
@@ -232,6 +249,46 @@ function renderFunFacts(matches, completed) {
         : "Duration data is unavailable")}
     </div>
   `;
+}
+
+function calculateStackers(matches) {
+  const players = new Map();
+
+  matches.forEach(match => {
+    const evilTotal = teamEloTotal(match, "evil");
+    const goodTotal = teamEloTotal(match, "good");
+    if (!Number.isFinite(evilTotal) || !Number.isFinite(goodTotal) || evilTotal === goodTotal) return;
+
+    const strongerSide = evilTotal > goodTotal ? "evil" : "good";
+
+    for (const assignment of matchParticipants(match)) {
+      const key = playerKey(assignment);
+      const name = assignmentName(assignment);
+      const side = assignmentSide(match, assignment);
+      if (!key || !name || !side) continue;
+
+      const item = players.get(key) || {
+        name,
+        strongerSideGames: 0,
+        comparableGames: 0
+      };
+      item.comparableGames++;
+      if (side === strongerSide) item.strongerSideGames++;
+      players.set(key, item);
+    }
+  });
+
+  return [...players.values()]
+    .filter(player => player.comparableGames >= 10)
+    .map(player => ({
+      ...player,
+      rate: Math.round((player.strongerSideGames / player.comparableGames) * 100)
+    }))
+    .sort((a, b) => (
+      (b.strongerSideGames / b.comparableGames) - (a.strongerSideGames / a.comparableGames) ||
+      b.comparableGames - a.comparableGames ||
+      a.name.localeCompare(b.name)
+    ));
 }
 
 function calculateStreaks(matches) {
@@ -364,6 +421,25 @@ function matchDuration(match) {
   const raw = Number(match?.durationSeconds ?? match?.duration);
   if (!Number.isFinite(raw) || raw <= 0) return 0;
   return raw > 100000 ? Math.round(raw / 1000) : Math.round(raw);
+}
+
+function teamEloTotal(match, side) {
+  const assignments = match?.[`${side}Assign`] || [];
+  const ratings = assignments.map(assignment => assignmentElo(assignment));
+  if (!ratings.length || ratings.some(rating => !Number.isFinite(rating))) return NaN;
+  return ratings.reduce((sum, rating) => sum + rating, 0);
+}
+
+function assignmentElo(assignment) {
+  const profileId = String(assignment?.profileId || "");
+  const name = assignmentName(assignment);
+  const player = state.players.find(candidate => (
+    (profileId && String(candidate.profileId || "") === profileId) ||
+    (name && String(candidate.name || "") === name)
+  ));
+
+  if (player) return overallElo(player);
+  return Number(assignment?.effElo);
 }
 
 function playerGames(player) {

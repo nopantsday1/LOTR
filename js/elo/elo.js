@@ -7,6 +7,7 @@ export const DECAY_FLOOR = 600;
 export const MIN_ELO_CHANGE = 5;
 export const MIN_CIV_MODIFIER = -200;
 export const MAX_CIV_MODIFIER = 200;
+export const ELO_EXPECTATION_SCALE = 200;
 
 export function normalizePlayerRating(player) {
   if (!player) return player;
@@ -147,13 +148,13 @@ export function decayedElo(player) {
 }
 
 export function mainKFactor(gamesPlayed) {
-  if (gamesPlayed < 10) return 40;
-  if (gamesPlayed < 30) return 32;
-  return 24;
+  if (gamesPlayed < 10) return 80;
+  if (gamesPlayed < 30) return 64;
+  return 48;
 }
 
 export function expectedTeamScore(teamAverage, opponentAverage) {
-  return 1 / (1 + Math.pow(10, (opponentAverage - teamAverage) / 400));
+  return 1 / (1 + Math.pow(10, (opponentAverage - teamAverage) / ELO_EXPECTATION_SCALE));
 }
 
 export function ratingDelta(k, actual, expected, minimum = MIN_ELO_CHANGE) {
