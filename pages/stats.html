@@ -43,21 +43,45 @@
     </div>
   </div>
 
-  <div class="stats-grid">
-  <section class="card stats-wide">
-    <h2>Games Per Day</h2>
-    <div class="range-buttons">
-      <button data-range="14">14D</button>
-      <button data-range="30">30D</button>
-      <button data-range="60">60D</button>
-      <button data-range="all">All</button>
-    </div>
-    <div id="gamesPerDay"></div>
-  </section>
+  <section id="statsOverview" class="stats-overview"></section>
 
-  <section class="card"><div class="eyebrow">Momentum</div><h2>Player Streaks</h2><div id="playerStreaks"></div></section>
-  <section class="card"><div class="eyebrow">Hall of Fame</div><h2>Community Records</h2><div id="communityRecords"></div></section>
-  <section class="card"><div class="eyebrow">Curiosities</div><h2>Fun Stats</h2><div id="funStats"></div></section>
+  <div class="stats-grid">
+    <section class="card stats-wide">
+      <div class="stats-card-heading">
+        <div>
+          <div class="eyebrow">Activity</div>
+          <h2>Games Per Day</h2>
+        </div>
+        <div class="range-buttons">
+          <button class="btn" data-range="14">14D</button>
+          <button class="btn" data-range="30">30D</button>
+          <button class="btn" data-range="60">60D</button>
+          <button class="btn" data-range="all">All</button>
+        </div>
+      </div>
+      <div id="gamesPerDay"></div>
+    </section>
+
+    <section class="card">
+      <div class="eyebrow">The War</div>
+      <h2>Side Balance</h2>
+      <div id="sideBalance"></div>
+    </section>
+    <section class="card">
+      <div class="eyebrow">Momentum</div>
+      <h2>Player Streaks</h2>
+      <div id="playerStreaks"></div>
+    </section>
+    <section class="card">
+      <div class="eyebrow">Hall of Fame</div>
+      <h2>Community Records</h2>
+      <div id="communityRecords"></div>
+    </section>
+    <section class="card">
+      <div class="eyebrow">Curiosities</div>
+      <h2>Fun Facts</h2>
+      <div id="funStats"></div>
+    </section>
   </div>
 </section>
 

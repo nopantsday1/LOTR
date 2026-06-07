@@ -8,15 +8,29 @@ export function initBalancePage() {
   const balanceBtn = document.getElementById("balanceBtn");
   const randomBtn = document.getElementById("randomSplitBtn");
   const result = document.getElementById("balanceResult");
+  const search = document.getElementById("balancePlayerSearch");
+  const searchMeta = document.getElementById("balanceSearchMeta");
 
   if (!picker) return;
 
   function renderPicker() {
     picker.innerHTML = "";
+    const query = normalizeSearch(search?.value);
     const players = state.players
+      .filter(player => matchesPlayerSearch(player, query))
       .slice()
       .sort((a, b) => gameCount(b) - gameCount(a) ||
         String(a.name || "").localeCompare(String(b.name || "")));
+
+    if (searchMeta) {
+      searchMeta.textContent = query
+        ? `${players.length} ${players.length === 1 ? "player" : "players"} found`
+        : `${players.length} players available`;
+    }
+
+    if (!players.length) {
+      picker.innerHTML = `<p class="player-search-empty muted">No players match your search.</p>`;
+    }
 
     for (const group of EXPERIENCE_GROUPS) {
       const groupedPlayers = players.filter(player => group.includes(gameCount(player)));
@@ -70,6 +84,7 @@ export function initBalancePage() {
 
   balanceBtn?.addEventListener("click", () => generateBalance(false));
   randomBtn?.addEventListener("click", () => generateBalance(true));
+  search?.addEventListener("input", renderPicker);
 
   renderPicker();
   window.addEventListener("lotr:dataChanged", () => {
@@ -87,6 +102,18 @@ const EXPERIENCE_GROUPS = [
 
 function gameCount(player) {
   return Number(player.gamesPlayed ?? ((player.wins || 0) + (player.losses || 0)));
+}
+
+function matchesPlayerSearch(player, query) {
+  if (!query) return true;
+  return [
+    player.name,
+    player.profileId
+  ].some(value => normalizeSearch(value).includes(query));
+}
+
+function normalizeSearch(value) {
+  return String(value || "").trim().toLocaleLowerCase();
 }
 
 function renderSplit(split) {

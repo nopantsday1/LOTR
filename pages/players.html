@@ -43,11 +43,24 @@
     </div>
   </div>
 
-  <section class="card toolbar">
-    <label class="field-label" for="civFilter">Position filter</label>
-    <select id="civFilter">
-      <option value="">All positions</option>
-    </select>
+  <section class="card toolbar search-toolbar">
+    <label class="field-label" for="playersSearch">Find a player</label>
+    <input
+      id="playersSearch"
+      type="search"
+      placeholder="Player name or profile ID"
+      autocomplete="off"
+    >
+    <span id="playersSearchMeta" class="muted small player-search-meta" aria-live="polite"></span>
+  </section>
+
+  <section class="card toolbar player-filter-toolbar">
+    <label class="field-label" for="civFilter">
+      Position filter
+      <select id="civFilter">
+        <option value="">All positions</option>
+      </select>
+    </label>
   </section>
 
   <section class="card table-wrap">

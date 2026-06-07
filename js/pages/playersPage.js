@@ -12,6 +12,8 @@ import {
 export function initPlayersPage() {
   const tbody = document.getElementById("playersTable");
   const civFilter = document.getElementById("civFilter");
+  const search = document.getElementById("playersSearch");
+  const searchMeta = document.getElementById("playersSearchMeta");
   if (!tbody) return;
 
   if (civFilter && civFilter.children.length <= 1) {
@@ -25,12 +27,20 @@ export function initPlayersPage() {
 
   function render() {
     const selectedCiv = civFilter?.value || "";
+    const query = normalizeSearch(search?.value);
 
     const players = state.players
+      .filter(player => matchesPlayerSearch(player, query))
       .slice()
       .sort((a, b) => overallElo(b) - overallElo(a));
 
-    tbody.innerHTML = players.map(player => {
+    if (searchMeta) {
+      searchMeta.textContent = query
+        ? `${players.length} ${players.length === 1 ? "player" : "players"} found`
+        : `${players.length} players`;
+    }
+
+    tbody.innerHTML = players.length ? players.map(player => {
       const wins = player.wins || 0;
       const losses = player.losses || 0;
       const total = wins + losses;
@@ -61,7 +71,11 @@ export function initPlayersPage() {
           <td class="muted">${escapeHtml(player.profileId || "")}</td>
         </tr>
       `;
-    }).join("");
+    }).join("") : `
+      <tr>
+        <td colspan="6" class="player-table-empty muted">No players match your search.</td>
+      </tr>
+    `;
 
     // Add click handlers to player rows
     tbody.querySelectorAll("tr.player-row").forEach(row => {
@@ -74,9 +88,22 @@ export function initPlayersPage() {
   }
 
   civFilter?.addEventListener("change", render);
+  search?.addEventListener("input", render);
 
   render();
   window.addEventListener("lotr:dataChanged", render);
+}
+
+function matchesPlayerSearch(player, query) {
+  if (!query) return true;
+  return [
+    player.name,
+    player.profileId
+  ].some(value => normalizeSearch(value).includes(query));
+}
+
+function normalizeSearch(value) {
+  return String(value || "").trim().toLocaleLowerCase();
 }
 
 function renderCivs(player, selectedCiv) {
