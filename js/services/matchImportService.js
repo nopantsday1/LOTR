@@ -4,6 +4,7 @@ import { state } from "../core/state.js";
 import {
   applyMatchRatings,
   civElo,
+  communityAverageGames,
   normalizePlayerRating,
   overallElo,
 } from "../elo/elo.js";
@@ -185,6 +186,10 @@ function normalizeMatch(rawMatch, communityIds, profileMap) {
 
 async function recordMatch(match) {
   const historyRef = fb.doc(state.db, "history", match.gameId);
+  const sourcePlayers = state.playerDatasets.original?.length
+    ? state.playerDatasets.original
+    : state.players;
+  const averageGames = communityAverageGames(sourcePlayers);
   let recorded = false;
 
   await fb.runTransaction(state.db, async transaction => {
@@ -232,7 +237,9 @@ async function recordMatch(match) {
       goodAssign: serializeAssignments(ratedMatch.goodAssign),
     });
 
-    applyMatchRatings(players, ratedMatch);
+    applyMatchRatings(players, ratedMatch, {
+      communityAverageGames: averageGames,
+    });
 
     for (const player of players) {
       transaction.set(fb.doc(state.db, "players", String(player.id)), {
@@ -241,6 +248,9 @@ async function recordMatch(match) {
         wins: player.wins,
         losses: player.losses,
         lastPlayedAt: player.lastPlayedAt,
+        inactivityPenaltyBank: player.inactivityPenaltyBank,
+        returnGamesInWindow: player.returnGamesInWindow,
+        returnWindowStartedAt: player.returnWindowStartedAt,
         civStats: player.civStats,
         ratingModelVersion: player.ratingModelVersion,
       }, { merge: true });

@@ -52,6 +52,10 @@ function resetPlayer(player) {
     gamesPlayed: 0,
     wins: 0,
     losses: 0,
+    lastPlayedAt: null,
+    inactivityPenaltyBank: 0,
+    returnGamesInWindow: 0,
+    returnWindowStartedAt: 0,
     civStats: {},
     ratingModelVersion: 2
   };

@@ -1,6 +1,10 @@
 import { CIVS } from "../core/constants.js";
 import { state } from "../core/state.js";
-import { applyMatchRatings, normalizePlayerRatings } from "./elo.js";
+import {
+  applyMatchRatings,
+  normalizePlayerRatings,
+  rebuildInactivityState
+} from "./elo.js";
 
 export const RATING_MODES = {
   original: {
@@ -18,6 +22,7 @@ const STORAGE_KEY = "lotr-rating-mode";
 export function initializeRatingModes(players, history) {
   const sourcePlayers = structuredClone(players || []);
   const original = normalizePlayerRatings(structuredClone(sourcePlayers));
+  rebuildInactivityState(original, history);
 
   original.forEach((player, index) => {
     const source = sourcePlayers[index] || {};
@@ -93,6 +98,9 @@ function resetPlayer(player, startingElo) {
     wins: 0,
     losses: 0,
     lastPlayedAt: null,
+    inactivityPenaltyBank: 0,
+    returnGamesInWindow: 0,
+    returnWindowStartedAt: 0,
     civStats: {},
     ratingModelVersion: 2
   };

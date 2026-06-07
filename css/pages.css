@@ -50,10 +50,6 @@
   text-align: center;
 }
 
-.player-filter-toolbar {
-  align-items: end;
-}
-
 .player-search-meta {
   margin-left: auto;
   padding-bottom: .65rem;
@@ -157,6 +153,134 @@
   font-size: 1.55rem;
   line-height: 1;
   text-shadow: 0 0 20px var(--accent-soft);
+}
+
+.players-ranking {
+  display: grid;
+  gap: 5px;
+}
+
+.player-rank-row {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(220px, 1.25fr) 92px minmax(300px, 2fr);
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: 0;
+  padding: .35rem .65rem;
+  cursor: pointer;
+}
+
+.player-rank-row:hover,
+.player-rank-row:focus-visible {
+  border-color: var(--border-strong);
+  background: var(--control-hover-bg);
+  outline: none;
+}
+
+.player-rank-number {
+  color: var(--muted);
+  font-family: "Cinzel", serif;
+  font-size: .85rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.player-real-elo {
+  display: grid;
+  gap: .05rem;
+}
+
+.player-rank-identity {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: .6rem;
+}
+
+.player-rank-identity > strong {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--text);
+  font-family: "Cinzel", serif;
+  font-size: .82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-real-elo > span,
+.player-real-elo > small {
+  color: var(--muted);
+  font-size: .6rem;
+}
+
+.player-rank-identity > span {
+  flex: none;
+  color: var(--muted);
+  font-size: .63rem;
+  white-space: nowrap;
+}
+
+.player-real-elo > strong {
+  color: var(--gold-bright);
+  font-family: "Cinzel", serif;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.civ-activity-chart {
+  display: grid;
+  grid-template-columns: repeat(var(--civ-count), minmax(26px, 1fr));
+  align-items: end;
+  gap: .2rem;
+  height: 48px;
+}
+
+.civ-activity-column {
+  display: grid;
+  grid-template-rows: 36px 10px;
+  min-width: 0;
+  height: 48px;
+  text-align: center;
+}
+
+.civ-activity-label {
+  color: var(--muted);
+  font-size: .55rem;
+  line-height: 1;
+}
+
+.civ-activity-track {
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+}
+
+.civ-activity-bar {
+  display: flex;
+  width: min(76%, 32px);
+  min-height: 10px;
+  align-items: end;
+  justify-content: center;
+  border-radius: 3px 3px 0 0;
+  background: var(--gold);
+}
+
+.civ-activity-column.good .civ-activity-bar {
+  background: var(--good);
+}
+
+.civ-activity-column.evil .civ-activity-bar {
+  background: var(--evil);
+}
+
+.civ-activity-bar span {
+  padding-bottom: 1px;
+  color: var(--bg);
+  font-size: .5rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .civ-grid {
@@ -894,6 +1018,14 @@
 }
 
 @media (max-width: 900px) {
+  .player-rank-row {
+    grid-template-columns: 2.25rem minmax(190px, 1fr) 88px;
+  }
+
+  .civ-activity-chart {
+    grid-column: 2 / -1;
+  }
+
   .player-profile {
     grid-template-columns: 1fr;
   }
@@ -908,6 +1040,15 @@
 }
 
 @media (max-width: 760px) {
+  .player-rank-row {
+    grid-template-columns: 1.8rem minmax(0, 1fr) 78px;
+    gap: .4rem;
+  }
+
+  .civ-activity-chart {
+    grid-column: 1 / -1;
+  }
+
   .teams,
   .profile-match-teams {
     grid-template-columns: 1fr;

@@ -1,13 +1,15 @@
 import { CIVS, DEFAULT_ELO } from "../core/constants.js";
 
-export const DECAY_GRACE_DAYS = 30;
-export const DECAY_RATE_PER_DAY = 1;
-export const DECAY_MAX = 150;
-export const DECAY_FLOOR = 600;
-export const MIN_ELO_CHANGE = 5;
+export const INACTIVE_AFTER_DAYS = 7;
+export const FULL_PENALTY_AFTER_DAYS = 30;
+export const MIN_INACTIVITY_PENALTY = 50;
+export const MAX_INACTIVITY_PENALTY = 300;
+export const RECOVERY_GAMES_REQUIRED = 2;
+export const RECOVERY_WINDOW_DAYS = 7;
+export const BALANCER_INACTIVITY_MULTIPLIER = 0.6;
 export const MIN_CIV_MODIFIER = -200;
 export const MAX_CIV_MODIFIER = 200;
-export const ELO_EXPECTATION_SCALE = 200;
+export const ELO_EXPECTATION_SCALE = 400;
 export const CIV_MODIFIER_IMPACT = 1.6;
 export const HARD_CIV_IDS = new Set(["p2", "p6"]);
 export const HARD_CIV_LOW_ELO_START = 1200;
@@ -22,6 +24,9 @@ export function normalizePlayerRating(player) {
     Number.isFinite(Number(player.mainElo)) &&
     CIVS.every(civ => player.civStats?.[civ.id])
   ) {
+    player.inactivityPenaltyBank = Number(player.inactivityPenaltyBank || 0);
+    player.returnGamesInWindow = Number(player.returnGamesInWindow || 0);
+    player.returnWindowStartedAt = Number(player.returnWindowStartedAt || 0);
     return player;
   }
 
@@ -60,6 +65,9 @@ export function normalizePlayerRating(player) {
 
   player.mainElo = mainElo;
   player.gamesPlayed = Number(player.gamesPlayed ?? ((player.wins || 0) + (player.losses || 0)));
+  player.inactivityPenaltyBank = Number(player.inactivityPenaltyBank || 0);
+  player.returnGamesInWindow = Number(player.returnGamesInWindow || 0);
+  player.returnWindowStartedAt = Number(player.returnWindowStartedAt || 0);
   player.civStats = civStats;
   player.ratingModelVersion = 2;
   return player;
@@ -69,9 +77,40 @@ export function normalizePlayerRatings(players) {
   return (players || []).map(normalizePlayerRating);
 }
 
+export function rebuildInactivityState(players, history) {
+  const matches = (history || [])
+    .slice()
+    .sort((a, b) => matchTimestamp(a) - matchTimestamp(b));
+
+  for (const player of players || []) {
+    normalizePlayerRating(player);
+    const playedAt = matches
+      .filter(match => playerParticipated(player, match))
+      .map(matchTimestamp)
+      .filter(Boolean);
+
+    if (!playedAt.length) continue;
+
+    player.lastPlayedAt = null;
+    player.inactivityPenaltyBank = 0;
+    player.returnGamesInWindow = 0;
+    player.returnWindowStartedAt = 0;
+
+    for (const timestamp of playedAt) {
+      applyInactivityGame(player, timestamp);
+    }
+  }
+
+  return players;
+}
+
 export function overallElo(player) {
+  return Math.round(permanentElo(player));
+}
+
+export function permanentElo(player) {
   normalizePlayerRating(player);
-  return Math.round(Number(player.mainElo || DEFAULT_ELO));
+  return Number(player.mainElo || DEFAULT_ELO);
 }
 
 export function civModifier(player, civId) {
@@ -118,13 +157,7 @@ export function civElo(player, civId) {
 }
 
 export function effectiveCivElo(player, civId) {
-  return Math.max(
-    100,
-    civElo(player, civId) +
-      preferenceBonus(player, civId) +
-      uncertaintyPenalty(player, civId) +
-      hardCivLowEloPenalty(player, civId)
-  );
+  return balanceElo(player, civId);
 }
 
 export function hardCivLowEloPenalty(player, civId) {
@@ -152,39 +185,90 @@ export function assignmentPenalty(player, civId, recentCivs = []) {
   return penalty;
 }
 
-export function decayAmount(player, now = Date.now()) {
+export function rawInactivityPenalty(player, now = Date.now()) {
   if (!player.lastPlayedAt) return 0;
 
   const daysSince = (now - player.lastPlayedAt) / 86400000;
-  if (daysSince <= DECAY_GRACE_DAYS) return 0;
+  if (daysSince < INACTIVE_AFTER_DAYS) return 0;
+  if (daysSince >= FULL_PENALTY_AFTER_DAYS) return MAX_INACTIVITY_PENALTY;
 
-  const decay = Math.floor((daysSince - DECAY_GRACE_DAYS) * DECAY_RATE_PER_DAY);
-  return Math.min(decay, DECAY_MAX);
+  const range = FULL_PENALTY_AFTER_DAYS - INACTIVE_AFTER_DAYS;
+  const elapsed = daysSince - INACTIVE_AFTER_DAYS;
+  const ramp = elapsed / range;
+  return Math.round(
+    MIN_INACTIVITY_PENALTY +
+      (MAX_INACTIVITY_PENALTY - MIN_INACTIVITY_PENALTY) * ramp
+  );
 }
 
-export function decayedElo(player) {
-  return Math.max(overallElo(player) - decayAmount(player), DECAY_FLOOR);
+export function activeInactivityPenalty(player, now = Date.now()) {
+  normalizePlayerRating(player);
+
+  if (player.inactivityPenaltyBank > 0) return player.inactivityPenaltyBank;
+
+  return rawInactivityPenalty(player, now);
+}
+
+export function decayedElo(player, now = Date.now()) {
+  return Math.max(100, overallElo(player) - activeInactivityPenalty(player, now));
+}
+
+export function displayElo(player, now = Date.now()) {
+  return decayedElo(player, now);
+}
+
+export function balanceElo(player, civId, now = Date.now()) {
+  return Math.max(
+    100,
+    civElo(player, civId) +
+      preferenceBonus(player, civId) +
+      uncertaintyPenalty(player, civId) +
+      hardCivLowEloPenalty(player, civId) -
+      Math.round(activeInactivityPenalty(player, now) * BALANCER_INACTIVITY_MULTIPLIER)
+  );
 }
 
 export function mainKFactor(gamesPlayed) {
-  if (gamesPlayed < 10) return 80;
-  if (gamesPlayed < 30) return 64;
-  return 48;
+  if (gamesPlayed < 10) return 40;
+  if (gamesPlayed < 30) return 32;
+  return 24;
+}
+
+export function activityKMultiplier(gamesPlayed, communityAverageGames) {
+  if (!communityAverageGames) return 1;
+
+  const ratio = gamesPlayed / communityAverageGames;
+  if (ratio <= 1.5) return 1;
+  if (ratio <= 2.5) return 0.9;
+  if (ratio <= 4) return 0.8;
+  return 0.7;
+}
+
+export function effectiveK(player, communityAverageGames) {
+  const gamesPlayed = Number(player.gamesPlayed || 0);
+  const dampened = mainKFactor(gamesPlayed) *
+    activityKMultiplier(gamesPlayed, communityAverageGames);
+  return clamp(dampened, 16, 40);
+}
+
+export function communityAverageGames(players) {
+  const ratedGameCounts = (players || [])
+    .map(player => Number(player.gamesPlayed || 0))
+    .filter(games => games > 0);
+
+  return ratedGameCounts.length ? average(ratedGameCounts) : 0;
 }
 
 export function expectedTeamScore(teamAverage, opponentAverage) {
   return 1 / (1 + Math.pow(10, (opponentAverage - teamAverage) / ELO_EXPECTATION_SCALE));
 }
 
-export function ratingDelta(k, actual, expected, minimum = MIN_ELO_CHANGE) {
-  const calculated = Math.round(k * (actual - expected));
-  return actual
-    ? Math.max(minimum, calculated)
-    : Math.min(-minimum, calculated);
+export function ratingDelta(k, actual, expected) {
+  return k * (actual - expected);
 }
 
-export function mainEloDelta(player, won, expected) {
-  return ratingDelta(mainKFactor(Number(player.gamesPlayed || 0)), won ? 1 : 0, expected);
+export function mainEloDelta(player, won, expected, communityAverageGames) {
+  return ratingDelta(effectiveK(player, communityAverageGames), won ? 1 : 0, expected);
 }
 
 export function civModifierDelta(player, civId, won, expected) {
@@ -192,18 +276,25 @@ export function civModifierDelta(player, civId, won, expected) {
   return Math.round(10 * ((won ? 1 : 0) - expected) * sampleMultiplier);
 }
 
-export function applyRatingResult(player, civId, won, expected, timestamp = Date.now()) {
+export function applyRatingResult(
+  player,
+  civId,
+  won,
+  expected,
+  timestamp = Date.now(),
+  communityAverageGames = 0
+) {
   normalizePlayerRating(player);
+  applyInactivityGame(player, timestamp);
 
-  const mainDelta = mainEloDelta(player, won, expected);
+  const mainDelta = mainEloDelta(player, won, expected, communityAverageGames);
   const modifierDelta = civModifierDelta(player, civId, won, expected);
   const stats = player.civStats[civId];
 
-  player.mainElo = Math.max(100, overallElo(player) + mainDelta);
+  player.mainElo = Math.max(100, Number(player.mainElo || DEFAULT_ELO) + mainDelta);
   player.gamesPlayed += 1;
   player.wins = Number(player.wins || 0) + (won ? 1 : 0);
   player.losses = Number(player.losses || 0) + (won ? 0 : 1);
-  player.lastPlayedAt = timestamp || player.lastPlayedAt;
 
   stats.games += 1;
   stats.wins += won ? 1 : 0;
@@ -216,7 +307,7 @@ export function applyRatingResult(player, civId, won, expected, timestamp = Date
   return { mainDelta, modifierDelta };
 }
 
-export function applyMatchRatings(players, match) {
+export function applyMatchRatings(players, match, options = {}) {
   normalizePlayerRatings(players);
 
   const evilAssignments = match.evilAssign || [];
@@ -227,14 +318,31 @@ export function applyMatchRatings(players, match) {
 
   if (!winner || !evilPlayers.length || !goodPlayers.length) return [];
 
-  const evilAverage = average(evilPlayers.map(overallElo));
-  const goodAverage = average(goodPlayers.map(overallElo));
+  const evilAverage = average(evilPlayers.map(permanentElo));
+  const goodAverage = average(goodPlayers.map(permanentElo));
+  const averageGames = Number.isFinite(Number(options.communityAverageGames))
+    ? Number(options.communityAverageGames)
+    : communityAverageGames(players);
   const evilExpected = expectedTeamScore(evilAverage, goodAverage);
   const timestamp = Number(match.timestamp || Date.now());
 
   return [
-    ...applyTeamRatings(players, evilAssignments, winner === "evil", evilExpected, timestamp),
-    ...applyTeamRatings(players, goodAssignments, winner === "good", 1 - evilExpected, timestamp)
+    ...applyTeamRatings(
+      players,
+      evilAssignments,
+      winner === "evil",
+      evilExpected,
+      timestamp,
+      averageGames
+    ),
+    ...applyTeamRatings(
+      players,
+      goodAssignments,
+      winner === "good",
+      1 - evilExpected,
+      timestamp,
+      averageGames
+    )
   ];
 }
 
@@ -275,7 +383,14 @@ function preferenceFor(player, civId) {
   return null;
 }
 
-function applyTeamRatings(players, assignments, won, expected, timestamp) {
+function applyTeamRatings(
+  players,
+  assignments,
+  won,
+  expected,
+  timestamp,
+  communityAverageGames
+) {
   const changes = [];
 
   for (const assignment of assignments) {
@@ -286,7 +401,14 @@ function applyTeamRatings(players, assignments, won, expected, timestamp) {
     changes.push({
       player,
       civId,
-      ...applyRatingResult(player, civId, won, expected, timestamp)
+      ...applyRatingResult(
+        player,
+        civId,
+        won,
+        expected,
+        timestamp,
+        communityAverageGames
+      )
     });
   }
 
@@ -333,4 +455,64 @@ function average(values) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function applyInactivityGame(player, timestamp) {
+  const playedAt = Number(timestamp || Date.now());
+  const rawPenalty = rawInactivityPenalty(player, playedAt);
+
+  if (rawPenalty > Number(player.inactivityPenaltyBank || 0)) {
+    player.inactivityPenaltyBank = rawPenalty;
+    player.returnGamesInWindow = 0;
+    player.returnWindowStartedAt = 0;
+  }
+
+  recordRecoveryGame(player, playedAt);
+  player.lastPlayedAt = playedAt;
+}
+
+function recordRecoveryGame(player, timestamp) {
+  if (player.inactivityPenaltyBank <= 0) return;
+
+  const windowMs = RECOVERY_WINDOW_DAYS * 86400000;
+  const windowExpired = !player.returnWindowStartedAt ||
+    timestamp - player.returnWindowStartedAt > windowMs;
+
+  if (windowExpired) {
+    player.returnWindowStartedAt = timestamp;
+    player.returnGamesInWindow = 1;
+  } else {
+    player.returnGamesInWindow += 1;
+  }
+
+  if (player.returnGamesInWindow >= RECOVERY_GAMES_REQUIRED) {
+    player.inactivityPenaltyBank = 0;
+    player.returnGamesInWindow = 0;
+    player.returnWindowStartedAt = 0;
+  }
+}
+
+function playerParticipated(player, match) {
+  return [...(match.evilAssign || []), ...(match.goodAssign || [])]
+    .some(assignment => (
+      (
+        assignment.playerId &&
+        String(assignment.playerId) === String(player.id || "")
+      ) ||
+      (
+        assignment.profileId &&
+        String(assignment.profileId) === String(player.profileId || "")
+      ) ||
+      (
+        assignment.name &&
+        String(assignment.name) === String(player.name || "")
+      )
+    ));
+}
+
+function matchTimestamp(match) {
+  const timestamp = Number(match?.timestamp || 0);
+  return timestamp > 0 && timestamp < 100000000000
+    ? timestamp * 1000
+    : timestamp;
 }

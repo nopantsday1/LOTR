@@ -12,7 +12,6 @@ import { loadLocalData } from "./data/localData.js";
 import { initBalancePage } from "./pages/balancePage.js";
 import { initHistoryPage } from "./pages/historyPage.js";
 import { initPlayersPage } from "./pages/playersPage.js";
-import { initLeaderboardPage } from "./pages/leaderboardPage.js";
 import { initStatsPage } from "./pages/statsPage.js";
 import { initAdminPage } from "./pages/adminPage.js";
 import { initLivePage } from "./pages/livePage.js";
@@ -33,7 +32,6 @@ function initCurrentPage() {
     balance: initBalancePage,
     history: initHistoryPage,
     players: initPlayersPage,
-    leaderboard: initLeaderboardPage,
     stats: initStatsPage,
     admin: initAdminPage,
     live: initLivePage,
