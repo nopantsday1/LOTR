@@ -5,6 +5,7 @@ import { initNavigation } from "./ui/nav.js";
 import { initRatingModeToggle } from "./ui/ratingModeToggle.js";
 import { initThemeToggle } from "./ui/themeToggle.js";
 import { toast } from "./ui/toast.js";
+import { startAutoMatchImport } from "./services/matchImportService.js";
 
 import { loadLocalData } from "./data/localData.js";
 
@@ -54,6 +55,7 @@ async function main() {
 
     initFirebase();
     subscribeCoreData(emitDataChanged);
+    startAutoMatchImport();
   } catch (err) {
     console.error(err);
     toast(

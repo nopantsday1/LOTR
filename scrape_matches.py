@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 FIREBASE_URL = "https://firestore.googleapis.com/v1/projects/lotr-9a2f2/databases/(default)/documents/players"
-HISTORY_URL  = "https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids={pids}"
+HISTORY_URL  = "https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids={pids}&count=100"
 LOBBY_URL    = "https://aoe-api.worldsedgelink.com/community/leaderboard/getAvailableLobbies?title=age2&matchtype_id=0&maxplayers=8"
 PROFILE_URL  = "https://aoe-api.worldsedgelink.com/community/leaderboard/getLeaderboardProfiles?title=age2&profile_ids={pids}"
 HEADERS      = {"User-Agent": "HobbitBalancer/1.0"}
@@ -141,6 +141,11 @@ for doc in docs:
     name = f.get("name", {}).get("stringValue", "Unknown")
     if pid:
         players.append({"name": name, "profileId": int(pid)})
+    alt_values = f.get("altProfileIds", {}).get("arrayValue", {}).get("values", [])
+    for value in alt_values:
+        alt_pid = value.get("integerValue") or value.get("stringValue")
+        if alt_pid:
+            players.append({"name": name, "profileId": int(alt_pid)})
 
 print(f"Found {len(players)} players with profile IDs")
 community_ids   = {str(p["profileId"]) for p in players}

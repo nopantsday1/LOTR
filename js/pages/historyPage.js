@@ -1,5 +1,7 @@
 import { state } from "../core/state.js";
 import { fmtDuration } from "../utils/format.js";
+import { importNewMatches } from "../services/matchImportService.js";
+import { toast } from "../ui/toast.js";
 
 export function initHistoryPage() {
   const list = document.getElementById("historyList");
@@ -24,6 +26,34 @@ export function initHistoryPage() {
   }
 
   search?.addEventListener("input", render);
+
+  document.getElementById("historyCheckNowBtn")?.addEventListener("click", async event => {
+    const button = event.currentTarget;
+    const status = document.getElementById("historyCheckStatus");
+    button.disabled = true;
+    if (status) status.textContent = "Checking the latest generated match feed...";
+
+    try {
+      const result = await importNewMatches();
+      const message = result.waiting
+        ? "Waiting for Firebase data to finish loading."
+        : result.skipped
+          ? "Local sandbox: production imports are disabled."
+          : result.added
+            ? `${result.added} new match${result.added === 1 ? "" : "es"} recorded.`
+            : "No new matches found.";
+      if (status) {
+        status.textContent = `${message} Last checked: ${new Date().toLocaleTimeString()}`;
+      }
+      if (result.added) toast(message);
+    } catch (error) {
+      console.error(error);
+      if (status) status.textContent = "Match check failed. See the browser console for details.";
+      toast("Could not import new matches", "err");
+    } finally {
+      button.disabled = false;
+    }
+  });
 
   document.getElementById("historyClearSearch")?.addEventListener("click", () => {
     search.value = "";
