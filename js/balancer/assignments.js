@@ -5,6 +5,7 @@ import {
   civModifier,
   confidenceWeight,
   effectiveCivElo,
+  hardCivLowEloPenalty,
   preferenceBonus,
   uncertaintyPenalty
 } from "../elo/elo.js";
@@ -40,6 +41,7 @@ export function assignmentOptions(players, civs) {
         confidence: confidenceWeight(player, civ.id),
         preferenceBonus: preferenceBonus(player, civ.id),
         uncertaintyPenalty: uncertaintyPenalty(player, civ.id),
+        hardCivPenalty: hardCivLowEloPenalty(player, civ.id),
         penalty: assignmentPenalty(player, civ.id, recent)
       };
     });

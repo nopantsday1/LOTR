@@ -73,6 +73,8 @@ function renderMatchCard(match) {
 
   const evil = match.evilAssign || [];
   const good = match.goodAssign || [];
+  const evilTotal = teamTotal(match, "evil", evil);
+  const goodTotal = teamTotal(match, "good", good);
 
   const winner = match.winner || match.result || "unknown";
 
@@ -90,12 +92,12 @@ function renderMatchCard(match) {
 
       <div class="teams">
         <section class="team evil-team">
-          <h3>Evil</h3>
+          <h3>Evil ${formatTeamTotal(evilTotal)}</h3>
           ${evil.map(renderAssignment).join("") || `<p class="muted">No evil assignment</p>`}
         </section>
 
         <section class="team good-team">
-          <h3>Good</h3>
+          <h3>Good ${formatTeamTotal(goodTotal)}</h3>
           ${good.map(renderAssignment).join("") || `<p class="muted">No good assignment</p>`}
         </section>
       </div>
@@ -123,6 +125,22 @@ function renderAssignment(a) {
       <span class="muted">${escapeHtml(a.civName || a.civ || "")}</span>
     </div>
   `;
+}
+
+function teamTotal(match, side, assignments) {
+  const stored = Number(side === "evil" ? match.evilTotal : match.goodTotal);
+  if (Number.isFinite(stored) && stored > 0) return Math.round(stored);
+
+  const summed = assignments
+    .map(assignment => Number(assignment.effElo))
+    .filter(Number.isFinite)
+    .reduce((sum, value) => sum + value, 0);
+
+  return summed > 0 ? Math.round(summed) : null;
+}
+
+function formatTeamTotal(total) {
+  return Number.isFinite(total) ? `<span class="muted">(${total} eff)</span>` : "";
 }
 
 function escapeHtml(value) {

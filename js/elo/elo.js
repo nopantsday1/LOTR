@@ -8,6 +8,12 @@ export const MIN_ELO_CHANGE = 5;
 export const MIN_CIV_MODIFIER = -200;
 export const MAX_CIV_MODIFIER = 200;
 export const ELO_EXPECTATION_SCALE = 200;
+export const CIV_MODIFIER_IMPACT = 1.6;
+export const HARD_CIV_IDS = new Set(["p2", "p6"]);
+export const HARD_CIV_LOW_ELO_START = 1200;
+export const HARD_CIV_LOW_ELO_FLOOR = 800;
+export const HARD_CIV_MAX_LOW_ELO_PENALTY = 120;
+export const INEXPERIENCE_PENALTIES = [-120, -90, -65, -40, -20];
 
 export function normalizePlayerRating(player) {
   if (!player) return player;
@@ -96,14 +102,15 @@ export function preferenceBonus(player, civId) {
 
 export function uncertaintyPenalty(player, civId) {
   const games = civGames(player, civId);
-  if (games === 0) return -40;
-  if (games === 1) return -25;
-  if (games === 2) return -15;
-  return 0;
+  return INEXPERIENCE_PENALTIES[games] || 0;
 }
 
 export function weightedCivAdjustment(player, civId) {
-  return Math.round(confidenceWeight(player, civId) * civModifier(player, civId));
+  return Math.round(
+    confidenceWeight(player, civId) *
+      civModifier(player, civId) *
+      CIV_MODIFIER_IMPACT
+  );
 }
 
 export function civElo(player, civId) {
@@ -115,8 +122,20 @@ export function effectiveCivElo(player, civId) {
     100,
     civElo(player, civId) +
       preferenceBonus(player, civId) +
-      uncertaintyPenalty(player, civId)
+      uncertaintyPenalty(player, civId) +
+      hardCivLowEloPenalty(player, civId)
   );
+}
+
+export function hardCivLowEloPenalty(player, civId) {
+  if (!HARD_CIV_IDS.has(civId)) return 0;
+
+  const elo = overallElo(player);
+  if (elo >= HARD_CIV_LOW_ELO_START) return 0;
+
+  const range = HARD_CIV_LOW_ELO_START - HARD_CIV_LOW_ELO_FLOOR;
+  const ratio = clamp((HARD_CIV_LOW_ELO_START - elo) / range, 0, 1);
+  return -Math.round(HARD_CIV_MAX_LOW_ELO_PENALTY * ratio);
 }
 
 export function assignmentPenalty(player, civId, recentCivs = []) {

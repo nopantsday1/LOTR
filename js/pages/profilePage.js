@@ -291,8 +291,8 @@ function renderPlayerMatch(match, player, eloChange) {
       </div>
 
       <div class="profile-match-teams">
-        ${renderProfileTeam("Evil", match.evilAssign || [], player)}
-        ${renderProfileTeam("Good", match.goodAssign || [], player)}
+        ${renderProfileTeam("Evil", match.evilAssign || [], player, match.evilTotal)}
+        ${renderProfileTeam("Good", match.goodAssign || [], player, match.goodTotal)}
       </div>
 
       <div class="match-meta muted">
@@ -304,10 +304,10 @@ function renderPlayerMatch(match, player, eloChange) {
   `;
 }
 
-function renderProfileTeam(label, assignments, selectedPlayer) {
+function renderProfileTeam(label, assignments, selectedPlayer, storedTotal) {
   return `
     <section class="profile-match-team ${label.toLowerCase()}">
-      <h3>${label}</h3>
+      <h3>${label} ${formatTeamTotal(teamTotal(assignments, storedTotal))}</h3>
       ${assignments.map(assignment => {
         const playerName = assignment.name || assignment.playerName || "Unknown";
         const linkedPlayer = findStatePlayer(assignment);
@@ -327,6 +327,22 @@ function renderProfileTeam(label, assignments, selectedPlayer) {
       }).join("") || `<p class="muted">No assignments recorded</p>`}
     </section>
   `;
+}
+
+function teamTotal(assignments, storedTotal) {
+  const stored = Number(storedTotal);
+  if (Number.isFinite(stored) && stored > 0) return Math.round(stored);
+
+  const summed = assignments
+    .map(assignment => Number(assignment.effElo))
+    .filter(Number.isFinite)
+    .reduce((sum, value) => sum + value, 0);
+
+  return summed > 0 ? Math.round(summed) : null;
+}
+
+function formatTeamTotal(total) {
+  return Number.isFinite(total) ? `<span class="muted">(${total} eff)</span>` : "";
 }
 
 function findPlayerAssignment(match, player) {
