@@ -24,6 +24,7 @@ export function normalizePlayerRating(player) {
     Number.isFinite(Number(player.mainElo)) &&
     CIVS.every(civ => player.civStats?.[civ.id])
   ) {
+    player.mainElo = Math.round(Number(player.mainElo));
     player.inactivityPenaltyBank = Number(player.inactivityPenaltyBank || 0);
     player.returnGamesInWindow = Number(player.returnGamesInWindow || 0);
     player.returnWindowStartedAt = Number(player.returnWindowStartedAt || 0);
@@ -110,7 +111,7 @@ export function overallElo(player) {
 
 export function permanentElo(player) {
   normalizePlayerRating(player);
-  return Number(player.mainElo || DEFAULT_ELO);
+  return Math.round(Number(player.mainElo || DEFAULT_ELO));
 }
 
 export function civModifier(player, civId) {
@@ -264,7 +265,7 @@ export function expectedTeamScore(teamAverage, opponentAverage) {
 }
 
 export function ratingDelta(k, actual, expected) {
-  return k * (actual - expected);
+  return Math.round(k * (actual - expected));
 }
 
 export function mainEloDelta(player, won, expected, communityAverageGames) {
@@ -291,7 +292,7 @@ export function applyRatingResult(
   const modifierDelta = civModifierDelta(player, civId, won, expected);
   const stats = player.civStats[civId];
 
-  player.mainElo = Math.max(100, Number(player.mainElo || DEFAULT_ELO) + mainDelta);
+  player.mainElo = Math.round(Math.max(100, Number(player.mainElo || DEFAULT_ELO) + mainDelta));
   player.gamesPlayed += 1;
   player.wins = Number(player.wins || 0) + (won ? 1 : 0);
   player.losses = Number(player.losses || 0) + (won ? 0 : 1);

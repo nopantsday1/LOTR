@@ -12,6 +12,7 @@ export function initStatsPage() {
   const streaks = document.getElementById("playerStreaks");
   const records = document.getElementById("communityRecords");
   const stackers = document.getElementById("stackers");
+  const reverseStackers = document.getElementById("reverseStackers");
   const funStats = document.getElementById("funStats");
   const rangeButtons = [...document.querySelectorAll("[data-range]")];
   if (!gamesPerDay) return;
@@ -28,6 +29,7 @@ export function initStatsPage() {
     if (streaks) streaks.innerHTML = renderStreaks(completed);
     if (records) records.innerHTML = renderRecords(completed);
     if (stackers) stackers.innerHTML = renderStackers(matches);
+    if (reverseStackers) reverseStackers.innerHTML = renderReverseStackers(matches);
     if (funStats) funStats.innerHTML = renderFunFacts(matches, completed);
 
     rangeButtons.forEach(button => {
@@ -199,17 +201,43 @@ function renderRecords(matches) {
 }
 
 function renderStackers(matches) {
-  const players = calculateStackers(matches).slice(0, 5);
+  const players = calculateStackers(matches);
   if (!players.length) return emptyState("No players have 10 comparable games yet.");
 
+  return `
+    ${renderStackerList(players.slice(0, 5), "stronger")}
+    <p class="muted small">Share of games on the higher-rated pre-game side · minimum 10 games.</p>
+  `;
+}
+
+function renderReverseStackers(matches) {
+  const players = calculateStackers(matches);
+  const reverseStackers = [...players]
+    .sort((a, b) => (
+      b.weakerRateValue - a.weakerRateValue ||
+      b.comparableGames - a.comparableGames ||
+      a.name.localeCompare(b.name)
+    ))
+    .slice(0, 5);
+
+  if (!players.length) return emptyState("No players have 10 comparable games yet.");
+
+  return `
+    ${renderStackerList(reverseStackers, "weaker")}
+    <p class="muted small">Share of games on the lower-rated pre-game side · minimum 10 games.</p>
+  `;
+}
+
+function renderStackerList(players, side) {
   return `
     <div class="stats-list">
       ${players.map((player, index) => statRow(
         `${index + 1}. ${player.name}`,
-        `${player.strongerSideGames}/${player.comparableGames} · ${player.rate}%`
+        side === "stronger"
+          ? `${player.strongerSideGames}/${player.comparableGames} · ${player.strongerRate}%`
+          : `${player.weakerSideGames}/${player.comparableGames} · ${player.weakerRate}%`
       )).join("")}
     </div>
-    <p class="muted small">Share of games on the higher-rated side in the active rating mode · minimum 10 games.</p>
   `;
 }
 
@@ -282,10 +310,14 @@ function calculateStackers(matches) {
     .filter(player => player.comparableGames >= 10)
     .map(player => ({
       ...player,
-      rate: Math.round((player.strongerSideGames / player.comparableGames) * 100)
+      weakerSideGames: player.comparableGames - player.strongerSideGames,
+      strongerRateValue: player.strongerSideGames / player.comparableGames,
+      weakerRateValue: (player.comparableGames - player.strongerSideGames) / player.comparableGames,
+      strongerRate: Math.round((player.strongerSideGames / player.comparableGames) * 100),
+      weakerRate: Math.round(((player.comparableGames - player.strongerSideGames) / player.comparableGames) * 100)
     }))
     .sort((a, b) => (
-      (b.strongerSideGames / b.comparableGames) - (a.strongerSideGames / a.comparableGames) ||
+      b.strongerRateValue - a.strongerRateValue ||
       b.comparableGames - a.comparableGames ||
       a.name.localeCompare(b.name)
     ));
@@ -424,22 +456,13 @@ function matchDuration(match) {
 }
 
 function teamEloTotal(match, side) {
+  const storedTotal = Number(match?.[`${side}Total`]);
+  if (Number.isFinite(storedTotal)) return storedTotal;
+
   const assignments = match?.[`${side}Assign`] || [];
-  const ratings = assignments.map(assignment => assignmentElo(assignment));
+  const ratings = assignments.map(assignment => Number(assignment?.effElo));
   if (!ratings.length || ratings.some(rating => !Number.isFinite(rating))) return NaN;
   return ratings.reduce((sum, rating) => sum + rating, 0);
-}
-
-function assignmentElo(assignment) {
-  const profileId = String(assignment?.profileId || "");
-  const name = assignmentName(assignment);
-  const player = state.players.find(candidate => (
-    (profileId && String(candidate.profileId || "") === profileId) ||
-    (name && String(candidate.name || "") === name)
-  ));
-
-  if (player) return overallElo(player);
-  return Number(assignment?.effElo);
 }
 
 function playerGames(player) {

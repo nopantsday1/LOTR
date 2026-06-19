@@ -3,20 +3,23 @@ import { CIVS } from "../core/constants.js";
 import {
   civGames,
   displayElo,
+  effectiveCivElo,
   overallElo
 } from "../elo/elo.js";
 
 export function initPlayersPage() {
   const list = document.getElementById("playersList");
   const search = document.getElementById("playersSearch");
+  const civSort = document.getElementById("playersCivSort");
   const searchMeta = document.getElementById("playersSearchMeta");
   if (!list) return;
 
   function render() {
     const query = normalizeSearch(search?.value);
+    const selectedCiv = civSort?.value || "overall";
     const ranked = state.players
       .slice()
-      .sort((a, b) => displayElo(b) - displayElo(a));
+      .sort((a, b) => rankingElo(b, selectedCiv) - rankingElo(a, selectedCiv));
     const rankById = new Map(ranked.map((player, index) => [player.id, index + 1]));
     const players = ranked.filter(player => matchesPlayerSearch(player, query));
 
@@ -27,7 +30,7 @@ export function initPlayersPage() {
     }
 
     list.innerHTML = players.length
-      ? players.map(player => renderPlayer(player, rankById.get(player.id))).join("")
+      ? players.map(player => renderPlayer(player, rankById.get(player.id), selectedCiv)).join("")
       : `<p class="card muted">No players match your search.</p>`;
 
     list.querySelectorAll(".player-rank-row").forEach(row => {
@@ -46,17 +49,21 @@ export function initPlayersPage() {
   }
 
   search?.addEventListener("input", render);
+  civSort?.addEventListener("change", render);
   window.addEventListener("lotr:dataChanged", render);
   render();
 }
 
-function renderPlayer(player, rank) {
+function renderPlayer(player, rank, selectedCiv) {
   const wins = Number(player.wins || 0);
   const losses = Number(player.losses || 0);
   const total = wins + losses;
   const winRate = total ? Math.round((wins / total) * 100) : 0;
-  const realElo = displayElo(player);
+  const realElo = rankingElo(player, selectedCiv);
   const permanent = overallElo(player);
+  const eloLabel = selectedCiv === "overall"
+    ? "Real Elo"
+    : `${selectedCiv.toUpperCase()} Effective Elo`;
 
   return `
     <article
@@ -71,12 +78,20 @@ function renderPlayer(player, rank) {
       </div>
       <div class="player-real-elo">
         <strong>${realElo}</strong>
-        <span>Real Elo</span>
-        ${permanent !== realElo ? `<small>${permanent} permanent</small>` : ""}
+        <span>${eloLabel}</span>
+        ${selectedCiv === "overall" && permanent !== realElo
+          ? `<small>${permanent} permanent</small>`
+          : ""}
       </div>
       ${renderCivChart(player)}
     </article>
   `;
+}
+
+function rankingElo(player, selectedCiv) {
+  return selectedCiv === "overall"
+    ? displayElo(player)
+    : effectiveCivElo(player, selectedCiv);
 }
 
 function renderCivChart(player) {

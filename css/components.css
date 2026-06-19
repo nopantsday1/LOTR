@@ -110,6 +110,22 @@
   flex: 1 1 280px;
 }
 
+.players-search-field {
+  flex: 1 1 280px;
+}
+
+.players-search-field input {
+  width: 100%;
+}
+
+.players-sort-field {
+  flex: 0 1 220px;
+}
+
+.players-sort-field select {
+  width: 100%;
+}
+
 .field-label {
   display: grid;
   gap: .35rem;

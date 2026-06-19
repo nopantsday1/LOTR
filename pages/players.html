@@ -32,18 +32,34 @@
     <div class="page-header">
       <div>
         <h1>Players</h1>
-        <p>Community ranking by real Elo, with position activity and win rates.</p>
+        <p>Community ranking by overall or civilization Elo, with position activity and win rates.</p>
       </div>
     </div>
 
     <section class="card toolbar search-toolbar">
-      <label class="field-label" for="playersSearch">Find a player</label>
-      <input
-        id="playersSearch"
-        type="search"
-        placeholder="Player name or profile ID"
-        autocomplete="off"
-      >
+      <label class="field-label players-search-field" for="playersSearch">
+        Find a player
+        <input
+          id="playersSearch"
+          type="search"
+          placeholder="Player name or profile ID"
+          autocomplete="off"
+        >
+      </label>
+      <label class="field-label players-sort-field" for="playersCivSort">
+        Sort by
+        <select id="playersCivSort">
+          <option value="overall">Overall Elo</option>
+          <option value="p1">P1 Dol Guldur</option>
+          <option value="p2">P2 Dol Guldur</option>
+          <option value="p3">P3 Azog's Host</option>
+          <option value="p4">P4 Goblin</option>
+          <option value="p5">P5 Blue Mountains</option>
+          <option value="p6">P6 Northmen</option>
+          <option value="p7">P7 Elves</option>
+          <option value="p8">P8 Iron Hills</option>
+        </select>
+      </label>
       <span id="playersSearchMeta" class="muted small player-search-meta" aria-live="polite"></span>
     </section>
 

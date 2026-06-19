@@ -1,6 +1,15 @@
 import { state } from "../core/state.js";
 import { splitTeams } from "../balancer/splitTeams.js";
 import { toast } from "../ui/toast.js";
+import {
+  assignmentPenalty,
+  civModifier,
+  confidenceWeight,
+  effectiveCivElo,
+  hardCivLowEloPenalty,
+  preferenceBonus,
+  uncertaintyPenalty
+} from "../elo/elo.js";
 
 export function initBalancePage() {
   const picker = document.getElementById("playerPicker");
@@ -79,7 +88,60 @@ export function initBalancePage() {
       previousTeamSignature: state.lastBalance?.teamSignature
     });
     state.lastBalance = split;
-    result.innerHTML = split ? renderSplit(split) : `<p class="muted">No valid assignment found.</p>`;
+    renderBalanceResult();
+  }
+
+  function renderBalanceResult() {
+    result.innerHTML = state.lastBalance
+      ? renderSplit(state.lastBalance)
+      : `<p class="muted">No valid assignment found.</p>`;
+    bindBalanceDragHandlers(result);
+  }
+
+  function bindBalanceDragHandlers(container) {
+    container.querySelectorAll(".balance-assignment").forEach(row => {
+      row.addEventListener("dragstart", event => {
+        row.classList.add("dragging");
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("application/json", JSON.stringify({
+          side: row.dataset.side,
+          index: Number(row.dataset.index)
+        }));
+      });
+
+      row.addEventListener("dragend", () => {
+        row.classList.remove("dragging");
+        container.querySelectorAll(".balance-assignment.drag-over")
+          .forEach(item => item.classList.remove("drag-over"));
+      });
+
+      row.addEventListener("dragover", event => {
+        event.preventDefault();
+        row.classList.add("drag-over");
+        event.dataTransfer.dropEffect = "move";
+      });
+
+      row.addEventListener("dragleave", () => {
+        row.classList.remove("drag-over");
+      });
+
+      row.addEventListener("drop", event => {
+        event.preventDefault();
+        row.classList.remove("drag-over");
+
+        const source = parseDragSource(event.dataTransfer.getData("application/json"));
+        const target = {
+          side: row.dataset.side,
+          index: Number(row.dataset.index)
+        };
+
+        if (!source || !target.side || !Number.isInteger(target.index)) return;
+        if (source.side === target.side && source.index === target.index) return;
+
+        swapBalancePlayers(state.lastBalance, source, target);
+        renderBalanceResult();
+      });
+    });
   }
 
   balanceBtn?.addEventListener("click", () => generateBalance(false));
@@ -90,6 +152,7 @@ export function initBalancePage() {
   window.addEventListener("lotr:dataChanged", () => {
     renderPicker();
     result.innerHTML = "";
+    state.lastBalance = null;
   });
 }
 
@@ -135,19 +198,29 @@ function renderSplit(split) {
 }
 
 function renderTeam(label, team) {
+  const side = label.toLowerCase();
   return `
-    <section class="card team ${label.toLowerCase()}-team">
+    <section class="card team ${side}-team">
       <h2>${label} · ${team.total} effective Elo</h2>
-      ${team.assignment.map(item => {
+      ${team.assignment.map((item, index) => {
         const adjustment = Math.round(item.confidence * item.modifier);
         return `
-          <div class="balance-assignment">
+          <div
+            class="balance-assignment"
+            draggable="true"
+            data-side="${side}"
+            data-index="${index}"
+            title="Drag onto another player to swap positions"
+          >
+            <div class="balance-drag-handle" aria-hidden="true">
+              <span></span><span></span><span></span>
+            </div>
             <div>
               <strong>${escapeHtml(item.civ.id.toUpperCase())} · ${escapeHtml(item.player.name)}</strong>
-              <div class="muted small">${escapeHtml(item.civ.name.replace(/^P\d+\s*/, ""))}</div>
+              <div class="muted small">${escapeHtml(item.civ.name.replace(/^P\d+\s*/, ""))} · drag to swap</div>
             </div>
             <div class="balance-elo-details">
-              <span>${item.player.mainElo} main</span>
+              <span>${Math.round(Number(item.player.mainElo || 0))} main</span>
               <span>${formatSigned(adjustment)} civ</span>
               <strong>${item.elo} effective</strong>
             </div>
@@ -156,6 +229,73 @@ function renderTeam(label, team) {
       }).join("")}
     </section>
   `;
+}
+
+function parseDragSource(value) {
+  try {
+    const source = JSON.parse(value);
+    if (!source?.side || !Number.isInteger(source.index)) return null;
+    return source;
+  } catch {
+    return null;
+  }
+}
+
+function swapBalancePlayers(split, source, target) {
+  if (!split) return;
+
+  const sourceTeam = split[source.side];
+  const targetTeam = split[target.side];
+  const sourceItem = sourceTeam?.assignment?.[source.index];
+  const targetItem = targetTeam?.assignment?.[target.index];
+  if (!sourceItem || !targetItem) return;
+
+  sourceTeam.assignment[source.index] = buildAssignmentItem(targetItem.player, sourceItem.civ);
+  targetTeam.assignment[target.index] = buildAssignmentItem(sourceItem.player, targetItem.civ);
+  recalculateSplit(split);
+}
+
+function buildAssignmentItem(player, civ) {
+  return {
+    player,
+    civ,
+    elo: effectiveCivElo(player, civ.id),
+    modifier: civModifier(player, civ.id),
+    confidence: confidenceWeight(player, civ.id),
+    preferenceBonus: preferenceBonus(player, civ.id),
+    uncertaintyPenalty: uncertaintyPenalty(player, civ.id),
+    hardCivPenalty: hardCivLowEloPenalty(player, civ.id),
+    penalty: assignmentPenalty(player, civ.id, [])
+  };
+}
+
+function recalculateSplit(split) {
+  recalculateTeam(split.evil);
+  recalculateTeam(split.good);
+  split.diff = Math.abs(split.evil.total - split.good.total);
+  split.assignmentPenalty = split.evil.penalty + split.good.penalty;
+  split.score = split.diff + split.assignmentPenalty;
+  split.signature = balanceSignature(split);
+  split.teamSignature = balanceTeamSignature(split);
+}
+
+function recalculateTeam(team) {
+  team.total = team.assignment.reduce((sum, item) => sum + item.elo, 0);
+  team.penalty = team.assignment.reduce((sum, item) => sum + item.penalty, 0);
+}
+
+function balanceSignature(split) {
+  return [
+    ...split.evil.assignment.map(item => `evil:${item.civ.id}:${item.player.id}`),
+    ...split.good.assignment.map(item => `good:${item.civ.id}:${item.player.id}`)
+  ].sort().join("|");
+}
+
+function balanceTeamSignature(split) {
+  return [
+    `evil:${split.evil.assignment.map(item => item.player.id).sort().join(",")}`,
+    `good:${split.good.assignment.map(item => item.player.id).sort().join(",")}`
+  ].join("|");
 }
 
 function formatSigned(value) {

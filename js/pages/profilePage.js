@@ -5,7 +5,6 @@ import {
   civGames,
   civModifier,
   decayedElo,
-  effectiveCivElo,
   overallElo
 } from "../elo/elo.js";
 import { buildPlayerEloProgress } from "../elo/progress.js";
@@ -410,7 +409,6 @@ function normalizeWinner(value) {
 function renderCivs(player) {
   return CIVS.map(civ => {
     const elo = civElo(player, civ.id);
-    const effective = effectiveCivElo(player, civ.id);
     const modifier = civModifier(player, civ.id);
     const games = civGames(player, civ.id);
     const wins = player.civStats?.[civ.id]?.wins || 0;
@@ -432,7 +430,7 @@ function renderCivs(player) {
 
         <div class="civ-meta">
           <span>${formatSigned(modifier)} mod · ${games}g</span>
-          <span>${effective} eff</span>
+          <span>${wr}% WR</span>
         </div>
       </div>
     `;
