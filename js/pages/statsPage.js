@@ -9,6 +9,7 @@ export function initStatsPage() {
   const overview = document.getElementById("statsOverview");
   const gamesPerDay = document.getElementById("gamesPerDay");
   const sideBalance = document.getElementById("sideBalance");
+  const sideSampleSize = document.getElementById("sideSampleSize");
   const streaks = document.getElementById("playerStreaks");
   const records = document.getElementById("communityRecords");
   const stackers = document.getElementById("stackers");
@@ -25,7 +26,7 @@ export function initStatsPage() {
 
     if (overview) overview.innerHTML = renderOverview(matches, completed);
     gamesPerDay.innerHTML = renderActivity(matches, selectedRange);
-    if (sideBalance) sideBalance.innerHTML = renderSideBalance(completed);
+    if (sideBalance) sideBalance.innerHTML = renderSideBalance(completed, readSideSampleSize(sideSampleSize));
     if (streaks) streaks.innerHTML = renderStreaks(completed);
     if (records) records.innerHTML = renderRecords(completed);
     if (stackers) stackers.innerHTML = renderStackers(matches);
@@ -43,6 +44,8 @@ export function initStatsPage() {
       render();
     });
   });
+
+  sideSampleSize?.addEventListener("input", render);
 
   render();
   window.addEventListener("lotr:dataChanged", render);
@@ -123,27 +126,107 @@ function renderActivity(matches, selectedRange) {
   `;
 }
 
-function renderSideBalance(matches) {
+function renderSideBalance(matches, sampleSize) {
   if (!matches.length) return emptyState("No completed matches are available.");
 
-  const evilWins = matches.filter(match => normalizeWinner(match) === "evil").length;
-  const goodWins = matches.filter(match => normalizeWinner(match) === "good").length;
-  const evilRate = Math.round((evilWins / matches.length) * 100);
-  const goodRate = 100 - evilRate;
+  const sample = Number.isFinite(sampleSize) ? matches.slice(0, sampleSize) : matches;
+  const analysis = analyzeSideStrength(sample);
+  const { evilWins, goodWins, evilRate, goodRate } = analysis;
   const leader = evilWins === goodWins
     ? "The sides are perfectly tied."
     : `${evilWins > goodWins ? "Evil" : "Good"} leads by ${Math.abs(evilWins - goodWins)} games.`;
+  const sampleLabel = Number.isFinite(sampleSize)
+    ? `Latest ${sample.length} of ${matches.length} completed games`
+    : `All ${matches.length} completed games`;
 
   return `
     <div class="side-balance-score">
-      <div class="side-score evil"><strong>${evilWins}</strong><span>Evil wins · ${evilRate}%</span></div>
-      <div class="side-score good"><strong>${goodWins}</strong><span>Good wins · ${goodRate}%</span></div>
+      <div class="side-score evil">
+        <strong>${evilWins}</strong>
+        <span>Evil wins · ${evilRate}% WR</span>
+        <small>${formatAnalysisNumber(analysis.evilAvgElo)} avg effective Elo</small>
+      </div>
+      <div class="side-score good">
+        <strong>${goodWins}</strong>
+        <span>Good wins · ${goodRate}% WR</span>
+        <small>${formatAnalysisNumber(analysis.goodAvgElo)} avg effective Elo</small>
+      </div>
     </div>
     <div class="side-balance-bar" aria-label="Evil ${evilRate} percent, Good ${goodRate} percent">
       <span class="evil" style="width:${evilRate}%"></span>
       <span class="good" style="width:${goodRate}%"></span>
     </div>
+    <div class="side-analysis-grid">
+      ${analysisTile("Sample", sampleLabel)}
+      ${analysisTile("Average Elo edge", analysis.averageEdgeLabel)}
+      ${analysisTile("Higher Elo side won", analysis.strongerWinRateLabel)}
+      ${analysisTile("Average gap", analysis.averageGapLabel)}
+    </div>
     <p class="muted small">${leader}</p>
+  `;
+}
+
+function readSideSampleSize(input) {
+  const value = Number(input?.value);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : NaN;
+}
+
+function analyzeSideStrength(matches) {
+  const evilWins = matches.filter(match => normalizeWinner(match) === "evil").length;
+  const goodWins = matches.filter(match => normalizeWinner(match) === "good").length;
+  const total = Math.max(1, matches.length);
+  const eloMatches = matches
+    .map(match => ({
+      match,
+      winner: normalizeWinner(match),
+      evilTotal: teamEloTotal(match, "evil"),
+      goodTotal: teamEloTotal(match, "good")
+    }))
+    .filter(item => Number.isFinite(item.evilTotal) && Number.isFinite(item.goodTotal));
+
+  const evilAvgElo = average(eloMatches.map(item => item.evilTotal));
+  const goodAvgElo = average(eloMatches.map(item => item.goodTotal));
+  const averageGap = average(eloMatches.map(item => Math.abs(item.evilTotal - item.goodTotal)));
+  const edge = Number.isFinite(goodAvgElo) && Number.isFinite(evilAvgElo)
+    ? goodAvgElo - evilAvgElo
+    : NaN;
+  const strongerWins = eloMatches.filter(item => {
+    if (item.evilTotal === item.goodTotal) return false;
+    return item.winner === (item.evilTotal > item.goodTotal ? "evil" : "good");
+  }).length;
+  const strongerComparable = eloMatches.filter(item => item.evilTotal !== item.goodTotal).length;
+
+  return {
+    evilWins,
+    goodWins,
+    evilRate: Math.round((evilWins / total) * 100),
+    goodRate: Math.round((goodWins / total) * 100),
+    evilAvgElo,
+    goodAvgElo,
+    averageEdgeLabel: formatAverageEdge(edge),
+    averageGapLabel: Number.isFinite(averageGap) ? `${Math.round(averageGap)} Elo` : "N/A",
+    strongerWinRateLabel: strongerComparable
+      ? `${Math.round((strongerWins / strongerComparable) * 100)}% (${strongerWins}/${strongerComparable})`
+      : "N/A"
+  };
+}
+
+function formatAverageEdge(edge) {
+  if (!Number.isFinite(edge)) return "N/A";
+  if (!edge) return "Even";
+  return `${edge > 0 ? "Good" : "Evil"} +${Math.round(Math.abs(edge))} Elo`;
+}
+
+function formatAnalysisNumber(value) {
+  return Number.isFinite(value) ? Math.round(value) : "N/A";
+}
+
+function analysisTile(label, value) {
+  return `
+    <div class="side-analysis-tile">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </div>
   `;
 }
 
@@ -472,6 +555,13 @@ function playerGames(player) {
 function winRate(player) {
   const games = playerGames(player);
   return games ? Math.round((Number(player?.wins || 0) / games) * 100) : 0;
+}
+
+function average(values) {
+  const numbers = values.filter(Number.isFinite);
+  return numbers.length
+    ? numbers.reduce((sum, value) => sum + value, 0) / numbers.length
+    : NaN;
 }
 
 function combineBuckets(buckets, size) {

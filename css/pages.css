@@ -776,6 +776,16 @@
   font-size: 10px;
 }
 
+.side-sample-field {
+  width: min(150px, 100%);
+}
+
+.side-sample-field input {
+  width: 100%;
+  min-height: 34px;
+  padding: .45rem .6rem;
+}
+
 .activity-summary {
   margin-bottom: .6rem;
 }
@@ -879,6 +889,11 @@
   font-size: 9px;
 }
 
+.side-score small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
 .side-score.evil {
   border-color: var(--evil-border);
   color: var(--evil);
@@ -904,6 +919,34 @@
 
 .side-balance-bar .good {
   background: var(--good);
+}
+
+.side-analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .5rem;
+  margin: .75rem 0;
+}
+
+.side-analysis-tile {
+  display: grid;
+  gap: .2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--subtle-bg);
+  padding: .65rem;
+}
+
+.side-analysis-tile span {
+  color: var(--muted);
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.side-analysis-tile strong {
+  color: var(--gold-bright);
+  font-size: .82rem;
 }
 
 .stats-subheading {
