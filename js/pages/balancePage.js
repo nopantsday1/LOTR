@@ -3,6 +3,7 @@ import { splitTeams } from "../balancer/splitTeams.js";
 import { toast } from "../ui/toast.js";
 import {
   assignmentPenalty,
+  civBiasAdjustment,
   civModifier,
   confidenceWeight,
   effectiveCivElo,
@@ -203,7 +204,10 @@ function renderTeam(label, team) {
     <section class="card team ${side}-team">
       <h2>${label} · ${team.total} effective Elo</h2>
       ${team.assignment.map((item, index) => {
-        const adjustment = Math.round(item.confidence * item.modifier);
+        const adjustment = Number(
+          item.civBias ??
+          Math.round(item.confidence * item.modifier) + Number(item.uncertaintyPenalty || 0)
+        );
         return `
           <div
             class="balance-assignment"
@@ -260,6 +264,7 @@ function buildAssignmentItem(player, civ) {
     player,
     civ,
     elo: effectiveCivElo(player, civ.id),
+    civBias: civBiasAdjustment(player, civ.id),
     modifier: civModifier(player, civ.id),
     confidence: confidenceWeight(player, civ.id),
     preferenceBonus: preferenceBonus(player, civ.id),

@@ -1,9 +1,9 @@
 import { state } from "../core/state.js";
 import { CIVS } from "../core/constants.js";
 import {
+  civBiasAdjustment,
   civElo,
   civGames,
-  civModifier,
   decayedElo,
   overallElo
 } from "../elo/elo.js";
@@ -409,7 +409,7 @@ function normalizeWinner(value) {
 function renderCivs(player) {
   return CIVS.map(civ => {
     const elo = civElo(player, civ.id);
-    const modifier = civModifier(player, civ.id);
+    const modifier = civBiasAdjustment(player, civ.id);
     const games = civGames(player, civ.id);
     const wins = player.civStats?.[civ.id]?.wins || 0;
     const wr = games ? Math.round((wins / games) * 100) : 0;
@@ -429,7 +429,7 @@ function renderCivs(player) {
         </div>
 
         <div class="civ-meta">
-          <span>${formatSigned(modifier)} mod · ${games}g</span>
+          <span>${formatSigned(modifier)} bias · ${games}g</span>
           <span>${wr}% WR</span>
         </div>
       </div>

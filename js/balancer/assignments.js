@@ -2,6 +2,7 @@ import { CIVS, normalizeCivName } from "../core/constants.js";
 import { state } from "../core/state.js";
 import {
   assignmentPenalty,
+  civBiasAdjustment,
   civModifier,
   confidenceWeight,
   effectiveCivElo,
@@ -37,6 +38,7 @@ export function assignmentOptions(players, civs) {
         player,
         civ,
         elo: effectiveCivElo(player, civ.id),
+        civBias: civBiasAdjustment(player, civ.id),
         modifier: civModifier(player, civ.id),
         confidence: confidenceWeight(player, civ.id),
         preferenceBonus: preferenceBonus(player, civ.id),

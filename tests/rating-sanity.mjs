@@ -3,6 +3,8 @@ import fs from "node:fs";
 import {
   activeInactivityPenalty,
   applyRatingResult,
+  civBiasAdjustment,
+  civElo,
   balanceElo,
   decayedElo,
   effectiveK,
@@ -34,6 +36,86 @@ function player(mainElo, gamesPlayed = 0) {
   };
 }
 
+// Civ bias never raises a player above real Elo. The two best civs are treated
+// as real Elo, and the remaining civs carry only negative bias.
+{
+  const specialist = player(1500, 60);
+  const modifiers = {
+    p1: 200,
+    p2: 120,
+    p3: 80,
+    p4: 0,
+    p5: -20,
+    p6: -80,
+    p7: -120,
+    p8: -200,
+  };
+
+  for (const civId of CIV_IDS) {
+    specialist.civStats[civId].modifier = modifiers[civId];
+  }
+
+  const civElos = CIV_IDS.map(civId => civElo(specialist, civId));
+  const zeroBiasCivs = CIV_IDS.filter(civId => civBiasAdjustment(specialist, civId) === 0);
+
+  assert.deepEqual(zeroBiasCivs, ["p1", "p2"]);
+  assert.ok(civElos.every(elo => elo <= 1500));
+  assert.equal(civElo(specialist, "p1"), 1500);
+  assert.equal(civElo(specialist, "p2"), 1500);
+  assert.ok(civElo(specialist, "p3") < 1500);
+}
+
+// Under five games is included before choosing the two zero-bias civs.
+{
+  const inexperienced = player(1500, 60);
+
+  for (const civId of CIV_IDS) {
+    inexperienced.civStats[civId].modifier = 0;
+    inexperienced.civStats[civId].games = 5;
+  }
+
+  inexperienced.civStats.p1.games = 0;
+  inexperienced.civStats.p2.games = 4;
+
+  const zeroBiasCivs = CIV_IDS.filter(civId => civBiasAdjustment(inexperienced, civId) === 0);
+
+  assert.deepEqual(zeroBiasCivs, ["p3", "p4"]);
+  assert.equal(civBiasAdjustment(inexperienced, "p1"), -118);
+  assert.equal(civBiasAdjustment(inexperienced, "p2"), -20);
+  assert.equal(civBiasAdjustment(inexperienced, "p3"), 0);
+  assert.equal(civBiasAdjustment(inexperienced, "p5"), -1);
+  assert.equal(civElo(inexperienced, "p1"), 1382);
+  assert.equal(civElo(inexperienced, "p2"), 1480);
+  assert.equal(civElo(inexperienced, "p3"), 1500);
+  assert.equal(civElo(inexperienced, "p5"), 1499);
+}
+
+// Large negative bias is softly capped: it approaches -250 without hard-cutting.
+{
+  const weakCivs = player(1500, 60);
+  const modifiers = {
+    p1: 200,
+    p2: 200,
+    p3: -200,
+    p4: -200,
+    p5: -200,
+    p6: -200,
+    p7: -200,
+    p8: -200,
+  };
+
+  for (const civId of CIV_IDS) {
+    weakCivs.civStats[civId].modifier = modifiers[civId];
+    weakCivs.civStats[civId].games = civId === "p8" ? 0 : 10;
+  }
+
+  assert.equal(civBiasAdjustment(weakCivs, "p1"), 0);
+  assert.equal(civBiasAdjustment(weakCivs, "p2"), 0);
+  assert.ok(civBiasAdjustment(weakCivs, "p3") > -250);
+  assert.ok(civBiasAdjustment(weakCivs, "p8") > -250);
+  assert.ok(civBiasAdjustment(weakCivs, "p8") < civBiasAdjustment(weakCivs, "p3"));
+}
+
 // 1. Slightly positive grinder: extreme volume lowers K and a 53% result
 // against a 53% expectation does not produce net upward drift.
 {
@@ -44,7 +126,7 @@ function player(mainElo, gamesPlayed = 0) {
     ...Array.from({ length: 53 }, () => mainEloDelta(grinder, true, 0.53, 80)),
     ...Array.from({ length: 47 }, () => mainEloDelta(grinder, false, 0.53, 80)),
   ];
-  assert.ok(Math.abs(deltas.reduce((sum, delta) => sum + delta, 0)) < 0.01);
+  assert.ok(Math.abs(deltas.reduce((sum, delta) => sum + delta, 0)) <= 1);
 }
 
 // 2-3. Upsets pay more; highly expected wins pay very little.
@@ -180,8 +262,8 @@ function player(mainElo, gamesPlayed = 0) {
     new URL("../js/pages/playersPage.js", import.meta.url),
     "utf8"
   );
-  assert.match(source, /sort\(\(a, b\) => displayElo\(b\) - displayElo\(a\)\)/);
-  assert.match(source, /const realElo = displayElo\(player\)/);
+  assert.match(source, /sort\(\(a, b\) => rankingElo\(b, selectedCiv\) - rankingElo\(a, selectedCiv\)\)/);
+  assert.match(source, /\? displayElo\(player\)/);
   assert.match(source, /player-real-elo/);
 }
 

@@ -11,6 +11,8 @@ export const MIN_CIV_MODIFIER = -200;
 export const MAX_CIV_MODIFIER = 200;
 export const ELO_EXPECTATION_SCALE = 400;
 export const CIV_MODIFIER_IMPACT = 1.6;
+export const MAX_CIV_BIAS = 250;
+export const CIV_BIAS_SOFT_CAP_POWER = 4;
 export const HARD_CIV_IDS = new Set(["p2", "p6"]);
 export const HARD_CIV_LOW_ELO_START = 1200;
 export const HARD_CIV_LOW_ELO_FLOOR = 800;
@@ -153,8 +155,31 @@ export function weightedCivAdjustment(player, civId) {
   );
 }
 
+export function civBiasAdjustment(player, civId) {
+  normalizePlayerRating(player);
+
+  const rankedAdjustments = CIVS
+    .map((civ, index) => ({
+      id: civ.id,
+      index,
+      adjustment: weightedCivAdjustment(player, civ.id) + uncertaintyPenalty(player, civ.id)
+    }))
+    .sort((a, b) => b.adjustment - a.adjustment || a.index - b.index);
+  const rank = rankedAdjustments.findIndex(civ => civ.id === civId);
+
+  if (rank >= 0 && rank < 2) return 0;
+
+  const currentAdjustment = rankedAdjustments[rank]?.adjustment ??
+    weightedCivAdjustment(player, civId) + uncertaintyPenalty(player, civId);
+  const zeroBiasBaseline = rankedAdjustments[1]?.adjustment ??
+    rankedAdjustments[0]?.adjustment ??
+    0;
+
+  return softCapNegativeBias(Math.min(-1, currentAdjustment - zeroBiasBaseline));
+}
+
 export function civElo(player, civId) {
-  return overallElo(player) + weightedCivAdjustment(player, civId);
+  return overallElo(player) + civBiasAdjustment(player, civId);
 }
 
 export function effectiveCivElo(player, civId) {
@@ -223,7 +248,6 @@ export function balanceElo(player, civId, now = Date.now()) {
     100,
     civElo(player, civId) +
       preferenceBonus(player, civId) +
-      uncertaintyPenalty(player, civId) +
       hardCivLowEloPenalty(player, civId) -
       Math.round(activeInactivityPenalty(player, now) * BALANCER_INACTIVITY_MULTIPLIER)
   );
@@ -456,6 +480,16 @@ function average(values) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function softCapNegativeBias(value) {
+  if (value >= 0) return 0;
+
+  const magnitude = Math.abs(value);
+  const cappedMagnitude = magnitude /
+    Math.pow(1 + Math.pow(magnitude / MAX_CIV_BIAS, CIV_BIAS_SOFT_CAP_POWER), 1 / CIV_BIAS_SOFT_CAP_POWER);
+
+  return -Math.round(cappedMagnitude);
 }
 
 function applyInactivityGame(player, timestamp) {

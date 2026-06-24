@@ -1,9 +1,9 @@
 import { state } from "../core/state.js";
 import { CIVS } from "../core/constants.js";
 import {
+  civBiasAdjustment,
   civGames,
   displayElo,
-  effectiveCivElo,
   overallElo
 } from "../elo/elo.js";
 
@@ -63,7 +63,7 @@ function renderPlayer(player, rank, selectedCiv) {
   const permanent = overallElo(player);
   const eloLabel = selectedCiv === "overall"
     ? "Real Elo"
-    : `${selectedCiv.toUpperCase()} Effective Elo`;
+    : `${selectedCiv.toUpperCase()} Decayed Civ Elo`;
 
   return `
     <article
@@ -91,7 +91,7 @@ function renderPlayer(player, rank, selectedCiv) {
 function rankingElo(player, selectedCiv) {
   return selectedCiv === "overall"
     ? displayElo(player)
-    : effectiveCivElo(player, selectedCiv);
+    : Math.max(100, displayElo(player) + civBiasAdjustment(player, selectedCiv));
 }
 
 function renderCivChart(player) {
