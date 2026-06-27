@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
   activeInactivityPenalty,
+  applyCommunityRatingContext,
   applyRatingResult,
   civBiasAdjustment,
   civElo,
@@ -9,11 +10,23 @@ import {
   decayedElo,
   effectiveK,
   expectedTeamScore,
+  hardCivLowEloPenalty,
+  hardCivThresholds,
   mainEloDelta,
   assignmentPenalty,
   ratingBreakdown,
   rebuildInactivityState,
 } from "../js/elo/elo.js";
+import {
+  COMMUNITY_ELO_SEEDS,
+  communityEloSeed
+} from "../js/data/communityEloSeeds.js";
+import { state } from "../js/core/state.js";
+import { initializeRatingModes } from "../js/elo/ratingModes.js";
+import {
+  buildMatchRatingChanges,
+  matchRatingKey
+} from "../js/elo/progress.js";
 
 const CIV_IDS = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"];
 const DAY = 86400000;
@@ -36,6 +49,117 @@ function player(mainElo, gamesPlayed = 0) {
       { games: 10, wins: 5 },
     ])),
   };
+}
+
+// Hard-position difficulty follows the active community's top-five benchmark.
+{
+  const community = [
+    player(2000),
+    player(2000),
+    player(2000),
+    player(2000),
+    player(2000),
+    player(1100)
+  ];
+  applyCommunityRatingContext(community);
+  const withContext = mainElo => ({
+    ...player(mainElo),
+    ratingContext: community[5].ratingContext
+  });
+
+  assert.deepEqual(hardCivThresholds(community[5]), {
+    benchmarkElo: 2000,
+    startElo: 1400,
+    floorElo: 800
+  });
+  assert.equal(hardCivLowEloPenalty(withContext(1400), "p2"), 0);
+  assert.equal(hardCivLowEloPenalty(withContext(1100), "p2"), -60);
+  assert.equal(hardCivLowEloPenalty(withContext(800), "p2"), -120);
+  assert.equal(hardCivLowEloPenalty(withContext(800), "p1"), 0);
+}
+
+// Community seeds are unique and Original replays from them rather than from
+// the current Firebase Main Elo.
+{
+  assert.equal(
+    new Set(COMMUNITY_ELO_SEEDS.map(seed => seed.playerId)).size,
+    COMMUNITY_ELO_SEEDS.length
+  );
+  const localData = JSON.parse(fs.readFileSync(
+    new URL("../js/data/lotr-local-data.json", import.meta.url),
+    "utf8"
+  ));
+  assert.deepEqual(
+    localData.players
+      .filter(localPlayer => !COMMUNITY_ELO_SEEDS.some(
+        seed => seed.playerId === String(localPlayer.id)
+      ))
+      .map(localPlayer => localPlayer.name),
+    []
+  );
+
+  const evilSeed = COMMUNITY_ELO_SEEDS[0];
+  const goodSeed = COMMUNITY_ELO_SEEDS[1];
+  const seededPlayers = [
+    {
+      ...player(777),
+      id: evilSeed.playerId,
+      name: evilSeed.name,
+      profileId: "seed-evil"
+    },
+    {
+      ...player(777),
+      id: goodSeed.playerId,
+      name: goodSeed.name,
+      profileId: "seed-good"
+    }
+  ];
+  const history = [{
+    timestamp: Date.UTC(2026, 0, 1),
+    winner: "evil",
+    evilAssign: [{
+      playerId: evilSeed.playerId,
+      name: evilSeed.name,
+      profileId: "seed-evil",
+      civId: "p1"
+    }],
+    goodAssign: [{
+      playerId: goodSeed.playerId,
+      name: goodSeed.name,
+      profileId: "seed-good",
+      civId: "p5"
+    }]
+  }];
+
+  initializeRatingModes(seededPlayers, history);
+
+  const originalEvil = state.playerDatasets.original.find(
+    seeded => seeded.id === evilSeed.playerId
+  );
+  const replayEvil = state.playerDatasets.replay.find(
+    seeded => seeded.id === evilSeed.playerId
+  );
+
+  assert.equal(communityEloSeed(originalEvil), evilSeed.elo);
+  assert.equal(originalEvil.ratingSeed.mainElo, evilSeed.elo);
+  assert.equal(replayEvil.ratingSeed.mainElo, 1000);
+  assert.equal(originalEvil.gamesPlayed, 1);
+  assert.equal(replayEvil.gamesPlayed, 1);
+  assert.notEqual(originalEvil.mainElo, 777);
+
+  const originalChanges = buildMatchRatingChanges(
+    state.playerDatasets.original,
+    history
+  ).get(matchRatingKey(history[0]));
+  const replayChanges = buildMatchRatingChanges(
+    state.playerDatasets.replay,
+    history
+  ).get(matchRatingKey(history[0]));
+
+  assert.ok(originalChanges.get(evilSeed.playerId) > 0);
+  assert.ok(originalChanges.get(goodSeed.playerId) < 0);
+  assert.ok(replayChanges.get(evilSeed.playerId) > 0);
+  assert.ok(replayChanges.get(goodSeed.playerId) < 0);
 }
 
 // Civ bias never raises a player above real Elo. The two best civs are treated

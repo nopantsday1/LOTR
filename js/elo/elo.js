@@ -15,8 +15,9 @@ export const LOW_WIN_RATE_THRESHOLD = 0.5;
 export const LOW_WIN_RATE_MAX_PENALTY = 200;
 export const LOW_WIN_RATE_PENALTY_POWER = 1.5;
 export const HARD_CIV_IDS = new Set(["p2", "p6"]);
-export const HARD_CIV_LOW_ELO_START = 1200;
-export const HARD_CIV_LOW_ELO_FLOOR = 800;
+export const COMMUNITY_BENCHMARK_PLAYER_COUNT = 5;
+export const HARD_CIV_LOW_ELO_START_RATIO = 0.7;
+export const HARD_CIV_LOW_ELO_FLOOR_RATIO = 0.4;
 export const HARD_CIV_MAX_LOW_ELO_PENALTY = 120;
 export const INEXPERIENCE_PENALTIES = [20, 15, 10, 5, 3];
 
@@ -175,12 +176,53 @@ export function civElo(player, civId) {
 export function hardCivLowEloPenalty(player, civId) {
   if (!HARD_CIV_IDS.has(civId)) return 0;
 
-  const elo = overallElo(player);
-  if (elo >= HARD_CIV_LOW_ELO_START) return 0;
+  const { startElo, floorElo } = hardCivThresholds(player);
+  if (!startElo || !floorElo) return 0;
 
-  const range = HARD_CIV_LOW_ELO_START - HARD_CIV_LOW_ELO_FLOOR;
-  const ratio = clamp((HARD_CIV_LOW_ELO_START - elo) / range, 0, 1);
+  const elo = overallElo(player);
+  if (elo >= startElo) return 0;
+
+  const range = startElo - floorElo;
+  const ratio = clamp((startElo - elo) / range, 0, 1);
   return -Math.round(HARD_CIV_MAX_LOW_ELO_PENALTY * ratio);
+}
+
+export function communityRatingBenchmark(players) {
+  const ratings = (players || [])
+    .map(overallElo)
+    .sort((a, b) => b - a)
+    .slice(0, COMMUNITY_BENCHMARK_PLAYER_COUNT);
+
+  if (!ratings.length) return 0;
+
+  const average = ratings.reduce((sum, elo) => sum + elo, 0) / ratings.length;
+  return Math.round(average / 100) * 100;
+}
+
+export function applyCommunityRatingContext(players) {
+  const benchmarkElo = communityRatingBenchmark(players);
+  const ratingContext = { benchmarkElo };
+
+  for (const player of players || []) {
+    player.ratingContext = ratingContext;
+  }
+
+  return ratingContext;
+}
+
+export function hardCivThresholds(player) {
+  const benchmarkElo = Number(player?.ratingContext?.benchmarkElo || 0);
+  if (!benchmarkElo) return { benchmarkElo: 0, startElo: 0, floorElo: 0 };
+
+  return {
+    benchmarkElo,
+    startElo: Math.round(
+      benchmarkElo * HARD_CIV_LOW_ELO_START_RATIO / 100
+    ) * 100,
+    floorElo: Math.round(
+      benchmarkElo * HARD_CIV_LOW_ELO_FLOOR_RATIO / 100
+    ) * 100
+  };
 }
 
 export function assignmentPenalty(player, civId, recentCivs = []) {
@@ -310,10 +352,17 @@ export function applyRatingResult(
   normalizePlayerRating(player);
   applyInactivityGame(player, timestamp);
 
-  const mainDelta = mainEloDelta(player, won, expected, communityAverageGames);
+  const requestedMainDelta = mainEloDelta(
+    player,
+    won,
+    expected,
+    communityAverageGames
+  );
   const stats = player.civStats[civId];
+  const previousMainElo = Number(player.mainElo || DEFAULT_ELO);
 
-  player.mainElo = Math.round(Math.max(100, Number(player.mainElo || DEFAULT_ELO) + mainDelta));
+  player.mainElo = Math.round(Math.max(100, previousMainElo + requestedMainDelta));
+  const mainDelta = player.mainElo - previousMainElo;
   player.gamesPlayed += 1;
   player.wins = Number(player.wins || 0) + (won ? 1 : 0);
   player.losses = Number(player.losses || 0) + (won ? 0 : 1);

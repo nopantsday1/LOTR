@@ -1,6 +1,8 @@
 import { CIVS } from "../core/constants.js";
 import { state } from "../core/state.js";
+import { communityEloSeed } from "../data/communityEloSeeds.js";
 import {
+  applyCommunityRatingContext,
   applyMatchRatings,
   normalizePlayerRatings,
   rebuildInactivityState,
@@ -10,7 +12,7 @@ import {
 export const RATING_MODES = {
   original: {
     label: "Original",
-    description: "Creator-assigned ratings"
+    description: "Community ratings with all recorded matches replayed"
   },
   replay: {
     label: "1000 Replay",
@@ -21,21 +23,19 @@ export const RATING_MODES = {
 const STORAGE_KEY = "lotr-rating-mode";
 
 export function initializeRatingModes(players, history) {
-  const sourcePlayers = structuredClone(players || []);
-  const original = normalizePlayerRatings(structuredClone(sourcePlayers));
-  rebuildInactivityState(original, history);
-
-  original.forEach((player, index) => {
-    const source = sourcePlayers[index] || {};
-    const creatorElo = Number(source.elo);
-
-    player.ratingMode = "original";
-    player.ratingSeed = {
-      mainElo: Number.isFinite(creatorElo) ? Math.round(creatorElo) : player.mainElo
-    };
-  });
-
-  const replay = buildReplayDataset(original, history, 1000);
+  const sourcePlayers = normalizePlayerRatings(structuredClone(players || []));
+  const original = buildReplayDataset(
+    sourcePlayers,
+    history,
+    communityEloSeed,
+    "original"
+  );
+  const replay = buildReplayDataset(
+    sourcePlayers,
+    history,
+    () => 1000,
+    "replay"
+  );
 
   state.playerDatasets = { original, replay };
   setRatingMode(readStoredMode(), false);
@@ -74,8 +74,10 @@ export function toggleRatingMode() {
   return setRatingMode(nextMode);
 }
 
-function buildReplayDataset(players, history, startingElo) {
-  const replay = players.map(player => resetPlayer(player, startingElo));
+function buildReplayDataset(players, history, seedForPlayer, ratingMode) {
+  const replay = players.map(player =>
+    resetPlayer(player, seedForPlayer(player), ratingMode)
+  );
   const matches = (history || [])
     .slice()
     .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
@@ -84,13 +86,15 @@ function buildReplayDataset(players, history, startingElo) {
     applyMatchRatings(replay, match);
   }
 
+  rebuildInactivityState(replay, matches);
+  applyCommunityRatingContext(replay);
   return replay;
 }
 
-function resetPlayer(player, startingElo) {
+function resetPlayer(player, startingElo, ratingMode) {
   const reset = {
     ...structuredClone(player),
-    ratingMode: "replay",
+    ratingMode,
     ratingSeed: {
       mainElo: startingElo
     },

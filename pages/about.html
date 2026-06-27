@@ -33,7 +33,7 @@
     <div class="page-header">
       <div>
         <h1>About the Balancer</h1>
-        <p>A guide to the balancer, its ratings, and the data behind them. Open any technical note for the exact rules and implementation references.</p>
+        <p>A guide to the balancer, its ratings, and the data behind them. Open any technical note for the exact rules.</p>
       </div>
     </div>
 
@@ -61,7 +61,7 @@
                 <li><strong>Main Elo:</strong> permanent result-based skill.</li>
                 <li><strong>Civ Elo:</strong> permanent Main Elo plus a non-positive civ bias.</li>
                 <li><strong>Displayed Elo:</strong> Main Elo after full inactivity decay.</li>
-                <li><strong>Balancer Elo:</strong> Civ Elo plus assignment-only adjustments and 60% of inactivity decay.</li>
+                <li><strong>Balancer Elo:</strong> Civ Elo plus the hard-position adjustment and 60% of inactivity decay.</li>
               </ul>
               <!-- Core definitions: js/elo/elo.js. Positions and sides: js/core/constants.js. -->
             </div>
@@ -80,7 +80,8 @@
               <p>Team strength is the average permanent Main Elo of its four players. Expected score uses the standard logistic Elo curve:</p>
               <div class="help-formula">expected = 1 / (1 + 10<sup>((opponent average - team average) / 400)</sup>)</div>
               <div class="help-formula">Main Elo change = round(K x (actual result - expected))</div>
-              <p>The actual result is 1 for a win and 0 for a loss. Newer players move faster: base K is 40 below 10 games, 32 below 30 games, and 24 thereafter. Very active players are dampened relative to the community average, with a final K constrained to 16-40.</p>
+              <p>The actual result is 1 for a win and 0 for a loss. Newer players move faster: base K is 40 below 10 games, 32 below 30 games, and 24 thereafter. Compared with the community's average game count, K is multiplied by 1 up to 1.5x the average, 0.9 up to 2.5x, 0.8 up to 4x, and 0.7 above 4x. The final K is constrained to 16-40.</p>
+              <p>A match changes ratings only when at least one registered player can be matched on each team. Matches without rated players on both sides remain in History and are marked Unrated.</p>
               <p>Ratings never fall below 100.</p>
               <!-- Implementation: expectedTeamScore, effectiveK, mainEloDelta,
                    and applyRatingResult in js/elo/elo.js. -->
@@ -144,7 +145,7 @@
             <div class="help-detail">
               <p>There are 70 ways to choose four of eight players for Evil. For each split, all 24 Evil and 24 Good position permutations are evaluated, producing 40,320 complete candidates before banned assignments are removed.</p>
               <div class="help-formula">Balancer Elo = Civ Elo + hard-civ penalty - round(inactivity penalty x 0.6)</div>
-              <p>P2 and P6 receive a low-Elo difficulty penalty below 1200 Main Elo, scaling to -120 at 800 Elo.</p>
+              <p>P2 and P6 receive a difficulty penalty for lower-rated players. The benchmark is the rounded average Main Elo of the top five players in the active rating mode. The penalty begins below 70% of that benchmark and scales to -120 at 40% of it. For example, a 2000-Elo benchmark produces a 1400 start and an 800 full-penalty point.</p>
               <p>Assignment selection has a separate penalty score: zero games +20 and repeating the immediately previous civ +30. A banned civ makes that assignment illegal.</p>
               <div class="help-formula">candidate score = abs(Evil total - Good total) + assignment penalties</div>
               <p>Balanced mode randomly selects among candidates within 60 points of the best score, avoiding the immediately previous exact result when possible. Random mode widens that range to 200 and tries to produce a different team split.</p>
@@ -160,13 +161,13 @@
         <div class="help-section-number">06</div>
         <div class="help-section-body">
           <h2>Original and 1000 Replay modes</h2>
-          <p>The rating-mode control switches between creator-seeded ratings and a clean historical replay. It changes the active player dataset across the site, not just the number displayed on one page.</p>
+          <p>The rating-mode control compares community-assigned starting ratings with an equal 1000-Elo start. Both modes replay the same recorded matches and change the active player dataset across the entire site.</p>
           <details>
             <summary>How both datasets are built</summary>
             <div class="help-detail">
-              <p><strong>Original</strong> starts from the saved creator rating and current stored player data. Inactivity state is reconstructed from match history.</p>
+              <p><strong>Original</strong> resets every player to the starting Elo assigned in the community rating sheet, clears their results, and replays all recorded matches in timestamp order. A future player without a sheet rating starts at 900.</p>
               <p><strong>1000 Replay</strong> resets every player to 1000 Main Elo with no recorded games, then replays all recorded matches in timestamp order through the current rating formulas.</p>
-              <p>Because Replay recalculates the full history, a formula change can alter Replay ratings while Original ratings may remain anchored differently.</p>
+              <p>Both modes use the same match and rating calculations. Only the starting Elo differs. Inactivity state is reconstructed from the same history after the replay.</p>
               <!-- The chosen mode is stored in local storage under
                    lotr-rating-mode. Implementation: js/elo/ratingModes.js. -->
             </div>

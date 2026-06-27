@@ -2,10 +2,7 @@ import { CIVS, DEFAULT_ELO, TEAMID_MAP } from "../core/constants.js";
 import { LOCAL_SANDBOX } from "../core/config.js";
 import { state } from "../core/state.js";
 import {
-  applyMatchRatings,
   civElo,
-  communityAverageGames,
-  normalizePlayerRating,
   overallElo,
 } from "../elo/elo.js";
 import { firestoreApi as fb } from "../data/firebase.js";
@@ -189,31 +186,15 @@ async function recordMatch(match) {
   const sourcePlayers = state.playerDatasets.original?.length
     ? state.playerDatasets.original
     : state.players;
-  const averageGames = communityAverageGames(sourcePlayers);
+  const playersById = new Map(
+    sourcePlayers.map(player => [String(player.id), player])
+  );
   let recorded = false;
 
   await fb.runTransaction(state.db, async transaction => {
     const existing = await transaction.get(historyRef);
     if (existing.exists()) return;
 
-    const uniquePlayerIds = [...new Set(
-      [...match.evilAssign, ...match.goodAssign]
-        .map(assignment => assignment.playerId)
-        .filter(Boolean)
-    )];
-    const playerRefs = uniquePlayerIds.map(id =>
-      fb.doc(state.db, "players", String(id))
-    );
-    const playerSnapshots = await Promise.all(
-      playerRefs.map(ref => transaction.get(ref))
-    );
-    const players = playerSnapshots
-      .filter(snapshot => snapshot.exists())
-      .map(snapshot => normalizePlayerRating({
-        id: snapshot.id,
-        ...snapshot.data(),
-      }));
-    const playersById = new Map(players.map(player => [String(player.id), player]));
     const ratedMatch = {
       ...match,
       evilAssign: refreshAssignments(match.evilAssign, playersById),
@@ -236,25 +217,6 @@ async function recordMatch(match) {
       evilAssign: serializeAssignments(ratedMatch.evilAssign),
       goodAssign: serializeAssignments(ratedMatch.goodAssign),
     });
-
-    applyMatchRatings(players, ratedMatch, {
-      communityAverageGames: averageGames,
-    });
-
-    for (const player of players) {
-      transaction.set(fb.doc(state.db, "players", String(player.id)), {
-        mainElo: player.mainElo,
-        gamesPlayed: player.gamesPlayed,
-        wins: player.wins,
-        losses: player.losses,
-        lastPlayedAt: player.lastPlayedAt,
-        inactivityPenaltyBank: player.inactivityPenaltyBank,
-        returnGamesInWindow: player.returnGamesInWindow,
-        returnWindowStartedAt: player.returnWindowStartedAt,
-        civStats: player.civStats,
-        ratingModelVersion: player.ratingModelVersion,
-      }, { merge: true });
-    }
 
     recorded = true;
   });

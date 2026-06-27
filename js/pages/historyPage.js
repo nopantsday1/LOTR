@@ -2,6 +2,10 @@ import { state } from "../core/state.js";
 import { fmtDuration } from "../utils/format.js";
 import { importNewMatches } from "../services/matchImportService.js";
 import { toast } from "../ui/toast.js";
+import {
+  buildMatchRatingChanges,
+  matchRatingKey
+} from "../elo/progress.js";
 
 export function initHistoryPage() {
   const list = document.getElementById("historyList");
@@ -10,8 +14,10 @@ export function initHistoryPage() {
 
   function render() {
     const q = (search?.value || "").toLowerCase();
+    const history = state.fullHistory?.length ? state.fullHistory : state.history;
+    const ratingChanges = buildMatchRatingChanges(state.players, history);
 
-    const rows = (state.fullHistory?.length ? state.fullHistory : state.history)
+    const rows = history
       .slice()
       .sort((a, b) => {
         const ta = Number(a.timestamp || 0);
@@ -22,7 +28,12 @@ export function initHistoryPage() {
         if (!q) return true;
         return JSON.stringify(match).toLowerCase().includes(q);
       });
-    list.innerHTML = rows.map(renderMatchCard).join("");
+    list.innerHTML = rows
+      .map(match => renderMatchCard(
+        match,
+        ratingChanges.get(matchRatingKey(match))
+      ))
+      .join("");
   }
 
   search?.addEventListener("input", render);
@@ -66,7 +77,7 @@ export function initHistoryPage() {
   window.addEventListener("lotr:dataChanged", render);
 }
 
-function renderMatchCard(match) {
+function renderMatchCard(match, ratingChanges) {
   const date = match.timestamp
     ? new Date(match.timestamp).toLocaleString()
     : "Unknown date";
@@ -93,12 +104,12 @@ function renderMatchCard(match) {
       <div class="teams">
         <section class="team evil-team">
           <h3>Evil ${formatTeamTotal(evilTotal)}</h3>
-          ${evil.map(renderAssignment).join("") || `<p class="muted">No evil assignment</p>`}
+          ${evil.map(assignment => renderAssignment(assignment, ratingChanges)).join("") || `<p class="muted">No evil assignment</p>`}
         </section>
 
         <section class="team good-team">
           <h3>Good ${formatTeamTotal(goodTotal)}</h3>
-          ${good.map(renderAssignment).join("") || `<p class="muted">No good assignment</p>`}
+          ${good.map(assignment => renderAssignment(assignment, ratingChanges)).join("") || `<p class="muted">No good assignment</p>`}
         </section>
       </div>
 
@@ -110,10 +121,20 @@ function renderMatchCard(match) {
   `;
 }
 
-function renderAssignment(a) {
+function renderAssignment(a, ratingChanges) {
   const playerName = a.name || a.playerName || "Unknown";
-  const player = state.players.find(p => p.name === playerName);
+  const player = state.players.find(p => (
+    (
+      a.profileId &&
+      p.profileId &&
+      String(a.profileId) === String(p.profileId)
+    ) ||
+    p.name === playerName
+  ));
   const profileLink = player ? `./profile.html?playerId=${encodeURIComponent(player.id)}` : null;
+  const delta = player
+    ? ratingChanges?.get(String(player.id))
+    : undefined;
 
   const nameHtml = profileLink
     ? `<a href="${profileLink}" class="player-link">${escapeHtml(playerName)}</a>`
@@ -122,9 +143,18 @@ function renderAssignment(a) {
   return `
     <div class="assignment-row">
       <span>${nameHtml}</span>
-      <span class="muted">${escapeHtml(a.civName || a.civ || "")}</span>
+      <span class="assignment-rating">
+        <span class="muted">${escapeHtml(a.civName || a.civ || "")}</span>
+        ${Number.isFinite(delta)
+          ? `<strong class="rating-delta ${delta > 0 ? "positive" : delta < 0 ? "negative" : ""}">${formatSigned(delta)}</strong>`
+          : `<small class="muted">Unrated</small>`}
+      </span>
     </div>
   `;
+}
+
+function formatSigned(value) {
+  return `${value > 0 ? "+" : ""}${value}`;
 }
 
 function teamTotal(match, side, assignments) {

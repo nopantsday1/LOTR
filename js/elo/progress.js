@@ -45,6 +45,34 @@ export function buildPlayerEloProgress(players, history, playerId, civId = "over
   return anchorProgressToCurrent(points, originalPlayer, civId);
 }
 
+export function buildMatchRatingChanges(players, history) {
+  const replayPlayers = players.map(resetPlayer);
+  const matches = history
+    .slice()
+    .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+  const changesByMatch = new Map();
+
+  for (const match of matches) {
+    const changes = applyMatchRatings(replayPlayers, match);
+    const changesByPlayer = new Map(
+      changes.map(change => [String(change.player.id), change.mainDelta])
+    );
+    changesByMatch.set(matchRatingKey(match), changesByPlayer);
+  }
+
+  return changesByMatch;
+}
+
+export function matchRatingKey(match) {
+  return String(
+    match?.gameId ||
+    match?.matchId ||
+    match?.id ||
+    match?.timestamp ||
+    ""
+  );
+}
+
 function resetPlayer(player) {
   const startingElo = Number(player.ratingSeed?.mainElo);
   const reset = {

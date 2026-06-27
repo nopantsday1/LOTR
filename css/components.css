@@ -333,6 +333,30 @@ tbody tr:last-child td {
   border-bottom: 0;
 }
 
+.assignment-rating {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: .65rem;
+  align-items: baseline;
+  text-align: right;
+}
+
+.rating-delta {
+  min-width: 2.5rem;
+  color: var(--dim);
+  font-family: "Cinzel", serif;
+  text-align: right;
+}
+
+.rating-delta.positive {
+  color: var(--good);
+}
+
+.rating-delta.negative {
+  color: var(--evil);
+}
+
 .match-meta {
   color: var(--muted);
   font-size: 11px;

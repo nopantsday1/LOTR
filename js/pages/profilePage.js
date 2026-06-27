@@ -141,13 +141,29 @@ export function initProfilePage() {
     // x labels
     ctx.fillStyle = themeColor("--muted", "#8491a8");
     ctx.font = "12px system-ui";
-    ctx.textAlign = "center";
+    const xLabelCount = Math.min(6, points.length);
+    const xLabelIndexes = new Set();
 
-    const first = points[0];
-    const last = points[points.length - 1];
+    for (let i = 0; i < xLabelCount; i++) {
+      const index = xLabelCount === 1
+        ? 0
+        : Math.round((i / (xLabelCount - 1)) * (points.length - 1));
+      xLabelIndexes.add(index);
+    }
 
-    ctx.fillText(first.label || "Start", padding.left, height - 14);
-    ctx.fillText(last.label || "Latest", width - padding.right, height - 14);
+    for (const index of xLabelIndexes) {
+      const point = points[index];
+      const label = index === 0 && !point.timestamp
+        ? "Start"
+        : formatChartDate(point.timestamp);
+
+      ctx.textAlign = index === 0
+        ? "left"
+        : index === points.length - 1
+          ? "right"
+          : "center";
+      ctx.fillText(label, xAt(index), height - 14);
+    }
 
     // current value label
     const latest = points[points.length - 1];
@@ -439,6 +455,14 @@ function renderCivs(player) {
 
 function formatSigned(value) {
   return `${value > 0 ? "+" : ""}${value}`;
+}
+
+function formatChartDate(timestamp) {
+  if (!timestamp) return "";
+  return new Date(Number(timestamp)).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric"
+  });
 }
 
 function eloToPercent(elo) {
