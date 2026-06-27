@@ -12,7 +12,7 @@ export function buildPlayerEloProgress(players, history, playerId, civId = "over
   if (!originalPlayer) return [];
 
   const playerMap = new Map(
-    players.map(player => [player.name, resetPlayer(player)])
+    players.map(player => [player.name, resetPlayerForReplay(player)])
   );
   const matches = history
     .slice()
@@ -46,7 +46,7 @@ export function buildPlayerEloProgress(players, history, playerId, civId = "over
 }
 
 export function buildMatchRatingChanges(players, history) {
-  const replayPlayers = players.map(resetPlayer);
+  const replayPlayers = players.map(resetPlayerForReplay);
   const matches = history
     .slice()
     .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
@@ -73,7 +73,7 @@ export function matchRatingKey(match) {
   );
 }
 
-function resetPlayer(player) {
+export function resetPlayerForReplay(player) {
   const startingElo = Number(player.ratingSeed?.mainElo);
   const reset = {
     ...structuredClone(player),

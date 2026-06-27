@@ -776,6 +776,130 @@
   font-size: 10px;
 }
 
+.prediction-score {
+  display: flex;
+  gap: .75rem;
+  align-items: baseline;
+  margin: .5rem 0 .8rem;
+}
+
+.prediction-description {
+  margin: .45rem 0 1rem;
+  color: var(--dim);
+  font-size: 11px;
+}
+
+.prediction-score strong {
+  color: var(--gold-bright);
+  font-family: "Cinzel", serif;
+  font-size: 2.3rem;
+  line-height: 1;
+}
+
+.prediction-score span,
+.prediction-counts,
+.backtest-summary small {
+  color: var(--muted);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.prediction-bar {
+  display: flex;
+  overflow: hidden;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--track-bg);
+}
+
+.prediction-bar .correct {
+  background: var(--good);
+}
+
+.prediction-bar .incorrect {
+  background: var(--evil);
+}
+
+.prediction-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1rem;
+  margin: .7rem 0;
+}
+
+.prediction-counts .positive {
+  color: var(--good);
+}
+
+.prediction-counts .negative {
+  color: var(--evil);
+}
+
+.backtest-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: .6rem;
+}
+
+.backtest-summary > span {
+  display: grid;
+  min-width: 110px;
+  gap: .15rem;
+  border-left: 1px solid var(--border);
+  padding-left: .75rem;
+}
+
+.backtest-summary strong {
+  color: var(--gold-bright);
+  font-family: "Cinzel", serif;
+  font-size: 1rem;
+}
+
+.backtest-scatter {
+  display: block;
+  width: 100%;
+  height: 360px;
+  margin-top: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--canvas-bg);
+}
+
+.backtest-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: .7rem;
+}
+
+.backtest-legend span {
+  display: inline-flex;
+  gap: .4rem;
+  align-items: center;
+}
+
+.backtest-legend i {
+  display: inline-block;
+  width: 18px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--muted);
+}
+
+.backtest-legend .correct {
+  background: var(--good);
+}
+
+.backtest-legend .incorrect {
+  background: var(--evil);
+}
+
+.backtest-legend .trend {
+  background: var(--gold-bright);
+}
+
 .side-sample-field {
   width: min(150px, 100%);
 }
@@ -1340,6 +1464,14 @@
 
   .stats-card-heading .range-buttons {
     justify-content: flex-start;
+  }
+
+  .backtest-summary {
+    justify-content: flex-start;
+  }
+
+  .backtest-scatter {
+    height: 280px;
   }
 }
 

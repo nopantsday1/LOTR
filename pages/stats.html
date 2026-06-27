@@ -76,6 +76,32 @@
       <div id="sideBalance"></div>
     </section>
     <section class="card">
+      <div class="eyebrow">Balancer Backtest</div>
+      <h2>Prediction Accuracy</h2>
+      <div id="balancerPrediction"></div>
+    </section>
+    <section class="card stats-wide">
+      <div class="stats-card-heading">
+        <div>
+          <div class="eyebrow">Balancer Backtest</div>
+          <h2>Elo Gap and Game Length</h2>
+        </div>
+        <div id="durationCorrelationSummary" class="backtest-summary"></div>
+      </div>
+      <canvas
+        id="durationCorrelationCanvas"
+        class="backtest-scatter"
+        width="1100"
+        height="380"
+        aria-label="Scatter plot of pre-match Elo difference against game duration"
+      ></canvas>
+      <div class="backtest-legend muted small">
+        <span><i class="correct"></i> Higher-Elo team won</span>
+        <span><i class="incorrect"></i> Lower-Elo team won</span>
+        <span><i class="trend"></i> Trend</span>
+      </div>
+    </section>
+    <section class="card">
       <div class="eyebrow">Momentum</div>
       <h2>Player Streaks</h2>
       <div id="playerStreaks"></div>

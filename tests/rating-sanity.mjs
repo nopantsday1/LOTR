@@ -27,6 +27,7 @@ import {
   buildMatchRatingChanges,
   matchRatingKey
 } from "../js/elo/progress.js";
+import { buildBalancerBacktest } from "../js/elo/backtest.js";
 
 const CIV_IDS = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"];
 const DAY = 86400000;
@@ -76,6 +77,41 @@ function player(mainElo, gamesPlayed = 0) {
   assert.equal(hardCivLowEloPenalty(withContext(1100), "p2"), -60);
   assert.equal(hardCivLowEloPenalty(withContext(800), "p2"), -120);
   assert.equal(hardCivLowEloPenalty(withContext(800), "p1"), 0);
+}
+
+// The balancer backtest uses pre-match ratings and the actual winner.
+{
+  const backtestPlayers = Array.from({ length: 8 }, (_, index) => ({
+    ...player(index < 4 ? 1500 : 1000),
+    id: `backtest-${index}`,
+    name: `Backtest ${index}`,
+    profileId: `backtest-profile-${index}`,
+    ratingSeed: { mainElo: index < 4 ? 1500 : 1000 }
+  }));
+  applyCommunityRatingContext(backtestPlayers);
+  const backtestMatch = {
+    id: "backtest-match",
+    timestamp: Date.UTC(2026, 0, 1),
+    duration: 1800,
+    winner: "evil",
+    evilAssign: backtestPlayers.slice(0, 4).map((backtestPlayer, index) => ({
+      name: backtestPlayer.name,
+      profileId: backtestPlayer.profileId,
+      civId: `p${index + 1}`
+    })),
+    goodAssign: backtestPlayers.slice(4).map((backtestPlayer, index) => ({
+      name: backtestPlayer.name,
+      profileId: backtestPlayer.profileId,
+      civId: `p${index + 5}`
+    }))
+  };
+  const backtest = buildBalancerBacktest(backtestPlayers, [backtestMatch]);
+
+  assert.equal(backtest.matches.length, 1);
+  assert.equal(backtest.prediction.correct, 1);
+  assert.equal(backtest.prediction.incorrect, 0);
+  assert.equal(backtest.duration.matches[0].durationSeconds, 1800);
+  assert.ok(backtest.matches[0].evilTotal > backtest.matches[0].goodTotal);
 }
 
 // Community seeds are unique and Original replays from them rather than from

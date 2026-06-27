@@ -1,6 +1,7 @@
 import { state } from "../core/state.js";
 import { CIVS } from "../core/constants.js";
 import { overallElo } from "../elo/elo.js";
+import { buildBalancerBacktest } from "../elo/backtest.js";
 import { fmtDuration } from "../utils/format.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -15,14 +16,27 @@ export function initStatsPage() {
   const stackers = document.getElementById("stackers");
   const reverseStackers = document.getElementById("reverseStackers");
   const funStats = document.getElementById("funStats");
+  const balancerPrediction = document.getElementById("balancerPrediction");
+  const correlationSummary = document.getElementById("durationCorrelationSummary");
+  const correlationCanvas = document.getElementById("durationCorrelationCanvas");
   const rangeButtons = [...document.querySelectorAll("[data-range]")];
   if (!gamesPerDay) return;
 
   let selectedRange = "30";
+  let cachedBacktest = null;
+  let cachedPlayers = null;
+  let cachedHistory = null;
 
   function render() {
     const matches = getMatches();
     const completed = matches.filter(match => normalizeWinner(match));
+    const history = state.fullHistory?.length ? state.fullHistory : state.history;
+
+    if (cachedPlayers !== state.players || cachedHistory !== history) {
+      cachedBacktest = buildBalancerBacktest(state.players, history);
+      cachedPlayers = state.players;
+      cachedHistory = history;
+    }
 
     if (overview) overview.innerHTML = renderOverview(matches, completed);
     gamesPerDay.innerHTML = renderActivity(matches, selectedRange);
@@ -32,7 +46,18 @@ export function initStatsPage() {
     if (stackers) stackers.innerHTML = renderStackers(matches);
     if (reverseStackers) reverseStackers.innerHTML = renderReverseStackers(matches);
     if (funStats) funStats.innerHTML = renderFunFacts(matches, completed);
-
+    if (balancerPrediction) {
+      balancerPrediction.innerHTML = renderPredictionAccuracy(
+        cachedBacktest,
+        completed.length
+      );
+    }
+    if (correlationSummary) {
+      correlationSummary.innerHTML = renderCorrelationSummary(cachedBacktest);
+    }
+    if (correlationCanvas) {
+      drawDurationCorrelation(correlationCanvas, cachedBacktest);
+    }
     rangeButtons.forEach(button => {
       button.classList.toggle("primary", button.dataset.range === selectedRange);
     });
@@ -49,6 +74,16 @@ export function initStatsPage() {
 
   render();
   window.addEventListener("lotr:dataChanged", render);
+  window.addEventListener("resize", () => {
+    if (correlationCanvas && cachedBacktest) {
+      drawDurationCorrelation(correlationCanvas, cachedBacktest);
+    }
+  });
+  window.addEventListener("lotr:themeChanged", () => {
+    if (correlationCanvas && cachedBacktest) {
+      drawDurationCorrelation(correlationCanvas, cachedBacktest);
+    }
+  });
 }
 
 function renderOverview(matches, completed) {
@@ -159,7 +194,7 @@ function renderSideBalance(matches, sampleSize) {
     <div class="side-analysis-grid">
       ${analysisTile("Sample", sampleLabel)}
       ${analysisTile("Average Elo edge", analysis.averageEdgeLabel)}
-      ${analysisTile("Higher Elo side won", analysis.strongerWinRateLabel)}
+      ${analysisTile("Elo samples", `${analysis.eloMatchCount}/${sample.length}`)}
       ${analysisTile("Average gap", analysis.averageGapLabel)}
     </div>
     <p class="muted small">${leader}</p>
@@ -190,12 +225,6 @@ function analyzeSideStrength(matches) {
   const edge = Number.isFinite(goodAvgElo) && Number.isFinite(evilAvgElo)
     ? goodAvgElo - evilAvgElo
     : NaN;
-  const strongerWins = eloMatches.filter(item => {
-    if (item.evilTotal === item.goodTotal) return false;
-    return item.winner === (item.evilTotal > item.goodTotal ? "evil" : "good");
-  }).length;
-  const strongerComparable = eloMatches.filter(item => item.evilTotal !== item.goodTotal).length;
-
   return {
     evilWins,
     goodWins,
@@ -203,11 +232,9 @@ function analyzeSideStrength(matches) {
     goodRate: Math.round((goodWins / total) * 100),
     evilAvgElo,
     goodAvgElo,
+    eloMatchCount: eloMatches.length,
     averageEdgeLabel: formatAverageEdge(edge),
-    averageGapLabel: Number.isFinite(averageGap) ? `${Math.round(averageGap)} Elo` : "N/A",
-    strongerWinRateLabel: strongerComparable
-      ? `${Math.round((strongerWins / strongerComparable) * 100)}% (${strongerWins}/${strongerComparable})`
-      : "N/A"
+    averageGapLabel: Number.isFinite(averageGap) ? `${Math.round(averageGap)} Elo` : "N/A"
   };
 }
 
@@ -228,6 +255,193 @@ function analysisTile(label, value) {
       <strong>${escapeHtml(value)}</strong>
     </div>
   `;
+}
+
+function renderPredictionAccuracy(backtest, totalMatches) {
+  const prediction = backtest?.prediction;
+  if (!prediction?.comparable) {
+    return emptyState("Not enough complete matches for a prediction backtest.");
+  }
+
+  const accuracy = prediction.accuracy * 100;
+
+  return `
+    <p class="prediction-description">
+      Before each match, the team with the higher combined Balancer Elo is
+      predicted to win. Accuracy measures how often that team actually won.
+    </p>
+    <div class="prediction-score">
+      <strong>${accuracy.toFixed(1)}%</strong>
+      <span>correct predictions</span>
+    </div>
+    <div class="prediction-bar" aria-label="${accuracy.toFixed(1)} percent correct">
+      <span class="correct" style="width:${accuracy}%"></span>
+      <span class="incorrect" style="width:${100 - accuracy}%"></span>
+    </div>
+    <div class="prediction-counts">
+      <span><strong class="positive">${prediction.correct}</strong> correct</span>
+      <span><strong class="negative">${prediction.incorrect}</strong> incorrect</span>
+      ${prediction.ties ? `<span>${prediction.ties} tied</span>` : ""}
+    </div>
+    <p class="muted small">
+      ${prediction.comparable} of ${totalMatches} completed games had eight recognized players and positions.
+    </p>
+  `;
+}
+
+function renderCorrelationSummary(backtest) {
+  const duration = backtest?.duration;
+  if (!Number.isFinite(duration?.correlation)) return "";
+
+  const minutesPerHundred = duration.slopeSecondsPerElo * 100 / 60;
+
+  return `
+    <span>
+      <small>Correlation</small>
+      <strong>${formatSignedDecimal(duration.correlation, 2)}</strong>
+    </span>
+    <span>
+      <small>Per 100 Elo</small>
+      <strong>${formatSignedDecimal(minutesPerHundred, 1)} min</strong>
+    </span>
+  `;
+}
+
+function drawDurationCorrelation(canvas, backtest) {
+  const width = Math.max(280, Math.round(canvas.clientWidth || 1100));
+  const height = Math.max(240, Math.round(canvas.clientHeight || 360));
+  const pixelRatio = window.devicePixelRatio || 1;
+  canvas.width = Math.round(width * pixelRatio);
+  canvas.height = Math.round(height * pixelRatio);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  const matches = backtest?.duration?.matches || [];
+
+  ctx.clearRect(0, 0, width, height);
+
+  if (matches.length < 2) {
+    ctx.fillStyle = themeColor("--muted", "#918d84");
+    ctx.font = "14px system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText("Not enough complete matches", width / 2, height / 2);
+    return;
+  }
+
+  const padding = {
+    top: 24,
+    right: width < 600 ? 18 : 28,
+    bottom: 48,
+    left: width < 600 ? 52 : 68
+  };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const gap95 = percentile(matches.map(match => match.eloGap), 0.95);
+  const duration95 = percentile(
+    matches.map(match => match.durationSeconds),
+    0.95
+  );
+  const xStep = niceStep(gap95 / 5);
+  const xMax = Math.max(xStep, Math.ceil(gap95 / xStep) * xStep);
+  const yStep = duration95 > 5400 ? 1800 : 900;
+  const yMax = Math.max(yStep, Math.ceil(duration95 / yStep) * yStep);
+  const xAt = value =>
+    padding.left + (Math.min(value, xMax) / xMax) * plotWidth;
+  const yAt = value =>
+    padding.top + (1 - Math.min(value, yMax) / yMax) * plotHeight;
+
+  ctx.strokeStyle = themeColor("--chart-grid", "rgba(236,229,215,.1)");
+  ctx.fillStyle = themeColor("--muted", "#918d84");
+  ctx.lineWidth = 1;
+  ctx.font = `${width < 600 ? 9 : 11}px system-ui`;
+
+  for (let value = 0; value <= xMax; value += xStep) {
+    const x = xAt(value);
+    ctx.beginPath();
+    ctx.moveTo(x, padding.top);
+    ctx.lineTo(x, height - padding.bottom);
+    ctx.stroke();
+    ctx.textAlign = value === 0 ? "left" : value === xMax ? "right" : "center";
+    ctx.fillText(String(Math.round(value)), x, height - 24);
+  }
+
+  for (let value = 0; value <= yMax; value += yStep) {
+    const y = yAt(value);
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(width - padding.right, y);
+    ctx.stroke();
+    ctx.textAlign = "right";
+    ctx.fillText(`${Math.round(value / 60)}m`, padding.left - 10, y + 4);
+  }
+
+  ctx.fillStyle = themeColor("--muted", "#918d84");
+  ctx.textAlign = "center";
+  ctx.fillText(
+    "Pre-match Balancer Elo gap",
+    padding.left + plotWidth / 2,
+    height - 6
+  );
+
+  const visibleMatches = matches.filter(match =>
+    match.eloGap <= xMax && match.durationSeconds <= yMax
+  );
+
+  for (const match of visibleMatches) {
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = match.correct
+      ? themeColor("--good", "#5bb89d")
+      : themeColor("--evil", "#df7278");
+    ctx.beginPath();
+    ctx.arc(xAt(match.eloGap), yAt(match.durationSeconds), 3.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  const slope = backtest.duration.slopeSecondsPerElo;
+  const intercept = backtest.duration.interceptSeconds;
+  if (Number.isFinite(slope) && Number.isFinite(intercept)) {
+    const startY = Math.max(0, Math.min(yMax, intercept));
+    const endY = Math.max(0, Math.min(yMax, intercept + slope * xMax));
+    ctx.strokeStyle = themeColor("--gold-bright", "#f0bd72");
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(xAt(0), yAt(startY));
+    ctx.lineTo(xAt(xMax), yAt(endY));
+    ctx.stroke();
+  }
+}
+
+function percentile(values, fraction) {
+  const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+  if (!sorted.length) return 0;
+  return sorted[Math.floor((sorted.length - 1) * fraction)];
+}
+
+function niceStep(value) {
+  if (!Number.isFinite(value) || value <= 0) return 100;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
+  const normalized = value / magnitude;
+  const multiplier = normalized <= 1
+    ? 1
+    : normalized <= 2
+      ? 2
+      : normalized <= 2.5
+        ? 2.5
+        : normalized <= 5
+          ? 5
+          : 10;
+  return multiplier * magnitude;
+}
+
+function formatSignedDecimal(value, digits) {
+  if (!Number.isFinite(value)) return "N/A";
+  return `${value > 0 ? "+" : ""}${value.toFixed(digits)}`;
+}
+
+function themeColor(variable, fallback) {
+  return getComputedStyle(document.documentElement)
+    .getPropertyValue(variable)
+    .trim() || fallback;
 }
 
 function renderStreaks(matches) {
