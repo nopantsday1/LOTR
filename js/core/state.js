@@ -3,10 +3,7 @@ export const state = {
   auth: null,
 
   players: [],
-  playerDatasets: {
-    original: [],
-    replay: [],
-  },
+  playerDatasets: {},
   ratingMode: "original",
   history: [],
   fullHistory: [],

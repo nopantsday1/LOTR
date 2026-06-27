@@ -53,7 +53,7 @@ export function buildMatchRatingChanges(players, history) {
   const changesByMatch = new Map();
 
   for (const match of matches) {
-    const changes = applyMatchRatings(replayPlayers, match);
+    const changes = applyReplayMatchRatings(replayPlayers, match);
     const changesByPlayer = new Map(
       changes.map(change => [String(change.player.id), change.mainDelta])
     );
@@ -99,8 +99,27 @@ export function resetPlayerForReplay(player) {
   return reset;
 }
 
+export function applyReplayMatchRatings(players, match) {
+  const freezeMainElo = players.some(player => player.ratingMode === "base");
+  const mainEloBefore = freezeMainElo
+    ? new Map(players.map(player => [String(player.id), player.mainElo]))
+    : null;
+  const changes = applyMatchRatings(players, match);
+
+  if (!freezeMainElo) return changes;
+
+  for (const change of changes) {
+    const startingElo = mainEloBefore.get(String(change.player.id));
+    if (!Number.isFinite(startingElo)) continue;
+    change.player.mainElo = startingElo;
+    change.mainDelta = 0;
+  }
+
+  return changes;
+}
+
 function applyMatchToPlayers(playerMap, match) {
-  applyMatchRatings([...playerMap.values()], match);
+  applyReplayMatchRatings([...playerMap.values()], match);
 }
 
 function anchorProgressToCurrent(points, player, civId) {

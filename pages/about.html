@@ -79,8 +79,8 @@
             <div class="help-detail">
               <p>Team strength is the average permanent Main Elo of its four players. Expected score uses the standard logistic Elo curve:</p>
               <div class="help-formula">expected = 1 / (1 + 10<sup>((opponent average - team average) / 400)</sup>)</div>
-              <div class="help-formula">Main Elo change = round(K x (actual result - expected))</div>
-              <p>The actual result is 1 for a win and 0 for a loss. Newer players move faster: base K is 40 below 10 games, 32 below 30 games, and 24 thereafter. Compared with the community's average game count, K is multiplied by 1 up to 1.5x the average, 0.9 up to 2.5x, 0.8 up to 4x, and 0.7 above 4x. The final K is constrained to 16-40.</p>
+              <div class="help-formula">Main Elo change = round(K x mode multiplier x (actual result - expected))</div>
+              <p>The actual result is 1 for a win and 0 for a loss. Newer players move faster: base K is 40 below 10 games, 32 below 30 games, and 24 thereafter. Compared with the community's average game count, K is multiplied by 1 up to 1.5x the average, 0.9 up to 2.5x, 0.8 up to 4x, and 0.7 above 4x. K is constrained to 16-40. Original and 1000 Rating both use that calculated movement without an additional multiplier.</p>
               <p>A match changes ratings only when at least one registered player can be matched on each team. Matches without rated players on both sides remain in History and are marked Unrated.</p>
               <p>Ratings never fall below 100.</p>
               <!-- Implementation: expectedTeamScore, effectiveK, mainEloDelta,
@@ -98,10 +98,10 @@
           <details>
             <summary>How win rate, experience, and the two zero biases are calculated</summary>
             <div class="help-detail">
-              <p>Each position uses only its recorded games and wins. Every position begins with a 20-point baseline penalty. Fewer than five games add an inexperience penalty: 0 games = 20, 1 = 15, 2 = 10, 3 = 5, 4 = 3, and 5 or more = 0.</p>
-              <p>A win-rate penalty applies below 50%. It rises slowly for ordinary results and accelerates for very low win rates:</p>
-              <div class="help-formula">deficit = max(0, (0.50 - civ win rate) / 0.50)</div>
-              <div class="help-formula">win-rate penalty = round(200 x deficit<sup>1.5</sup>)</div>
+              <p>Each position uses only its recorded games and wins. Every position begins with a 20-point baseline penalty. Fewer than five games add an inexperience penalty: 0 games = 40, 1 = 30, 2 = 20, 3 = 10, 4 = 6, and 5 or more = 0.</p>
+              <p>A win-rate penalty applies below 55%. It rises slowly for ordinary results and accelerates for very low win rates:</p>
+              <div class="help-formula">deficit = max(0, (0.55 - civ win rate) / 0.55)</div>
+              <div class="help-formula">win-rate penalty = round(150 x deficit<sup>2</sup>)</div>
               <div class="help-formula">raw penalty = 20 + inexperience penalty + win-rate penalty</div>
               <p>All eight raw penalties are ranked after both experience and win rate are included. If penalties tie, the higher win rate ranks first, followed by more games. The best two positions are forced to zero bias. Every other position receives its negative raw penalty, constrained to a maximum loss of 200 Elo.</p>
               <div class="help-formula">Civ Elo = permanent Main Elo + civ bias</div>
@@ -160,16 +160,18 @@
       <article class="help-section" id="modes">
         <div class="help-section-number">06</div>
         <div class="help-section-body">
-          <h2>Original and 1000 Replay modes</h2>
-          <p>The rating-mode control compares community-assigned starting ratings with an equal 1000-Elo start. Both modes replay the same recorded matches and change the active player dataset across the entire site.</p>
+          <h2>Original and 1000 Rating modes</h2>
+          <p>The rating-mode control compares the community's starting ratings with an equal 1000-Elo starting point. Both modes replay the same recorded matches and change the active player dataset across the entire site.</p>
           <details>
             <summary>How both datasets are built</summary>
             <div class="help-detail">
-              <p><strong>Original</strong> resets every player to the starting Elo assigned in the community rating sheet, clears their results, and replays all recorded matches in timestamp order. A future player without a sheet rating starts at 900.</p>
-              <p><strong>1000 Replay</strong> resets every player to 1000 Main Elo with no recorded games, then replays all recorded matches in timestamp order through the current rating formulas.</p>
-              <p>Both modes use the same match and rating calculations. Only the starting Elo differs. Inactivity state is reconstructed from the same history after the replay.</p>
+              <p><strong>Original</strong> resets every player to the starting Elo assigned in the community rating sheet, clears their results, and replays all recorded matches in timestamp order.</p>
+              <p><strong>1000 Rating</strong> performs the same replay, but every player starts at 1000 Main Elo instead of using the community sheet.</p>
+              <p>A future player without a sheet rating starts at 900 in Original and 1000 in 1000 Rating. Switching modes updates rankings, profiles, History changes, balancing, and Stats backtests.</p>
               <!-- The chosen mode is stored in local storage under
-                   lotr-rating-mode. Implementation: js/elo/ratingModes.js. -->
+                   lotr-rating-mode. Base can be enabled in RATING_MODES within
+                   js/elo/ratingModes.js; it keeps community Main Elo fixed
+                   while replaying games, civ bias, and inactivity. -->
             </div>
           </details>
         </div>
@@ -187,7 +189,7 @@
 
       Source map:
       - js/elo/elo.js: Elo variants, civ bias, inactivity, rating updates.
-      - js/elo/ratingModes.js: Original and 1000 Replay datasets.
+      - js/elo/ratingModes.js: Original, 1000 Rating, and optional Base datasets.
       - js/balancer/assignments.js: position permutations and penalties.
       - js/balancer/splitTeams.js: candidate scoring and selection.
       - js/pages/playersPage.js: ranking values.

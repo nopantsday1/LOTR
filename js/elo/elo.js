@@ -11,15 +11,15 @@ export const BALANCER_INACTIVITY_MULTIPLIER = 0.6;
 export const ELO_EXPECTATION_SCALE = 400;
 export const MAX_CIV_BIAS = 200;
 export const BASE_CIV_BIAS = 20;
-export const LOW_WIN_RATE_THRESHOLD = 0.5;
-export const LOW_WIN_RATE_MAX_PENALTY = 200;
-export const LOW_WIN_RATE_PENALTY_POWER = 1.5;
+export const LOW_WIN_RATE_THRESHOLD = 0.55;
+export const LOW_WIN_RATE_MAX_PENALTY = 150;
+export const LOW_WIN_RATE_PENALTY_POWER = 2;
 export const HARD_CIV_IDS = new Set(["p2", "p6"]);
 export const COMMUNITY_BENCHMARK_PLAYER_COUNT = 5;
 export const HARD_CIV_LOW_ELO_START_RATIO = 0.7;
 export const HARD_CIV_LOW_ELO_FLOOR_RATIO = 0.4;
 export const HARD_CIV_MAX_LOW_ELO_PENALTY = 120;
-export const INEXPERIENCE_PENALTIES = [20, 15, 10, 5, 3];
+export const INEXPERIENCE_PENALTIES = [40, 30, 20, 10, 6];
 
 export function normalizePlayerRating(player) {
   if (!player) return player;
@@ -201,7 +201,13 @@ export function communityRatingBenchmark(players) {
 
 export function applyCommunityRatingContext(players) {
   const benchmarkElo = communityRatingBenchmark(players);
-  const ratingContext = { benchmarkElo };
+  const mainEloChangeMultiplier = Number(
+    players?.[0]?.ratingContext?.mainEloChangeMultiplier || 1
+  );
+  const ratingContext = {
+    benchmarkElo,
+    mainEloChangeMultiplier
+  };
 
   for (const player of players || []) {
     player.ratingContext = ratingContext;
@@ -338,7 +344,14 @@ export function ratingDelta(k, actual, expected) {
 }
 
 export function mainEloDelta(player, won, expected, communityAverageGames) {
-  return ratingDelta(effectiveK(player, communityAverageGames), won ? 1 : 0, expected);
+  const multiplier = Number(
+    player?.ratingContext?.mainEloChangeMultiplier || 1
+  );
+  return ratingDelta(
+    effectiveK(player, communityAverageGames) * multiplier,
+    won ? 1 : 0,
+    expected
+  );
 }
 
 export function applyRatingResult(

@@ -1,7 +1,10 @@
 import { state } from "../core/state.js";
 import { CIVS } from "../core/constants.js";
 import { overallElo } from "../elo/elo.js";
-import { buildBalancerBacktest } from "../elo/backtest.js";
+import {
+  buildBalancerBacktest,
+  summarizeBalancerBacktest
+} from "../elo/backtest.js";
 import { fmtDuration } from "../utils/format.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -17,6 +20,7 @@ export function initStatsPage() {
   const reverseStackers = document.getElementById("reverseStackers");
   const funStats = document.getElementById("funStats");
   const balancerPrediction = document.getElementById("balancerPrediction");
+  const backtestSampleSize = document.getElementById("backtestSampleSize");
   const correlationSummary = document.getElementById("durationCorrelationSummary");
   const correlationCanvas = document.getElementById("durationCorrelationCanvas");
   const rangeButtons = [...document.querySelectorAll("[data-range]")];
@@ -24,6 +28,7 @@ export function initStatsPage() {
 
   let selectedRange = "30";
   let cachedBacktest = null;
+  let displayedBacktest = null;
   let cachedPlayers = null;
   let cachedHistory = null;
 
@@ -31,32 +36,38 @@ export function initStatsPage() {
     const matches = getMatches();
     const completed = matches.filter(match => normalizeWinner(match));
     const history = state.fullHistory?.length ? state.fullHistory : state.history;
+    const sampleSize = readSampleSize(
+      backtestSampleSize || sideSampleSize
+    );
 
     if (cachedPlayers !== state.players || cachedHistory !== history) {
       cachedBacktest = buildBalancerBacktest(state.players, history);
       cachedPlayers = state.players;
       cachedHistory = history;
     }
+    displayedBacktest = selectRecentBacktest(
+      cachedBacktest,
+      sampleSize
+    );
 
     if (overview) overview.innerHTML = renderOverview(matches, completed);
     gamesPerDay.innerHTML = renderActivity(matches, selectedRange);
-    if (sideBalance) sideBalance.innerHTML = renderSideBalance(completed, readSideSampleSize(sideSampleSize));
+    if (sideBalance) {
+      sideBalance.innerHTML = renderSideBalance(completed, sampleSize);
+    }
     if (streaks) streaks.innerHTML = renderStreaks(completed);
     if (records) records.innerHTML = renderRecords(completed);
     if (stackers) stackers.innerHTML = renderStackers(matches);
     if (reverseStackers) reverseStackers.innerHTML = renderReverseStackers(matches);
     if (funStats) funStats.innerHTML = renderFunFacts(matches, completed);
     if (balancerPrediction) {
-      balancerPrediction.innerHTML = renderPredictionAccuracy(
-        cachedBacktest,
-        completed.length
-      );
+      balancerPrediction.innerHTML = renderPredictionAccuracy(displayedBacktest);
     }
     if (correlationSummary) {
-      correlationSummary.innerHTML = renderCorrelationSummary(cachedBacktest);
+      correlationSummary.innerHTML = renderCorrelationSummary(displayedBacktest);
     }
     if (correlationCanvas) {
-      drawDurationCorrelation(correlationCanvas, cachedBacktest);
+      drawDurationCorrelation(correlationCanvas, displayedBacktest);
     }
     rangeButtons.forEach(button => {
       button.classList.toggle("primary", button.dataset.range === selectedRange);
@@ -70,18 +81,25 @@ export function initStatsPage() {
     });
   });
 
-  sideSampleSize?.addEventListener("input", render);
+  sideSampleSize?.addEventListener("input", () => {
+    syncSampleSize(sideSampleSize, backtestSampleSize);
+    render();
+  });
+  backtestSampleSize?.addEventListener("input", () => {
+    syncSampleSize(backtestSampleSize, sideSampleSize);
+    render();
+  });
 
   render();
   window.addEventListener("lotr:dataChanged", render);
   window.addEventListener("resize", () => {
-    if (correlationCanvas && cachedBacktest) {
-      drawDurationCorrelation(correlationCanvas, cachedBacktest);
+    if (correlationCanvas && displayedBacktest) {
+      drawDurationCorrelation(correlationCanvas, displayedBacktest);
     }
   });
   window.addEventListener("lotr:themeChanged", () => {
-    if (correlationCanvas && cachedBacktest) {
-      drawDurationCorrelation(correlationCanvas, cachedBacktest);
+    if (correlationCanvas && displayedBacktest) {
+      drawDurationCorrelation(correlationCanvas, displayedBacktest);
     }
   });
 }
@@ -201,9 +219,19 @@ function renderSideBalance(matches, sampleSize) {
   `;
 }
 
-function readSideSampleSize(input) {
+function readSampleSize(input) {
   const value = Number(input?.value);
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : NaN;
+}
+
+function syncSampleSize(source, target) {
+  if (source && target) target.value = source.value;
+}
+
+function selectRecentBacktest(backtest, sampleSize) {
+  if (!backtest?.matches) return summarizeBalancerBacktest([]);
+  if (!Number.isFinite(sampleSize)) return backtest;
+  return summarizeBalancerBacktest(backtest.matches.slice(-sampleSize));
 }
 
 function analyzeSideStrength(matches) {
@@ -257,7 +285,7 @@ function analysisTile(label, value) {
   `;
 }
 
-function renderPredictionAccuracy(backtest, totalMatches) {
+function renderPredictionAccuracy(backtest) {
   const prediction = backtest?.prediction;
   if (!prediction?.comparable) {
     return emptyState("Not enough complete matches for a prediction backtest.");
@@ -284,7 +312,7 @@ function renderPredictionAccuracy(backtest, totalMatches) {
       ${prediction.ties ? `<span>${prediction.ties} tied</span>` : ""}
     </div>
     <p class="muted small">
-      ${prediction.comparable} of ${totalMatches} completed games had eight recognized players and positions.
+      ${backtest.matches.length} most recent eligible ${backtest.matches.length === 1 ? "game" : "games"} analyzed.
     </p>
   `;
 }

@@ -3,46 +3,52 @@ import { state } from "../core/state.js";
 import { communityEloSeed } from "../data/communityEloSeeds.js";
 import {
   applyCommunityRatingContext,
-  applyMatchRatings,
   normalizePlayerRatings,
   rebuildInactivityState,
   RATING_MODEL_VERSION
 } from "./elo.js";
+import { applyReplayMatchRatings } from "./progress.js";
+
+export const BASE_RATING_MODE = {
+  label: "Base",
+  description: "Community-assigned Main Elo stays fixed",
+  startingElo: communityEloSeed,
+  mainEloChangeMultiplier: 1
+};
 
 export const RATING_MODES = {
   original: {
     label: "Original",
-    description: "Community ratings with all recorded matches replayed"
+    description: "Community starting ratings updated after every result",
+    startingElo: communityEloSeed,
+    mainEloChangeMultiplier: 1
   },
-  replay: {
-    label: "1000 Replay",
-    description: "All recorded matches replayed from 1000 Elo"
-  }
+  rating1000: {
+    label: "1000 Rating",
+    description: "Every player starts at 1000 before results are replayed",
+    startingElo: () => 1000,
+    mainEloChangeMultiplier: 1
+  },
+  // Uncomment the next line to enable all three rating modes.
+  // base: BASE_RATING_MODE
 };
 
 const STORAGE_KEY = "lotr-rating-mode";
 
 export function initializeRatingModes(players, history) {
   const sourcePlayers = normalizePlayerRatings(structuredClone(players || []));
-  const original = buildReplayDataset(
-    sourcePlayers,
-    history,
-    communityEloSeed,
-    "original"
+  state.playerDatasets = Object.fromEntries(
+    Object.entries(RATING_MODES).map(([modeId, mode]) => [
+      modeId,
+      buildReplayDataset(sourcePlayers, history, modeId, mode)
+    ])
   );
-  const replay = buildReplayDataset(
-    sourcePlayers,
-    history,
-    () => 1000,
-    "replay"
-  );
-
-  state.playerDatasets = { original, replay };
   setRatingMode(readStoredMode(), false);
 }
 
 export function setRatingMode(mode, notify = true) {
-  const nextMode = RATING_MODES[mode] ? mode : "original";
+  const fallbackMode = Object.keys(RATING_MODES)[0];
+  const nextMode = RATING_MODES[mode] ? mode : fallbackMode;
   const dataset = state.playerDatasets[nextMode];
 
   if (!dataset?.length) return false;
@@ -70,20 +76,32 @@ export function setRatingMode(mode, notify = true) {
 }
 
 export function toggleRatingMode() {
-  const nextMode = state.ratingMode === "original" ? "replay" : "original";
+  const modes = Object.keys(RATING_MODES).filter(
+    mode => state.playerDatasets[mode]?.length
+  );
+  if (!modes.length) return false;
+
+  const currentIndex = modes.indexOf(state.ratingMode);
+  const nextMode = modes[(currentIndex + 1) % modes.length];
   return setRatingMode(nextMode);
 }
 
-function buildReplayDataset(players, history, seedForPlayer, ratingMode) {
+function buildReplayDataset(players, history, ratingMode, mode) {
   const replay = players.map(player =>
-    resetPlayer(player, seedForPlayer(player), ratingMode)
+    resetPlayer(player, mode.startingElo(player), ratingMode)
   );
+  for (const player of replay) {
+    player.ratingContext = {
+      benchmarkElo: 0,
+      mainEloChangeMultiplier: mode.mainEloChangeMultiplier
+    };
+  }
   const matches = (history || [])
     .slice()
     .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
 
   for (const match of matches) {
-    applyMatchRatings(replay, match);
+    applyReplayMatchRatings(replay, match);
   }
 
   rebuildInactivityState(replay, matches);

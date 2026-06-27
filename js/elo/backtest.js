@@ -1,6 +1,9 @@
 import { CIVS, normalizeCivName } from "../core/constants.js";
-import { applyMatchRatings, ratingBreakdown } from "./elo.js";
-import { resetPlayerForReplay } from "./progress.js";
+import { ratingBreakdown } from "./elo.js";
+import {
+  applyReplayMatchRatings,
+  resetPlayerForReplay
+} from "./progress.js";
 
 export function buildBalancerBacktest(players, history) {
   const replayPlayers = (players || []).map(resetPlayerForReplay);
@@ -47,13 +50,13 @@ export function buildBalancerBacktest(players, history) {
       });
     }
 
-    applyMatchRatings(replayPlayers, match);
+    applyReplayMatchRatings(replayPlayers, match);
   }
 
-  return summarizeBacktest(results);
+  return summarizeBalancerBacktest(results);
 }
 
-function summarizeBacktest(matches) {
+export function summarizeBalancerBacktest(matches) {
   const comparable = matches.filter(match => match.predictedWinner);
   const correct = comparable.filter(match => match.correct).length;
   const ties = matches.length - comparable.length;

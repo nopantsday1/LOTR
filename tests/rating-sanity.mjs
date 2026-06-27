@@ -22,12 +22,20 @@ import {
   communityEloSeed
 } from "../js/data/communityEloSeeds.js";
 import { state } from "../js/core/state.js";
-import { initializeRatingModes } from "../js/elo/ratingModes.js";
+import {
+  BASE_RATING_MODE,
+  initializeRatingModes,
+  RATING_MODES,
+  toggleRatingMode
+} from "../js/elo/ratingModes.js";
 import {
   buildMatchRatingChanges,
   matchRatingKey
 } from "../js/elo/progress.js";
-import { buildBalancerBacktest } from "../js/elo/backtest.js";
+import {
+  buildBalancerBacktest,
+  summarizeBalancerBacktest
+} from "../js/elo/backtest.js";
 
 const CIV_IDS = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"];
 const DAY = 86400000;
@@ -112,11 +120,18 @@ function player(mainElo, gamesPlayed = 0) {
   assert.equal(backtest.prediction.incorrect, 0);
   assert.equal(backtest.duration.matches[0].durationSeconds, 1800);
   assert.ok(backtest.matches[0].evilTotal > backtest.matches[0].goodTotal);
+  assert.equal(
+    summarizeBalancerBacktest(backtest.matches.slice(-1)).prediction.correct,
+    1
+  );
 }
 
-// Community seeds are unique and Original replays from them rather than from
-// the current Firebase Main Elo.
+// Original replays from community seeds, while 1000 Rating gives everyone the
+// same starting point. Enabled modes cycle in registry order.
 {
+  assert.deepEqual(Object.keys(RATING_MODES), ["original", "rating1000"]);
+  assert.equal(RATING_MODES.original.mainEloChangeMultiplier, 1);
+  assert.equal(RATING_MODES.rating1000.mainEloChangeMultiplier, 1);
   assert.equal(
     new Set(COMMUNITY_ELO_SEEDS.map(seed => seed.playerId)).size,
     COMMUNITY_ELO_SEEDS.length
@@ -172,30 +187,63 @@ function player(mainElo, gamesPlayed = 0) {
   const originalEvil = state.playerDatasets.original.find(
     seeded => seeded.id === evilSeed.playerId
   );
-  const replayEvil = state.playerDatasets.replay.find(
+  const rating1000Evil = state.playerDatasets.rating1000.find(
     seeded => seeded.id === evilSeed.playerId
   );
 
   assert.equal(communityEloSeed(originalEvil), evilSeed.elo);
   assert.equal(originalEvil.ratingSeed.mainElo, evilSeed.elo);
-  assert.equal(replayEvil.ratingSeed.mainElo, 1000);
+  assert.equal(rating1000Evil.ratingSeed.mainElo, 1000);
   assert.equal(originalEvil.gamesPlayed, 1);
-  assert.equal(replayEvil.gamesPlayed, 1);
+  assert.equal(rating1000Evil.gamesPlayed, 1);
   assert.notEqual(originalEvil.mainElo, 777);
+  assert.notEqual(originalEvil.mainElo, evilSeed.elo);
+  assert.notEqual(rating1000Evil.mainElo, 1000);
 
   const originalChanges = buildMatchRatingChanges(
     state.playerDatasets.original,
     history
   ).get(matchRatingKey(history[0]));
-  const replayChanges = buildMatchRatingChanges(
-    state.playerDatasets.replay,
+  const rating1000Changes = buildMatchRatingChanges(
+    state.playerDatasets.rating1000,
     history
   ).get(matchRatingKey(history[0]));
 
   assert.ok(originalChanges.get(evilSeed.playerId) > 0);
   assert.ok(originalChanges.get(goodSeed.playerId) < 0);
-  assert.ok(replayChanges.get(evilSeed.playerId) > 0);
-  assert.ok(replayChanges.get(goodSeed.playerId) < 0);
+  assert.ok(rating1000Changes.get(evilSeed.playerId) > 0);
+  assert.ok(rating1000Changes.get(goodSeed.playerId) < 0);
+
+  assert.equal(state.ratingMode, "original");
+  assert.equal(toggleRatingMode(), true);
+  assert.equal(state.ratingMode, "rating1000");
+  assert.equal(toggleRatingMode(), true);
+  assert.equal(state.ratingMode, "original");
+
+  // The dormant Base registration is the only switch needed for three modes.
+  RATING_MODES.base = BASE_RATING_MODE;
+  initializeRatingModes(seededPlayers, history);
+
+  assert.deepEqual(
+    Object.keys(state.playerDatasets),
+    ["original", "rating1000", "base"]
+  );
+  assert.equal(toggleRatingMode(), true);
+  assert.equal(state.ratingMode, "rating1000");
+  assert.equal(toggleRatingMode(), true);
+  assert.equal(state.ratingMode, "base");
+  assert.equal(toggleRatingMode(), true);
+  assert.equal(state.ratingMode, "original");
+
+  const baseChanges = buildMatchRatingChanges(
+    state.playerDatasets.base,
+    history
+  ).get(matchRatingKey(history[0]));
+  assert.equal(baseChanges.get(evilSeed.playerId), 0);
+  assert.equal(baseChanges.get(goodSeed.playerId), 0);
+
+  delete RATING_MODES.base;
+  initializeRatingModes(seededPlayers, history);
 }
 
 // Civ bias never raises a player above real Elo. The two best civs are treated
@@ -234,12 +282,12 @@ function player(mainElo, gamesPlayed = 0) {
   const zeroBiasCivs = CIV_IDS.filter(civId => civBiasAdjustment(inexperienced, civId) === 0);
 
   assert.deepEqual(zeroBiasCivs, ["p3", "p4"]);
-  assert.equal(civBiasAdjustment(inexperienced, "p1"), -40);
-  assert.equal(civBiasAdjustment(inexperienced, "p2"), -23);
+  assert.equal(civBiasAdjustment(inexperienced, "p1"), -60);
+  assert.equal(civBiasAdjustment(inexperienced, "p2"), -27);
   assert.equal(civBiasAdjustment(inexperienced, "p3"), 0);
   assert.equal(civBiasAdjustment(inexperienced, "p5"), -20);
-  assert.equal(civElo(inexperienced, "p1"), 1460);
-  assert.equal(civElo(inexperienced, "p2"), 1477);
+  assert.equal(civElo(inexperienced, "p1"), 1440);
+  assert.equal(civElo(inexperienced, "p2"), 1473);
   assert.equal(civElo(inexperienced, "p3"), 1500);
   assert.equal(civElo(inexperienced, "p5"), 1480);
 }
@@ -274,7 +322,7 @@ function player(mainElo, gamesPlayed = 0) {
   assert.equal(civBiasAdjustment(weakCivs, "p2"), 0);
   const biases = CIV_IDS.map(civId => civBiasAdjustment(weakCivs, civId));
   assert.ok(biases.every(bias => bias >= -200 && bias <= 0));
-  assert.equal(civBiasAdjustment(weakCivs, "p3"), -200);
+  assert.equal(civBiasAdjustment(weakCivs, "p3"), -170);
   assert.equal(civBiasAdjustment(weakCivs, "p8"), -200);
 }
 

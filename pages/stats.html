@@ -76,8 +76,16 @@
       <div id="sideBalance"></div>
     </section>
     <section class="card">
-      <div class="eyebrow">Balancer Backtest</div>
-      <h2>Prediction Accuracy</h2>
+      <div class="stats-card-heading">
+        <div>
+          <div class="eyebrow">Balancer Backtest</div>
+          <h2>Prediction Accuracy</h2>
+        </div>
+        <label class="field-label side-sample-field" for="backtestSampleSize">
+          Recent games
+          <input id="backtestSampleSize" type="number" min="1" step="1" value="50">
+        </label>
+      </div>
       <div id="balancerPrediction"></div>
     </section>
     <section class="card stats-wide">
