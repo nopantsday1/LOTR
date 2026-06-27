@@ -10,6 +10,8 @@ import {
   effectiveK,
   expectedTeamScore,
   mainEloDelta,
+  assignmentPenalty,
+  ratingBreakdown,
   rebuildInactivityState,
 } from "../js/elo/elo.js";
 
@@ -31,7 +33,7 @@ function player(mainElo, gamesPlayed = 0) {
     ratingModelVersion: 2,
     civStats: Object.fromEntries(CIV_IDS.map(id => [
       id,
-      { games: 10, wins: 5, modifier: 0, manualPreference: null },
+      { games: 10, wins: 5 },
     ])),
   };
 }
@@ -40,20 +42,10 @@ function player(mainElo, gamesPlayed = 0) {
 // as real Elo, and the remaining civs carry only negative bias.
 {
   const specialist = player(1500, 60);
-  const modifiers = {
-    p1: 200,
-    p2: 120,
-    p3: 80,
-    p4: 0,
-    p5: -20,
-    p6: -80,
-    p7: -120,
-    p8: -200,
-  };
-
-  for (const civId of CIV_IDS) {
-    specialist.civStats[civId].modifier = modifiers[civId];
-  }
+  const wins = [8, 7, 6, 5, 4, 3, 2, 1];
+  CIV_IDS.forEach((civId, index) => {
+    specialist.civStats[civId].wins = wins[index];
+  });
 
   const civElos = CIV_IDS.map(civId => civElo(specialist, civId));
   const zeroBiasCivs = CIV_IDS.filter(civId => civBiasAdjustment(specialist, civId) === 0);
@@ -70,50 +62,83 @@ function player(mainElo, gamesPlayed = 0) {
   const inexperienced = player(1500, 60);
 
   for (const civId of CIV_IDS) {
-    inexperienced.civStats[civId].modifier = 0;
     inexperienced.civStats[civId].games = 5;
+    inexperienced.civStats[civId].wins = 3;
   }
 
   inexperienced.civStats.p1.games = 0;
+  inexperienced.civStats.p1.wins = 0;
   inexperienced.civStats.p2.games = 4;
+  inexperienced.civStats.p2.wins = 2;
 
   const zeroBiasCivs = CIV_IDS.filter(civId => civBiasAdjustment(inexperienced, civId) === 0);
 
   assert.deepEqual(zeroBiasCivs, ["p3", "p4"]);
-  assert.equal(civBiasAdjustment(inexperienced, "p1"), -118);
-  assert.equal(civBiasAdjustment(inexperienced, "p2"), -20);
+  assert.equal(civBiasAdjustment(inexperienced, "p1"), -40);
+  assert.equal(civBiasAdjustment(inexperienced, "p2"), -23);
   assert.equal(civBiasAdjustment(inexperienced, "p3"), 0);
-  assert.equal(civBiasAdjustment(inexperienced, "p5"), -1);
-  assert.equal(civElo(inexperienced, "p1"), 1382);
-  assert.equal(civElo(inexperienced, "p2"), 1480);
+  assert.equal(civBiasAdjustment(inexperienced, "p5"), -20);
+  assert.equal(civElo(inexperienced, "p1"), 1460);
+  assert.equal(civElo(inexperienced, "p2"), 1477);
   assert.equal(civElo(inexperienced, "p3"), 1500);
-  assert.equal(civElo(inexperienced, "p5"), 1499);
+  assert.equal(civElo(inexperienced, "p5"), 1480);
 }
 
-// Large negative bias is softly capped: it approaches -250 without hard-cutting.
+// Equal raw penalties use win rate, not position order, to choose zero bias.
+{
+  const tied = player(1500, 60);
+  tied.civStats.p1 = { games: 85, wins: 52 };
+  tied.civStats.p2 = { games: 44, wins: 23 };
+  tied.civStats.p3 = { games: 62, wins: 44 };
+  tied.civStats.p4 = { games: 38, wins: 21 };
+
+  const zeroBiasCivs = CIV_IDS.filter(
+    civId => civBiasAdjustment(tied, civId) === 0
+  );
+
+  assert.deepEqual(zeroBiasCivs, ["p1", "p3"]);
+  assert.equal(civBiasAdjustment(tied, "p2"), -20);
+  assert.equal(civBiasAdjustment(tied, "p3"), 0);
+}
+
+// Very low civ win rates can reach -200 but never exceed that floor.
 {
   const weakCivs = player(1500, 60);
-  const modifiers = {
-    p1: 200,
-    p2: 200,
-    p3: -200,
-    p4: -200,
-    p5: -200,
-    p6: -200,
-    p7: -200,
-    p8: -200,
-  };
 
-  for (const civId of CIV_IDS) {
-    weakCivs.civStats[civId].modifier = modifiers[civId];
-    weakCivs.civStats[civId].games = civId === "p8" ? 0 : 10;
-  }
+  CIV_IDS.forEach((civId, index) => {
+    weakCivs.civStats[civId].games = index === 7 ? 1 : 10;
+    weakCivs.civStats[civId].wins = index < 2 ? 8 : 0;
+  });
 
   assert.equal(civBiasAdjustment(weakCivs, "p1"), 0);
   assert.equal(civBiasAdjustment(weakCivs, "p2"), 0);
-  assert.ok(civBiasAdjustment(weakCivs, "p3") > -250);
-  assert.ok(civBiasAdjustment(weakCivs, "p8") > -250);
-  assert.ok(civBiasAdjustment(weakCivs, "p8") < civBiasAdjustment(weakCivs, "p3"));
+  const biases = CIV_IDS.map(civId => civBiasAdjustment(weakCivs, civId));
+  assert.ok(biases.every(bias => bias >= -200 && bias <= 0));
+  assert.equal(civBiasAdjustment(weakCivs, "p3"), -200);
+  assert.equal(civBiasAdjustment(weakCivs, "p8"), -200);
+}
+
+// Legacy favorite and avoid metadata has no effect on ratings or assignments.
+{
+  const neutral = player(1500, 60);
+  const preferred = structuredClone(neutral);
+  preferred.favCivs = ["p1"];
+  preferred.avoidCivs = ["p2"];
+  preferred.civStats.p1.manualPreference = "fav";
+  preferred.civStats.p2.manualPreference = "avoid";
+
+  assert.deepEqual(
+    ratingBreakdown(preferred, "p1"),
+    ratingBreakdown(neutral, "p1")
+  );
+  assert.equal(
+    assignmentPenalty(preferred, "p1"),
+    assignmentPenalty(neutral, "p1")
+  );
+  assert.equal(
+    assignmentPenalty(preferred, "p2"),
+    assignmentPenalty(neutral, "p2")
+  );
 }
 
 // 1. Slightly positive grinder: extreme volume lowers K and a 53% result
@@ -256,14 +281,15 @@ function player(mainElo, gamesPlayed = 0) {
   assert.equal(activeInactivityPenalty(returning, june7 + 3000), 0);
 }
 
-// 6. Players is the leaderboard and explicitly sorts/displays real Elo.
+// 6. Players consumes the canonical rating breakdown.
 {
   const source = fs.readFileSync(
     new URL("../js/pages/playersPage.js", import.meta.url),
     "utf8"
   );
   assert.match(source, /sort\(\(a, b\) => rankingElo\(b, selectedCiv\) - rankingElo\(a, selectedCiv\)\)/);
-  assert.match(source, /\? displayElo\(player\)/);
+  assert.match(source, /ratingBreakdown\(/);
+  assert.match(source, /rating\.displayedCivElo/);
   assert.match(source, /player-real-elo/);
 }
 

@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>About | Hobbit Balancer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/layout.css">
+<link rel="stylesheet" href="../css/components.css">
+<link rel="stylesheet" href="../css/pages.css">
+<script type="module" src="../js/app.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../index.html">Hobbit Balancer</a>
+  <nav class="tabs">
+    <a data-page="balance" href="./balance.html">Balance</a>
+    <a data-page="history" href="./history.html">History</a>
+    <a data-page="players" href="./players.html">Players</a>
+    <a data-page="stats" href="./stats.html">Stats</a>
+    <a data-page="live" href="./live.html">Live</a>
+    <a data-page="admin" href="./admin.html">Admin</a>
+    <a data-page="about" href="./about.html">About</a>
+  </nav>
+  <span id="sync" class="sync"></span>
+</header>
+
+<main class="shell">
+  <section class="page help-page" data-page="about">
+    <div class="page-header">
+      <div>
+        <h1>About the Balancer</h1>
+        <p>A guide to the balancer, its ratings, and the data behind them. Open any technical note for the exact rules and implementation references.</p>
+      </div>
+    </div>
+
+    <nav class="help-index" aria-label="About topics">
+      <a href="#purpose">Purpose</a>
+      <a href="#ratings">Main Elo</a>
+      <a href="#civs">Civ bias</a>
+      <a href="#decay">Inactivity</a>
+      <a href="#balancing">Balancing</a>
+      <a href="#modes">Rating modes</a>
+    </nav>
+
+    <div class="help-sections">
+      <article class="help-section" id="purpose">
+        <div class="help-section-number">01</div>
+        <div class="help-section-body">
+          <h2>What the site does</h2>
+          <p>The Hobbit Balancer turns recorded community matches into player ratings, then uses those ratings to create fair 4v4 teams and suitable position assignments. It also keeps match history, player profiles, live import status, and community statistics in one place.</p>
+          <details>
+            <summary>Technical model and boundaries</summary>
+            <div class="help-detail">
+              <p>Eight selected players are divided between four Evil positions (P1-P4) and four Good positions (P5-P8). A player's permanent skill, position-specific history, inactivity, and assignment restrictions influence the result in different ways.</p>
+              <p>The site intentionally has several Elo-like values. They answer different questions:</p>
+              <ul>
+                <li><strong>Main Elo:</strong> permanent result-based skill.</li>
+                <li><strong>Civ Elo:</strong> permanent Main Elo plus a non-positive civ bias.</li>
+                <li><strong>Displayed Elo:</strong> Main Elo after full inactivity decay.</li>
+                <li><strong>Balancer Elo:</strong> Civ Elo plus assignment-only adjustments and 60% of inactivity decay.</li>
+              </ul>
+              <!-- Core definitions: js/elo/elo.js. Positions and sides: js/core/constants.js. -->
+            </div>
+          </details>
+        </div>
+      </article>
+
+      <article class="help-section" id="ratings">
+        <div class="help-section-number">02</div>
+        <div class="help-section-body">
+          <h2>Main Elo</h2>
+          <p>Main Elo is the player's permanent, position-independent rating. It changes after a completed match according to the strength of both teams and whether the player won or lost.</p>
+          <details>
+            <summary>Formula, expected result, and K-factor</summary>
+            <div class="help-detail">
+              <p>Team strength is the average permanent Main Elo of its four players. Expected score uses the standard logistic Elo curve:</p>
+              <div class="help-formula">expected = 1 / (1 + 10<sup>((opponent average - team average) / 400)</sup>)</div>
+              <div class="help-formula">Main Elo change = round(K x (actual result - expected))</div>
+              <p>The actual result is 1 for a win and 0 for a loss. Newer players move faster: base K is 40 below 10 games, 32 below 30 games, and 24 thereafter. Very active players are dampened relative to the community average, with a final K constrained to 16-40.</p>
+              <p>Ratings never fall below 100.</p>
+              <!-- Implementation: expectedTeamScore, effectiveK, mainEloDelta,
+                   and applyRatingResult in js/elo/elo.js. -->
+            </div>
+          </details>
+        </div>
+      </article>
+
+      <article class="help-section" id="civs">
+        <div class="help-section-number">03</div>
+        <div class="help-section-body">
+          <h2>Civilization and position bias</h2>
+          <p>Every player has exactly two positions with zero bias: their best current options are equal to their Main Elo. Every other position has a negative bias, so a civ can never raise a player's permanent rating above their Main Elo.</p>
+          <details>
+            <summary>How win rate, experience, and the two zero biases are calculated</summary>
+            <div class="help-detail">
+              <p>Each position uses only its recorded games and wins. Every position begins with a 20-point baseline penalty. Fewer than five games add an inexperience penalty: 0 games = 20, 1 = 15, 2 = 10, 3 = 5, 4 = 3, and 5 or more = 0.</p>
+              <p>A win-rate penalty applies below 50%. It rises slowly for ordinary results and accelerates for very low win rates:</p>
+              <div class="help-formula">deficit = max(0, (0.50 - civ win rate) / 0.50)</div>
+              <div class="help-formula">win-rate penalty = round(200 x deficit<sup>1.5</sup>)</div>
+              <div class="help-formula">raw penalty = 20 + inexperience penalty + win-rate penalty</div>
+              <p>All eight raw penalties are ranked after both experience and win rate are included. If penalties tie, the higher win rate ranks first, followed by more games. The best two positions are forced to zero bias. Every other position receives its negative raw penalty, constrained to a maximum loss of 200 Elo.</p>
+              <div class="help-formula">Civ Elo = permanent Main Elo + civ bias</div>
+              <p>The final civ bias is always between 0 and -200. Old modifier values may still exist in saved legacy data, but they are not used by this calculation.</p>
+              <!-- Implementation: rawCivBiasPenalty, civWinRatePenalty,
+                   uncertaintyPenalty, and civBiasAdjustment in js/elo/elo.js. -->
+            </div>
+          </details>
+        </div>
+      </article>
+
+      <article class="help-section" id="decay">
+        <div class="help-section-number">04</div>
+        <div class="help-section-body">
+          <h2>Inactivity and displayed Elo</h2>
+          <p>Long inactivity temporarily lowers the Elo shown in rankings. It does not erase the player's permanent Main Elo, and active players can clear the penalty by returning to play.</p>
+          <details>
+            <summary>Decay curve, recovery, and where it applies</summary>
+            <div class="help-detail">
+              <p>There is no penalty before 7 inactive days. At day 7 the penalty begins at 50 Elo, rises linearly, and reaches 300 Elo at day 30. It does not grow beyond 300.</p>
+              <div class="help-formula">Displayed Elo = max(100, permanent Main Elo - active inactivity penalty)</div>
+              <div class="help-formula">Displayed civ ranking = max(100, Displayed Elo + civ bias)</div>
+              <p>When a decayed player returns, the current penalty is banked. It clears after two games played within a seven-day recovery window. Until then, it remains visible.</p>
+              <p>The balancer applies only 60% of the active inactivity penalty. This deliberately keeps returning players from being treated as fully 300 Elo weaker when creating teams.</p>
+              <!-- Implementation: rawInactivityPenalty, activeInactivityPenalty,
+                   decayedElo, and applyInactivityGame in js/elo/elo.js.
+                   Players-page civ sorting combines displayElo with
+                   civBiasAdjustment in js/pages/playersPage.js. -->
+            </div>
+          </details>
+        </div>
+      </article>
+
+      <article class="help-section" id="balancing">
+        <div class="help-section-number">05</div>
+        <div class="help-section-body">
+          <h2>How teams are balanced</h2>
+          <p>The balancer considers every 4v4 team split and every legal position assignment. It favors close team strength while also respecting bans, inexperience, and recent position repetition.</p>
+          <details>
+            <summary>Candidate search, assignment Elo, and score</summary>
+            <div class="help-detail">
+              <p>There are 70 ways to choose four of eight players for Evil. For each split, all 24 Evil and 24 Good position permutations are evaluated, producing 40,320 complete candidates before banned assignments are removed.</p>
+              <div class="help-formula">Balancer Elo = Civ Elo + hard-civ penalty - round(inactivity penalty x 0.6)</div>
+              <p>P2 and P6 receive a low-Elo difficulty penalty below 1200 Main Elo, scaling to -120 at 800 Elo.</p>
+              <p>Assignment selection has a separate penalty score: zero games +20 and repeating the immediately previous civ +30. A banned civ makes that assignment illegal.</p>
+              <div class="help-formula">candidate score = abs(Evil total - Good total) + assignment penalties</div>
+              <p>Balanced mode randomly selects among candidates within 60 points of the best score, avoiding the immediately previous exact result when possible. Random mode widens that range to 200 and tries to produce a different team split.</p>
+              <!-- Implementation: balanceElo and assignmentPenalty in
+                   js/elo/elo.js, permutations in js/balancer/assignments.js,
+                   and the full search in js/balancer/splitTeams.js. -->
+            </div>
+          </details>
+        </div>
+      </article>
+
+      <article class="help-section" id="modes">
+        <div class="help-section-number">06</div>
+        <div class="help-section-body">
+          <h2>Original and 1000 Replay modes</h2>
+          <p>The rating-mode control switches between creator-seeded ratings and a clean historical replay. It changes the active player dataset across the site, not just the number displayed on one page.</p>
+          <details>
+            <summary>How both datasets are built</summary>
+            <div class="help-detail">
+              <p><strong>Original</strong> starts from the saved creator rating and current stored player data. Inactivity state is reconstructed from match history.</p>
+              <p><strong>1000 Replay</strong> resets every player to 1000 Main Elo with no recorded games, then replays all recorded matches in timestamp order through the current rating formulas.</p>
+              <p>Because Replay recalculates the full history, a formula change can alter Replay ratings while Original ratings may remain anchored differently.</p>
+              <!-- The chosen mode is stored in local storage under
+                   lotr-rating-mode. Implementation: js/elo/ratingModes.js. -->
+            </div>
+          </details>
+        </div>
+      </article>
+
+    </div>
+
+    <!--
+      Maintainer context, intentionally hidden from the user-facing About page:
+
+      Recorded matches drive ratings, history, profiles, recent-civ assignment
+      penalties, and community statistics. Production data flows through
+      js/services/matchImportService.js and js/data/firestore.js. Local sandbox
+      data comes from js/data/lotr-local-data.json via js/data/localData.js.
+
+      Source map:
+      - js/elo/elo.js: Elo variants, civ bias, inactivity, rating updates.
+      - js/elo/ratingModes.js: Original and 1000 Replay datasets.
+      - js/balancer/assignments.js: position permutations and penalties.
+      - js/balancer/splitTeams.js: candidate scoring and selection.
+      - js/pages/playersPage.js: ranking values.
+      - js/pages/profilePage.js: profile values and rating progress.
+      - js/pages/balancePage.js: balance rendering and manual swaps.
+      - tests/rating-sanity.mjs: executable rating invariants.
+
+      Preserve these distinctions when changing formulas:
+      exactly two civs have zero bias after inexperience is included; all other
+      civ biases are negative; rankings use full inactivity decay; balancing
+      uses 60% decay and includes assignment-only adjustments. The root README
+      still describes the legacy percentage model and is not authoritative.
+    -->
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+<div class="modal-root" id="modalRoot"></div>
+</body>
+</html>

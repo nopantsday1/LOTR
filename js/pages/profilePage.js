@@ -1,11 +1,8 @@
 import { state } from "../core/state.js";
 import { CIVS } from "../core/constants.js";
 import {
-  civBiasAdjustment,
-  civElo,
   civGames,
-  decayedElo,
-  overallElo
+  ratingBreakdown
 } from "../elo/elo.js";
 import { buildPlayerEloProgress } from "../elo/progress.js";
 import { RATING_MODES } from "../elo/ratingModes.js";
@@ -74,13 +71,14 @@ export function initProfilePage() {
     const values = points.map(p => p.value);
     let min = Math.min(...values);
     let max = Math.max(...values);
+    const eloTick = 100;
 
-    min = Math.floor((min - 50) / 50) * 50;
-    max = Math.ceil((max + 50) / 50) * 50;
+    min = Math.floor(min / eloTick) * eloTick;
+    max = Math.ceil(max / eloTick) * eloTick;
 
     if (min === max) {
-      min -= 100;
-      max += 100;
+      min -= eloTick;
+      max += eloTick;
     }
 
     const plotW = width - padding.left - padding.right;
@@ -99,15 +97,15 @@ export function initProfilePage() {
     ctx.strokeStyle = themeColor("--chart-grid", "rgba(207,218,238,.1)");
     ctx.lineWidth = 1;
 
-    const gridLines = 5;
+    const gridLines = (max - min) / eloTick;
     for (let i = 0; i <= gridLines; i++) {
-      const y = padding.top + (i / gridLines) * plotH;
+      const label = max - i * eloTick;
+      const y = yAt(label);
       ctx.beginPath();
       ctx.moveTo(padding.left, y);
       ctx.lineTo(width - padding.right, y);
       ctx.stroke();
 
-      const label = Math.round(max - (i / gridLines) * (max - min));
       ctx.fillStyle = themeColor("--muted", "#8491a8");
       ctx.font = "12px system-ui";
       ctx.textAlign = "right";
@@ -212,6 +210,7 @@ export function initProfilePage() {
     const losses = player.losses || 0;
     const total = wins + losses;
     const winRate = total ? Math.round((wins / total) * 100) : 0;
+    const rating = ratingBreakdown(player);
 
     profileHeader.innerHTML = `
       <div class="player-profile">
@@ -221,11 +220,11 @@ export function initProfilePage() {
           <div class="profile-stats">
             <div class="stat-item">
               <span class="stat-label">Main Elo</span>
-              <span class="stat-value">${overallElo(player)}</span>
+              <span class="stat-value">${rating.mainElo}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">Decayed Elo</span>
-              <span class="stat-value">${decayedElo(player)}</span>
+              <span class="stat-value">${rating.displayedMainElo}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">Wins</span>
@@ -408,8 +407,9 @@ function normalizeWinner(value) {
 
 function renderCivs(player) {
   return CIVS.map(civ => {
-    const elo = civElo(player, civ.id);
-    const modifier = civBiasAdjustment(player, civ.id);
+    const rating = ratingBreakdown(player, civ.id);
+    const elo = rating.civElo;
+    const bias = rating.civBias;
     const games = civGames(player, civ.id);
     const wins = player.civStats?.[civ.id]?.wins || 0;
     const wr = games ? Math.round((wins / games) * 100) : 0;
@@ -429,7 +429,7 @@ function renderCivs(player) {
         </div>
 
         <div class="civ-meta">
-          <span>${formatSigned(modifier)} bias · ${games}g</span>
+          <span>${formatSigned(bias)} bias · ${games}g</span>
           <span>${wr}% WR</span>
         </div>
       </div>

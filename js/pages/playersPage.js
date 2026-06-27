@@ -1,10 +1,8 @@
 import { state } from "../core/state.js";
 import { CIVS } from "../core/constants.js";
 import {
-  civBiasAdjustment,
   civGames,
-  displayElo,
-  overallElo
+  ratingBreakdown
 } from "../elo/elo.js";
 
 export function initPlayersPage() {
@@ -60,7 +58,7 @@ function renderPlayer(player, rank, selectedCiv) {
   const total = wins + losses;
   const winRate = total ? Math.round((wins / total) * 100) : 0;
   const realElo = rankingElo(player, selectedCiv);
-  const permanent = overallElo(player);
+  const permanent = ratingBreakdown(player).mainElo;
   const eloLabel = selectedCiv === "overall"
     ? "Real Elo"
     : `${selectedCiv.toUpperCase()} Decayed Civ Elo`;
@@ -89,9 +87,14 @@ function renderPlayer(player, rank, selectedCiv) {
 }
 
 function rankingElo(player, selectedCiv) {
+  const rating = ratingBreakdown(
+    player,
+    selectedCiv === "overall" ? null : selectedCiv
+  );
+
   return selectedCiv === "overall"
-    ? displayElo(player)
-    : Math.max(100, displayElo(player) + civBiasAdjustment(player, selectedCiv));
+    ? rating.displayedMainElo
+    : rating.displayedCivElo;
 }
 
 function renderCivChart(player) {

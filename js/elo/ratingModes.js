@@ -3,7 +3,8 @@ import { state } from "../core/state.js";
 import {
   applyMatchRatings,
   normalizePlayerRatings,
-  rebuildInactivityState
+  rebuildInactivityState,
+  RATING_MODEL_VERSION
 } from "./elo.js";
 
 export const RATING_MODES = {
@@ -102,15 +103,13 @@ function resetPlayer(player, startingElo) {
     returnGamesInWindow: 0,
     returnWindowStartedAt: 0,
     civStats: {},
-    ratingModelVersion: 2
+    ratingModelVersion: RATING_MODEL_VERSION
   };
 
   for (const civ of CIVS) {
     reset.civStats[civ.id] = {
       games: 0,
-      wins: 0,
-      modifier: 0,
-      manualPreference: player.civStats?.[civ.id]?.manualPreference ?? null
+      wins: 0
     };
   }
 

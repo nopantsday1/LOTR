@@ -1,5 +1,6 @@
 import { CIVS, DEFAULT_ELO } from "../core/constants.js";
 
+export const RATING_MODEL_VERSION = 3;
 export const INACTIVE_AFTER_DAYS = 7;
 export const FULL_PENALTY_AFTER_DAYS = 30;
 export const MIN_INACTIVITY_PENALTY = 50;
@@ -7,22 +8,22 @@ export const MAX_INACTIVITY_PENALTY = 300;
 export const RECOVERY_GAMES_REQUIRED = 2;
 export const RECOVERY_WINDOW_DAYS = 7;
 export const BALANCER_INACTIVITY_MULTIPLIER = 0.6;
-export const MIN_CIV_MODIFIER = -200;
-export const MAX_CIV_MODIFIER = 200;
 export const ELO_EXPECTATION_SCALE = 400;
-export const CIV_MODIFIER_IMPACT = 1.6;
-export const MAX_CIV_BIAS = 250;
-export const CIV_BIAS_SOFT_CAP_POWER = 4;
+export const MAX_CIV_BIAS = 200;
+export const BASE_CIV_BIAS = 20;
+export const LOW_WIN_RATE_THRESHOLD = 0.5;
+export const LOW_WIN_RATE_MAX_PENALTY = 200;
+export const LOW_WIN_RATE_PENALTY_POWER = 1.5;
 export const HARD_CIV_IDS = new Set(["p2", "p6"]);
 export const HARD_CIV_LOW_ELO_START = 1200;
 export const HARD_CIV_LOW_ELO_FLOOR = 800;
 export const HARD_CIV_MAX_LOW_ELO_PENALTY = 120;
-export const INEXPERIENCE_PENALTIES = [-120, -90, -65, -40, -20];
+export const INEXPERIENCE_PENALTIES = [20, 15, 10, 5, 3];
 
 export function normalizePlayerRating(player) {
   if (!player) return player;
   if (
-    player.ratingModelVersion === 2 &&
+    player.ratingModelVersion === RATING_MODEL_VERSION &&
     Number.isFinite(Number(player.mainElo)) &&
     CIVS.every(civ => player.civStats?.[civ.id])
   ) {
@@ -43,26 +44,10 @@ export function normalizePlayerRating(player) {
     const losses = Number(player.civLosses?.[civ.id] || 0);
     const existing = player.civStats?.[civ.id] || {};
     const games = Number(existing.games ?? wins + losses);
-    let modifier = Number(existing.modifier);
-
-    if (!Number.isFinite(modifier)) {
-      const legacyCivElo = Number(player.civElo?.[civ.id]);
-      if (Number.isFinite(legacyCivElo)) {
-        modifier = legacyCivElo - mainElo;
-      } else {
-        const legacyPct = legacyCivPercent(player, civ.id);
-        modifier = Number.isFinite(legacyPct)
-          ? Math.max(mainElo * ((legacyPct - 100) / 100), -150)
-          : 0;
-      }
-    }
 
     civStats[civ.id] = {
-      ...existing,
       games,
-      wins: Number(existing.wins ?? wins),
-      modifier: clamp(Math.round(modifier), MIN_CIV_MODIFIER, MAX_CIV_MODIFIER),
-      manualPreference: existing.manualPreference ?? preferenceFor(player, civ.id)
+      wins: Number(existing.wins ?? wins)
     };
   }
 
@@ -72,7 +57,7 @@ export function normalizePlayerRating(player) {
   player.returnGamesInWindow = Number(player.returnGamesInWindow || 0);
   player.returnWindowStartedAt = Number(player.returnWindowStartedAt || 0);
   player.civStats = civStats;
-  player.ratingModelVersion = 2;
+  player.ratingModelVersion = RATING_MODEL_VERSION;
   return player;
 }
 
@@ -116,43 +101,45 @@ export function permanentElo(player) {
   return Math.round(Number(player.mainElo || DEFAULT_ELO));
 }
 
-export function civModifier(player, civId) {
-  normalizePlayerRating(player);
-  return clamp(
-    Number(player.civStats?.[civId]?.modifier || 0),
-    MIN_CIV_MODIFIER,
-    MAX_CIV_MODIFIER
-  );
-}
-
 export function civGames(player, civId) {
   normalizePlayerRating(player);
   return Number(player.civStats?.[civId]?.games || 0);
 }
 
-export function confidenceWeight(player, civId) {
-  const games = civGames(player, civId);
-  return games / (games + 5);
-}
-
-export function preferenceBonus(player, civId) {
-  const preference = player.civStats?.[civId]?.manualPreference ?? preferenceFor(player, civId);
-  if (preference === "fav") return 40;
-  if (preference === "avoid") return -120;
-  return 0;
-}
-
 export function uncertaintyPenalty(player, civId) {
   const games = civGames(player, civId);
-  return INEXPERIENCE_PENALTIES[games] || 0;
+  return -(INEXPERIENCE_PENALTIES[games] || 0);
 }
 
-export function weightedCivAdjustment(player, civId) {
-  return Math.round(
-    confidenceWeight(player, civId) *
-      civModifier(player, civId) *
-      CIV_MODIFIER_IMPACT
+export function civWinRatePenalty(player, civId) {
+  const games = civGames(player, civId);
+  if (!games) return 0;
+
+  const winRate = civWinRate(player, civId);
+  const deficitRatio = clamp(
+    (LOW_WIN_RATE_THRESHOLD - winRate) / LOW_WIN_RATE_THRESHOLD,
+    0,
+    1
   );
+
+  return Math.round(
+    LOW_WIN_RATE_MAX_PENALTY *
+      Math.pow(deficitRatio, LOW_WIN_RATE_PENALTY_POWER)
+  );
+}
+
+export function civWinRate(player, civId) {
+  const games = civGames(player, civId);
+  if (!games) return 0;
+
+  const wins = Number(player.civStats?.[civId]?.wins || 0);
+  return wins / games;
+}
+
+export function rawCivBiasPenalty(player, civId) {
+  return BASE_CIV_BIAS -
+    uncertaintyPenalty(player, civId) +
+    civWinRatePenalty(player, civId);
 }
 
 export function civBiasAdjustment(player, civId) {
@@ -162,28 +149,27 @@ export function civBiasAdjustment(player, civId) {
     .map((civ, index) => ({
       id: civ.id,
       index,
-      adjustment: weightedCivAdjustment(player, civ.id) + uncertaintyPenalty(player, civ.id)
+      penalty: rawCivBiasPenalty(player, civ.id),
+      winRate: civWinRate(player, civ.id),
+      games: civGames(player, civ.id)
     }))
-    .sort((a, b) => b.adjustment - a.adjustment || a.index - b.index);
+    .sort((a, b) => (
+      a.penalty - b.penalty ||
+      b.winRate - a.winRate ||
+      b.games - a.games ||
+      a.index - b.index
+    ));
   const rank = rankedAdjustments.findIndex(civ => civ.id === civId);
 
   if (rank >= 0 && rank < 2) return 0;
 
-  const currentAdjustment = rankedAdjustments[rank]?.adjustment ??
-    weightedCivAdjustment(player, civId) + uncertaintyPenalty(player, civId);
-  const zeroBiasBaseline = rankedAdjustments[1]?.adjustment ??
-    rankedAdjustments[0]?.adjustment ??
-    0;
-
-  return softCapNegativeBias(Math.min(-1, currentAdjustment - zeroBiasBaseline));
+  const penalty = rankedAdjustments[rank]?.penalty ??
+    rawCivBiasPenalty(player, civId);
+  return -clamp(Math.max(1, penalty), 1, MAX_CIV_BIAS);
 }
 
 export function civElo(player, civId) {
-  return overallElo(player) + civBiasAdjustment(player, civId);
-}
-
-export function effectiveCivElo(player, civId) {
-  return balanceElo(player, civId);
+  return ratingBreakdown(player, civId).civElo;
 }
 
 export function hardCivLowEloPenalty(player, civId) {
@@ -201,10 +187,7 @@ export function assignmentPenalty(player, civId, recentCivs = []) {
   if ((player.bannedCivs || []).includes(civId)) return Infinity;
 
   let penalty = 0;
-  const preference = player.civStats?.[civId]?.manualPreference ?? preferenceFor(player, civId);
 
-  if (preference === "avoid") penalty += 150;
-  if (preference === "fav") penalty -= 20;
   if (civGames(player, civId) === 0) penalty += 20;
   if (recentCivs[0] === civId) penalty += 30;
 
@@ -236,21 +219,41 @@ export function activeInactivityPenalty(player, now = Date.now()) {
 }
 
 export function decayedElo(player, now = Date.now()) {
-  return Math.max(100, overallElo(player) - activeInactivityPenalty(player, now));
+  return ratingBreakdown(player, null, now).displayedMainElo;
 }
 
 export function displayElo(player, now = Date.now()) {
-  return decayedElo(player, now);
+  return ratingBreakdown(player, null, now).displayedMainElo;
 }
 
 export function balanceElo(player, civId, now = Date.now()) {
-  return Math.max(
-    100,
-    civElo(player, civId) +
-      preferenceBonus(player, civId) +
-      hardCivLowEloPenalty(player, civId) -
-      Math.round(activeInactivityPenalty(player, now) * BALANCER_INACTIVITY_MULTIPLIER)
+  return ratingBreakdown(player, civId, now).balancerElo;
+}
+
+export function ratingBreakdown(player, civId = null, now = Date.now()) {
+  const mainElo = overallElo(player);
+  const civBias = civId ? civBiasAdjustment(player, civId) : 0;
+  const positionElo = mainElo + civBias;
+  const inactivityPenalty = activeInactivityPenalty(player, now);
+  const balancerInactivityPenalty = Math.round(
+    inactivityPenalty * BALANCER_INACTIVITY_MULTIPLIER
   );
+  const hardCivPenalty = civId ? hardCivLowEloPenalty(player, civId) : 0;
+
+  return {
+    mainElo,
+    civBias,
+    civElo: positionElo,
+    inactivityPenalty,
+    displayedMainElo: Math.max(100, mainElo - inactivityPenalty),
+    displayedCivElo: Math.max(100, positionElo - inactivityPenalty),
+    balancerInactivityPenalty,
+    hardCivPenalty,
+    balancerElo: Math.max(
+      100,
+      positionElo + hardCivPenalty - balancerInactivityPenalty
+    )
+  };
 }
 
 export function mainKFactor(gamesPlayed) {
@@ -296,11 +299,6 @@ export function mainEloDelta(player, won, expected, communityAverageGames) {
   return ratingDelta(effectiveK(player, communityAverageGames), won ? 1 : 0, expected);
 }
 
-export function civModifierDelta(player, civId, won, expected) {
-  const sampleMultiplier = civGames(player, civId) < 3 ? 0.7 : 1;
-  return Math.round(10 * ((won ? 1 : 0) - expected) * sampleMultiplier);
-}
-
 export function applyRatingResult(
   player,
   civId,
@@ -313,7 +311,6 @@ export function applyRatingResult(
   applyInactivityGame(player, timestamp);
 
   const mainDelta = mainEloDelta(player, won, expected, communityAverageGames);
-  const modifierDelta = civModifierDelta(player, civId, won, expected);
   const stats = player.civStats[civId];
 
   player.mainElo = Math.round(Math.max(100, Number(player.mainElo || DEFAULT_ELO) + mainDelta));
@@ -323,13 +320,8 @@ export function applyRatingResult(
 
   stats.games += 1;
   stats.wins += won ? 1 : 0;
-  stats.modifier = clamp(
-    stats.modifier + modifierDelta,
-    MIN_CIV_MODIFIER,
-    MAX_CIV_MODIFIER
-  );
 
-  return { mainDelta, modifierDelta };
+  return { mainDelta };
 }
 
 export function applyMatchRatings(players, match, options = {}) {
@@ -394,18 +386,6 @@ function legacyMainElo(player) {
   }
 
   return Math.round(Number(player.elo || DEFAULT_ELO));
-}
-
-function legacyCivPercent(player, civId) {
-  const direct = Number(player.civPct?.[civId]);
-  if (Number.isFinite(direct)) return direct;
-  return NaN;
-}
-
-function preferenceFor(player, civId) {
-  if ((player.favCivs || []).includes(civId)) return "fav";
-  if ((player.avoidCivs || []).includes(civId)) return "avoid";
-  return null;
 }
 
 function applyTeamRatings(
@@ -480,16 +460,6 @@ function average(values) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
-}
-
-function softCapNegativeBias(value) {
-  if (value >= 0) return 0;
-
-  const magnitude = Math.abs(value);
-  const cappedMagnitude = magnitude /
-    Math.pow(1 + Math.pow(magnitude / MAX_CIV_BIAS, CIV_BIAS_SOFT_CAP_POWER), 1 / CIV_BIAS_SOFT_CAP_POWER);
-
-  return -Math.round(cappedMagnitude);
 }
 
 function applyInactivityGame(player, timestamp) {

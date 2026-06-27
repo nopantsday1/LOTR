@@ -3,13 +3,7 @@ import { splitTeams } from "../balancer/splitTeams.js";
 import { toast } from "../ui/toast.js";
 import {
   assignmentPenalty,
-  civBiasAdjustment,
-  civModifier,
-  confidenceWeight,
-  effectiveCivElo,
-  hardCivLowEloPenalty,
-  preferenceBonus,
-  uncertaintyPenalty
+  ratingBreakdown
 } from "../elo/elo.js";
 
 export function initBalancePage() {
@@ -204,10 +198,6 @@ function renderTeam(label, team) {
     <section class="card team ${side}-team">
       <h2>${label} · ${team.total} effective Elo</h2>
       ${team.assignment.map((item, index) => {
-        const adjustment = Number(
-          item.civBias ??
-          Math.round(item.confidence * item.modifier) + Number(item.uncertaintyPenalty || 0)
-        );
         return `
           <div
             class="balance-assignment"
@@ -224,8 +214,8 @@ function renderTeam(label, team) {
               <div class="muted small">${escapeHtml(item.civ.name.replace(/^P\d+\s*/, ""))} · drag to swap</div>
             </div>
             <div class="balance-elo-details">
-              <span>${Math.round(Number(item.player.mainElo || 0))} main</span>
-              <span>${formatSigned(adjustment)} civ</span>
+              <span>${item.mainElo} main</span>
+              <span>${formatSigned(item.civBias)} civ</span>
               <strong>${item.elo} effective</strong>
             </div>
           </div>
@@ -260,16 +250,15 @@ function swapBalancePlayers(split, source, target) {
 }
 
 function buildAssignmentItem(player, civ) {
+  const rating = ratingBreakdown(player, civ.id);
+
   return {
     player,
     civ,
-    elo: effectiveCivElo(player, civ.id),
-    civBias: civBiasAdjustment(player, civ.id),
-    modifier: civModifier(player, civ.id),
-    confidence: confidenceWeight(player, civ.id),
-    preferenceBonus: preferenceBonus(player, civ.id),
-    uncertaintyPenalty: uncertaintyPenalty(player, civ.id),
-    hardCivPenalty: hardCivLowEloPenalty(player, civ.id),
+    mainElo: rating.mainElo,
+    elo: rating.balancerElo,
+    civBias: rating.civBias,
+    hardCivPenalty: rating.hardCivPenalty,
     penalty: assignmentPenalty(player, civ.id, [])
   };
 }

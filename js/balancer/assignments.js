@@ -2,13 +2,7 @@ import { CIVS, normalizeCivName } from "../core/constants.js";
 import { state } from "../core/state.js";
 import {
   assignmentPenalty,
-  civBiasAdjustment,
-  civModifier,
-  confidenceWeight,
-  effectiveCivElo,
-  hardCivLowEloPenalty,
-  preferenceBonus,
-  uncertaintyPenalty
+  ratingBreakdown
 } from "../elo/elo.js";
 
 export function* permutations(items) {
@@ -33,17 +27,15 @@ export function assignmentOptions(players, civs) {
     const assignment = players.map((player, index) => {
       const civ = permutation[index];
       const recent = recentCivs[player.id] || [];
+      const rating = ratingBreakdown(player, civ.id);
 
       return {
         player,
         civ,
-        elo: effectiveCivElo(player, civ.id),
-        civBias: civBiasAdjustment(player, civ.id),
-        modifier: civModifier(player, civ.id),
-        confidence: confidenceWeight(player, civ.id),
-        preferenceBonus: preferenceBonus(player, civ.id),
-        uncertaintyPenalty: uncertaintyPenalty(player, civ.id),
-        hardCivPenalty: hardCivLowEloPenalty(player, civ.id),
+        mainElo: rating.mainElo,
+        elo: rating.balancerElo,
+        civBias: rating.civBias,
+        hardCivPenalty: rating.hardCivPenalty,
         penalty: assignmentPenalty(player, civ.id, recent)
       };
     });
