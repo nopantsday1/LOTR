@@ -1,5 +1,5 @@
 import { CIVS, normalizeCivName } from "../core/constants.js";
-import { ratingBreakdown } from "./elo.js";
+import { expectedTeamScore, ratingBreakdown } from "./elo.js";
 import {
   applyReplayMatchRatings,
   resetPlayerForReplay
@@ -36,6 +36,10 @@ export function buildBalancerBacktest(players, history) {
         : evilTotal > goodTotal
           ? "evil"
           : "good";
+      const evilWinProbability = expectedTeamScore(
+        evilTotal / 4,
+        goodTotal / 4
+      );
       const durationSeconds = normalizedDuration(match);
 
       results.push({
@@ -46,6 +50,8 @@ export function buildBalancerBacktest(players, history) {
         evilTotal,
         goodTotal,
         eloGap: Math.abs(evilTotal - goodTotal),
+        evilWinProbability,
+        confidenceWeight: Math.abs(evilWinProbability - 0.5) * 2,
         durationSeconds
       });
     }
@@ -60,6 +66,16 @@ export function summarizeBalancerBacktest(matches) {
   const comparable = matches.filter(match => match.predictedWinner);
   const correct = comparable.filter(match => match.correct).length;
   const ties = matches.length - comparable.length;
+  const confidenceWeight = comparable.reduce(
+    (sum, match) => sum + Number(match.confidenceWeight || 0),
+    0
+  );
+  const correctConfidenceWeight = comparable.reduce(
+    (sum, match) => sum + (match.correct
+      ? Number(match.confidenceWeight || 0)
+      : 0),
+    0
+  );
   const durationMatches = matches.filter(match =>
     Number.isFinite(match.durationSeconds) && match.durationSeconds > 0
   );
@@ -79,7 +95,11 @@ export function summarizeBalancerBacktest(matches) {
       incorrect: comparable.length - correct,
       ties,
       comparable: comparable.length,
-      accuracy: comparable.length ? correct / comparable.length : NaN
+      accuracy: comparable.length ? correct / comparable.length : NaN,
+      confidenceWeight,
+      weightedAccuracy: confidenceWeight
+        ? correctConfidenceWeight / confidenceWeight
+        : NaN
     },
     duration: {
       matches: durationMatches,

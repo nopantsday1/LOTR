@@ -776,11 +776,18 @@
   font-size: 10px;
 }
 
+.prediction-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: .5rem 0 .8rem;
+}
+
 .prediction-score {
   display: flex;
+  flex-direction: column;
   gap: .75rem;
-  align-items: baseline;
-  margin: .5rem 0 .8rem;
+  min-width: 0;
 }
 
 .prediction-description {
@@ -794,6 +801,10 @@
   font-family: "Cinzel", serif;
   font-size: 2.3rem;
   line-height: 1;
+}
+
+.prediction-score.weighted strong {
+  color: var(--good);
 }
 
 .prediction-score span,
@@ -834,6 +845,10 @@
 
 .prediction-counts .negative {
   color: var(--evil);
+}
+
+.prediction-weight-note {
+  margin-bottom: .35rem;
 }
 
 .backtest-summary {
@@ -1476,6 +1491,10 @@
 }
 
 @media (max-width: 520px) {
+  .prediction-metrics {
+    grid-template-columns: 1fr;
+  }
+
   .help-section {
     grid-template-columns: 1fr;
     gap: .35rem;

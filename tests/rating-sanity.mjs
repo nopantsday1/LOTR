@@ -118,18 +118,40 @@ function player(mainElo, gamesPlayed = 0) {
   assert.equal(backtest.matches.length, 1);
   assert.equal(backtest.prediction.correct, 1);
   assert.equal(backtest.prediction.incorrect, 0);
+  assert.equal(backtest.prediction.weightedAccuracy, 1);
+  assert.ok(backtest.matches[0].evilWinProbability > 0.9);
+  assert.ok(backtest.matches[0].confidenceWeight > 0.8);
   assert.equal(backtest.duration.matches[0].durationSeconds, 1800);
   assert.ok(backtest.matches[0].evilTotal > backtest.matches[0].goodTotal);
   assert.equal(
     summarizeBalancerBacktest(backtest.matches.slice(-1)).prediction.correct,
     1
   );
+
+  const weightedSummary = summarizeBalancerBacktest([
+    { predictedWinner: "evil", correct: true, confidenceWeight: 0.1 },
+    { predictedWinner: "good", correct: false, confidenceWeight: 0.9 }
+  ]);
+  assert.equal(weightedSummary.prediction.accuracy, 0.5);
+  assert.ok(Math.abs(weightedSummary.prediction.weightedAccuracy - 0.1) < 1e-12);
 }
 
 // Original replays from community seeds, while 1000 Rating gives everyone the
 // same starting point. Enabled modes cycle in registry order.
 {
-  assert.deepEqual(Object.keys(RATING_MODES), ["original", "rating1000"]);
+  const initiallyEnabledModes = Object.keys(RATING_MODES);
+  const baseWasEnabled = initiallyEnabledModes.includes("base");
+  assert.deepEqual(
+    initiallyEnabledModes.slice(0, 2),
+    ["original", "rating1000"]
+  );
+  assert.ok(
+    initiallyEnabledModes.length === 2 ||
+    (
+      initiallyEnabledModes.length === 3 &&
+      initiallyEnabledModes[2] === "base"
+    )
+  );
   assert.equal(RATING_MODES.original.mainEloChangeMultiplier, 1);
   assert.equal(RATING_MODES.rating1000.mainEloChangeMultiplier, 1);
   assert.equal(
@@ -215,13 +237,16 @@ function player(mainElo, gamesPlayed = 0) {
   assert.ok(rating1000Changes.get(goodSeed.playerId) < 0);
 
   assert.equal(state.ratingMode, "original");
-  assert.equal(toggleRatingMode(), true);
-  assert.equal(state.ratingMode, "rating1000");
-  assert.equal(toggleRatingMode(), true);
-  assert.equal(state.ratingMode, "original");
+  for (let index = 1; index <= initiallyEnabledModes.length; index++) {
+    assert.equal(toggleRatingMode(), true);
+    assert.equal(
+      state.ratingMode,
+      initiallyEnabledModes[index % initiallyEnabledModes.length]
+    );
+  }
 
   // The dormant Base registration is the only switch needed for three modes.
-  RATING_MODES.base = BASE_RATING_MODE;
+  if (!baseWasEnabled) RATING_MODES.base = BASE_RATING_MODE;
   initializeRatingModes(seededPlayers, history);
 
   assert.deepEqual(
@@ -242,7 +267,7 @@ function player(mainElo, gamesPlayed = 0) {
   assert.equal(baseChanges.get(evilSeed.playerId), 0);
   assert.equal(baseChanges.get(goodSeed.playerId), 0);
 
-  delete RATING_MODES.base;
+  if (!baseWasEnabled) delete RATING_MODES.base;
   initializeRatingModes(seededPlayers, history);
 }
 

@@ -292,15 +292,22 @@ function renderPredictionAccuracy(backtest) {
   }
 
   const accuracy = prediction.accuracy * 100;
+  const weightedAccuracy = prediction.weightedAccuracy * 100;
 
   return `
     <p class="prediction-description">
       Before each match, the team with the higher combined Balancer Elo is
-      predicted to win. Accuracy measures how often that team actually won.
+      predicted to win. Standard accuracy counts every game equally.
     </p>
-    <div class="prediction-score">
-      <strong>${accuracy.toFixed(1)}%</strong>
-      <span>correct predictions</span>
+    <div class="prediction-metrics">
+      <div class="prediction-score">
+        <strong>${accuracy.toFixed(1)}%</strong>
+        <span>standard accuracy</span>
+      </div>
+      <div class="prediction-score weighted">
+        <strong>${Number.isFinite(weightedAccuracy) ? `${weightedAccuracy.toFixed(1)}%` : "N/A"}</strong>
+        <span>confidence-weighted</span>
+      </div>
     </div>
     <div class="prediction-bar" aria-label="${accuracy.toFixed(1)} percent correct">
       <span class="correct" style="width:${accuracy}%"></span>
@@ -311,6 +318,10 @@ function renderPredictionAccuracy(backtest) {
       <span><strong class="negative">${prediction.incorrect}</strong> incorrect</span>
       ${prediction.ties ? `<span>${prediction.ties} tied</span>` : ""}
     </div>
+    <p class="muted small prediction-weight-note">
+      Confidence-weighted accuracy gives almost-even games little influence
+      and gives larger predicted Elo advantages more influence.
+    </p>
     <p class="muted small">
       ${backtest.matches.length} most recent eligible ${backtest.matches.length === 1 ? "game" : "games"} analyzed.
     </p>

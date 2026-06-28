@@ -23,14 +23,14 @@ export const RATING_MODES = {
     startingElo: communityEloSeed,
     mainEloChangeMultiplier: 1
   },
-  rating1000: {
-    label: "1000 Rating",
-    description: "Every player starts at 1000 before results are replayed",
-    startingElo: () => 1000,
-    mainEloChangeMultiplier: 1
-  },
+  // rating1000: {
+  //   label: "1000 Rating",
+  //   description: "Every player starts at 1000 before results are replayed",
+  //   startingElo: () => 1000,
+  //   mainEloChangeMultiplier: 1
+  // },
   // Uncomment the next line to enable all three rating modes.
-  // base: BASE_RATING_MODE
+  base: BASE_RATING_MODE
 };
 
 const STORAGE_KEY = "lotr-rating-mode";
