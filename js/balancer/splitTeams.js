@@ -3,6 +3,9 @@ import { assignmentOptions } from "./assignments.js";
 
 export const BALANCED_SCORE_RANGE = 60;
 export const RANDOM_SCORE_RANGE = 200;
+export const DEFAULT_OPTION_COUNT = 3;
+export const STRONG_OPTION_POSITION_CHANGES = 6;
+export const MIN_OPTION_POSITION_CHANGES = 4;
 
 export function splitTeams(selectedPlayers, options = {}) {
   if (selectedPlayers.length !== 8) return null;
@@ -25,12 +28,105 @@ export function splitTeams(selectedPlayers, options = {}) {
   const pool = alternatives.length ? alternatives : eligible;
   const chosen = pool[Math.floor(Math.random() * pool.length)];
 
-  return {
-    ...chosen,
+  return withMetadata(chosen, {
     bestScore,
     scoreRange,
     eligibleCount: eligible.length,
     selectionMode: options.random ? "random" : "balanced"
+  });
+}
+
+export function splitTeamOptions(selectedPlayers, options = {}) {
+  if (selectedPlayers.length !== 8) return [];
+
+  const candidates = buildCandidates(selectedPlayers);
+  if (!candidates.length) return [];
+
+  candidates.sort((a, b) => a.score - b.score);
+
+  const bestScore = candidates[0].score;
+  const scoreRange = options.random
+    ? RANDOM_SCORE_RANGE
+    : BALANCED_SCORE_RANGE;
+  const eligible = candidates.filter(candidate => candidate.score <= bestScore + scoreRange);
+  const count = Math.max(1, Number(options.count || DEFAULT_OPTION_COUNT));
+  const selected = [];
+  const metadata = {
+    bestScore,
+    scoreRange,
+    eligibleCount: eligible.length,
+    selectionMode: options.random ? "random" : "balanced"
+  };
+
+  addDistantOptions(
+    selected,
+    eligible,
+    metadata,
+    count,
+    STRONG_OPTION_POSITION_CHANGES
+  );
+  if (selected.length === count) return selected;
+
+  addDistantOptions(
+    selected,
+    candidates,
+    metadata,
+    count,
+    STRONG_OPTION_POSITION_CHANGES
+  );
+  if (selected.length === count) return selected;
+
+  addDistantOptions(
+    selected,
+    candidates,
+    metadata,
+    count,
+    MIN_OPTION_POSITION_CHANGES
+  );
+
+  return selected;
+}
+
+function addDistantOptions(selected, candidates, metadata, count, minChanges) {
+  for (const candidate of candidates) {
+    if (selected.length === count) return;
+    if (selected.some(option => option.signature === candidate.signature)) continue;
+    if (minAssignmentDistance(candidate, selected) < minChanges) continue;
+    selected.push(withMetadata(candidate, {
+      ...metadata,
+      minOptionPositionChanges: minAssignmentDistance(candidate, selected)
+    }));
+  }
+}
+
+function minAssignmentDistance(candidate, selected) {
+  if (!selected.length) return 8;
+  return Math.min(...selected.map(option => assignmentDistance(candidate, option)));
+}
+
+function assignmentDistance(left, right) {
+  const rightBySlot = assignmentSlotMap(right);
+
+  return assignmentSlots(left).reduce((changes, slot) => (
+    rightBySlot.get(slot.civId) === slot.playerId ? changes : changes + 1
+  ), 0);
+}
+
+function assignmentSlotMap(split) {
+  return new Map(assignmentSlots(split).map(slot => [slot.civId, slot.playerId]));
+}
+
+function assignmentSlots(split) {
+  return [...split.evil.assignment, ...split.good.assignment].map(item => ({
+    civId: item.civ.id,
+    playerId: item.player.id
+  }));
+}
+
+function withMetadata(candidate, metadata) {
+  return {
+    ...candidate,
+    ...metadata
   };
 }
 

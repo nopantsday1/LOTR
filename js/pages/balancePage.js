@@ -1,5 +1,5 @@
 import { state } from "../core/state.js";
-import { splitTeams } from "../balancer/splitTeams.js";
+import { splitTeamOptions } from "../balancer/splitTeams.js";
 import { toast } from "../ui/toast.js";
 import {
   assignmentPenalty,
@@ -10,10 +10,13 @@ export function initBalancePage() {
   const picker = document.getElementById("playerPicker");
   const count = document.getElementById("selectedCount");
   const balanceBtn = document.getElementById("balanceBtn");
-  const randomBtn = document.getElementById("randomSplitBtn");
+  const resetTeamsBtn = document.getElementById("resetTeamsBtn");
   const result = document.getElementById("balanceResult");
+  const topSplits = document.getElementById("topSplits");
   const search = document.getElementById("balancePlayerSearch");
   const searchMeta = document.getElementById("balanceSearchMeta");
+  let balanceOptions = [];
+  let selectionLocked = false;
 
   if (!picker) return;
 
@@ -56,9 +59,12 @@ export function initBalancePage() {
         button.className = "btn player-picker-button";
         button.textContent = player.name || "Unknown";
         button.dataset.id = player.id;
+        button.disabled = selectionLocked;
         button.addEventListener("click", () => {
+          if (selectionLocked) return;
           if (state.selectedPlayerIds.has(player.id)) state.selectedPlayerIds.delete(player.id);
           else if (state.selectedPlayerIds.size < 8) state.selectedPlayerIds.add(player.id);
+          clearBalanceResult();
           renderPicker();
         });
         if (state.selectedPlayerIds.has(player.id)) button.classList.add("primary");
@@ -68,22 +74,24 @@ export function initBalancePage() {
       picker.append(section);
     }
     count.textContent = `${state.selectedPlayerIds.size} / 8 selected`;
+    renderBalanceControls();
   }
 
-  function generateBalance(random = false) {
+  function generateBalance() {
+    if (selectionLocked) return;
+
     const selected = state.players.filter(p => state.selectedPlayerIds.has(p.id));
     if (selected.length !== 8) {
       toast("Select exactly 8 players", "err");
       return;
     }
 
-    const split = splitTeams(selected, {
-      random,
-      previousSignature: state.lastBalance?.signature,
-      previousTeamSignature: state.lastBalance?.teamSignature
-    });
-    state.lastBalance = split;
+    balanceOptions = splitTeamOptions(selected, { count: 3 });
+    state.lastBalance = balanceOptions[0] || null;
+    selectionLocked = Boolean(state.lastBalance);
+    renderBalanceOptions();
     renderBalanceResult();
+    renderPicker();
   }
 
   function renderBalanceResult() {
@@ -91,6 +99,58 @@ export function initBalancePage() {
       ? renderSplit(state.lastBalance)
       : `<p class="muted">No valid assignment found.</p>`;
     bindBalanceDragHandlers(result);
+    result.querySelector("[data-copy-balance]")?.addEventListener("click", copyBalanceForLobby);
+  }
+
+  function renderBalanceOptions() {
+    if (!topSplits) return;
+
+    topSplits.innerHTML = balanceOptions.length
+      ? renderOptionPicker(balanceOptions, state.lastBalance)
+      : "";
+
+    topSplits.querySelectorAll("[data-balance-option]").forEach(button => {
+      button.addEventListener("click", () => {
+        const option = balanceOptions[Number(button.dataset.balanceOption)];
+        if (!option) return;
+
+        state.lastBalance = option;
+        renderBalanceOptions();
+        renderBalanceResult();
+      });
+    });
+    topSplits.querySelector("[data-copy-balance]")?.addEventListener("click", copyBalanceForLobby);
+  }
+
+  async function copyBalanceForLobby() {
+    if (!state.lastBalance) return;
+
+    try {
+      await copyText(formatBalanceForLobby(state.lastBalance));
+      toast("Teams copied for lobby chat");
+    } catch {
+      toast("Could not copy teams", "err");
+    }
+  }
+
+  function clearBalanceResult() {
+    state.lastBalance = null;
+    balanceOptions = [];
+    result.innerHTML = "";
+    if (topSplits) topSplits.innerHTML = "";
+  }
+
+  function resetTeams() {
+    state.selectedPlayerIds.clear();
+    selectionLocked = false;
+    clearBalanceResult();
+    renderPicker();
+  }
+
+  function renderBalanceControls() {
+    if (balanceBtn) balanceBtn.hidden = selectionLocked;
+    if (resetTeamsBtn) resetTeamsBtn.hidden = !selectionLocked;
+    if (search) search.disabled = selectionLocked;
   }
 
   function bindBalanceDragHandlers(container) {
@@ -134,20 +194,23 @@ export function initBalancePage() {
         if (source.side === target.side && source.index === target.index) return;
 
         swapBalancePlayers(state.lastBalance, source, target);
+        state.lastBalance.manualAdjusted = true;
+        renderBalanceOptions();
         renderBalanceResult();
       });
     });
   }
 
-  balanceBtn?.addEventListener("click", () => generateBalance(false));
-  randomBtn?.addEventListener("click", () => generateBalance(true));
+  balanceBtn?.addEventListener("click", generateBalance);
+  resetTeamsBtn?.addEventListener("click", resetTeams);
   search?.addEventListener("input", renderPicker);
 
   renderPicker();
   window.addEventListener("lotr:dataChanged", () => {
+    selectionLocked = false;
     renderPicker();
-    result.innerHTML = "";
-    state.lastBalance = null;
+    clearBalanceResult();
+    renderBalanceControls();
   });
 }
 
@@ -175,29 +238,53 @@ function normalizeSearch(value) {
 }
 
 function renderSplit(split) {
+  const lobbyString = formatBalanceForLobby(split);
+
   return `
-    ${renderTeam("Evil", split.evil)}
-    ${renderTeam("Good", split.good)}
+    ${renderTeam("Evil", split.evil, split.manualAdjusted)}
+    ${renderTeam("Good", split.good, split.manualAdjusted)}
+    ${split.manualAdjusted
+      ? `<div class="manual-balance-note">Manual balance, dragging has been used.</div>`
+      : ""}
     <section class="card balance-score">
-      <h3>Balance Score</h3>
+      <div class="balance-score-heading">
+        <h3>Balance Score</h3>
+      </div>
       <div>Effective Elo gap: <strong>${split.diff}</strong></div>
       <div>Assignment penalties: <strong>${split.assignmentPenalty}</strong></div>
       <div>Total score: <strong>${split.score}</strong></div>
-      <div class="muted small">
-        ${split.selectionMode === "random" ? "Broad random" : "Balanced random"} pick
-        · best possible score ${split.bestScore}
-        · ${split.eligibleCount} eligible variations
-      </div>
+      <div class="lobby-copy-string">${escapeHtml(lobbyString)}</div>
     </section>
   `;
 }
 
-function renderTeam(label, team) {
+function renderOptionPicker(options, selected) {
+  return `
+    <div class="balance-options-bar">
+      <div class="balance-option-tabs" role="tablist" aria-label="Balance options">
+        ${options.map((option, index) => `
+          <button
+            type="button"
+            class="balance-option-tab ${option === selected ? "selected" : ""}"
+            data-balance-option="${index}"
+            role="tab"
+            aria-selected="${option === selected ? "true" : "false"}"
+          >
+            <span>Option ${index + 1}</span>
+          </button>
+        `).join("")}
+      </div>
+      <button type="button" class="btn" data-copy-balance>Copy for Lobby</button>
+    </div>
+  `;
+}
+
+function renderTeam(label, team, manualAdjusted = false) {
   const side = label.toLowerCase();
   return `
-    <section class="card team ${side}-team">
+    <section class="card team ${side}-team ${manualAdjusted ? "manual" : ""}">
       <h2>${label} · ${team.total} effective Elo</h2>
-      ${team.assignment.map((item, index) => {
+      ${sortedTeamAssignments(team).map(({ item, index }) => {
         return `
           <div
             class="balance-assignment"
@@ -209,20 +296,26 @@ function renderTeam(label, team) {
             <div class="balance-drag-handle" aria-hidden="true">
               <span></span><span></span><span></span>
             </div>
-            <div>
-              <strong>${escapeHtml(item.civ.id.toUpperCase())} · ${escapeHtml(item.player.name)}</strong>
-              <div class="muted small">${escapeHtml(item.civ.name.replace(/^P\d+\s*/, ""))} · drag to swap</div>
+            <div class="balance-player-main">
+              <strong><span class="balance-civ-slot">${escapeHtml(item.civ.id.toUpperCase())}</span> ${escapeHtml(item.player.name)}</strong>
+              <span>${escapeHtml(item.civ.name.replace(/^P\d+\s*/, ""))}</span>
             </div>
-            <div class="balance-elo-details">
-              <span>${item.mainElo} main</span>
-              <span>${formatSigned(item.civBias)} civ</span>
-              <strong>${item.elo} effective</strong>
-            </div>
+            <strong class="balance-effective-elo">${item.elo}</strong>
           </div>
         `;
       }).join("")}
     </section>
   `;
+}
+
+function sortedTeamAssignments(team) {
+  return team.assignment
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => civOrder(a.item) - civOrder(b.item));
+}
+
+function civOrder(item) {
+  return Number(item.civ.id.slice(1));
 }
 
 function parseDragSource(value) {
@@ -292,8 +385,36 @@ function balanceTeamSignature(split) {
   ].join("|");
 }
 
-function formatSigned(value) {
-  return `${value > 0 ? "+" : ""}${value}`;
+function formatBalanceForLobby(split) {
+  return [...split.evil.assignment, ...split.good.assignment]
+    .sort((a, b) => Number(a.civ.id.slice(1)) - Number(b.civ.id.slice(1)))
+    .map(item => `${item.civ.id.toUpperCase()} ${item.player.name}`)
+    .join("  ");
+}
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall back for browsers that expose the API but deny clipboard permission.
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.append(textarea);
+  textarea.select();
+
+  try {
+    if (!document.execCommand("copy")) throw new Error("Copy command failed");
+  } finally {
+    textarea.remove();
+  }
 }
 
 function escapeHtml(value) {
