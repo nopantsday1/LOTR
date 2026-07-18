@@ -708,12 +708,33 @@
 .team.manual {
   border-color: var(--evil-border);
   background:
-    linear-gradient(145deg, var(--evil-soft), transparent 45%),
+    linear-gradient(145deg, var(--evil-soft), rgba(160, 45, 45, .18) 52%, transparent),
     linear-gradient(180deg, var(--card-bg-top), var(--card-bg-bottom));
+  box-shadow: 0 0 0 2px var(--evil-border), 0 12px 32px rgba(160, 45, 45, .18);
 }
 
 .team.manual::before {
-  background: linear-gradient(90deg, transparent, var(--evil), transparent);
+  right: 0;
+  left: 0;
+  height: 3px;
+  background: var(--evil);
+}
+
+.team.manual .balance-assignment {
+  border-color: var(--evil-border);
+  background:
+    linear-gradient(135deg, var(--evil-soft), transparent 110%),
+    var(--control-bg);
+}
+
+.team.manual .balance-drag-handle {
+  border-color: var(--evil-border);
+  background: var(--evil-soft);
+}
+
+.team.manual .balance-drag-handle span {
+  background: var(--evil);
+  opacity: 1;
 }
 
 .manual-balance-note {
@@ -729,6 +750,7 @@
   padding: .55rem .65rem;
   font-size: 10px;
   font-weight: 700;
+  box-shadow: inset 3px 0 var(--evil);
 }
 
 .balance-score-heading {
