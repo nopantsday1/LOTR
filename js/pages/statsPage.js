@@ -20,6 +20,7 @@ export function initStatsPage() {
   const reverseStackers = document.getElementById("reverseStackers");
   const funStats = document.getElementById("funStats");
   const balancerPrediction = document.getElementById("balancerPrediction");
+  const communityPrediction = document.getElementById("communityPrediction");
   const backtestSampleSize = document.getElementById("backtestSampleSize");
   const correlationSummary = document.getElementById("durationCorrelationSummary");
   const correlationCanvas = document.getElementById("durationCorrelationCanvas");
@@ -62,6 +63,9 @@ export function initStatsPage() {
     if (funStats) funStats.innerHTML = renderFunFacts(matches, completed);
     if (balancerPrediction) {
       balancerPrediction.innerHTML = renderPredictionAccuracy(displayedBacktest);
+    }
+    if (communityPrediction) {
+      communityPrediction.innerHTML = renderCommunityPredictionAccuracy(state.communityPredictions);
     }
     if (correlationSummary) {
       correlationSummary.innerHTML = renderCorrelationSummary(displayedBacktest);
@@ -325,6 +329,26 @@ function renderPredictionAccuracy(backtest) {
     <p class="muted small">
       ${backtest.matches.length} most recent eligible ${backtest.matches.length === 1 ? "game" : "games"} analyzed.
     </p>
+  `;
+}
+
+function renderCommunityPredictionAccuracy(responses) {
+  const valid = (responses || []).filter(response => (
+    (response.prediction === "evil" || response.prediction === "good") &&
+    (response.winner === "evil" || response.winner === "good")
+  ));
+  if (!valid.length) {
+    return `<div class="community-prediction-heading"><div><div class="eyebrow">Community picks</div><h3>Community Prediction Accuracy</h3></div></div>${emptyState("No community predictions have been submitted yet.")}`;
+  }
+  const correct = valid.filter(response => response.prediction === response.winner).length;
+  const accuracy = (correct / valid.length) * 100;
+  return `
+    <div class="community-prediction-heading"><div><div class="eyebrow">Community picks</div><h3>Community Prediction Accuracy</h3></div><strong>${accuracy.toFixed(1)}%</strong></div>
+    <p class="prediction-description">Every submitted answer from Match Oracle, across all visitors and devices.</p>
+    <div class="prediction-bar" aria-label="Community prediction accuracy ${accuracy.toFixed(1)} percent">
+      <span class="correct" style="width:${accuracy}%"></span><span class="incorrect" style="width:${100 - accuracy}%"></span>
+    </div>
+    <div class="prediction-counts"><span><strong class="positive">${correct}</strong> correct</span><span><strong class="negative">${valid.length - correct}</strong> incorrect</span><span>${valid.length} total picks</span></div>
   `;
 }
 

@@ -16,6 +16,7 @@ import { initStatsPage } from "./pages/statsPage.js";
 import { initAdminPage } from "./pages/adminPage.js";
 import { initLivePage } from "./pages/livePage.js";
 import { initProfilePage } from "./pages/profilePage.js";
+import { initPredictionsPage } from "./pages/predictionsPage.js";
 
 function emitDataChanged() {
   window.dispatchEvent(new CustomEvent("lotr:dataChanged"));
@@ -36,6 +37,7 @@ function initCurrentPage() {
     admin: initAdminPage,
     live: initLivePage,
     profile: initProfilePage,
+    predictions: initPredictionsPage,
   };
 
   pageInitializers[page]?.();

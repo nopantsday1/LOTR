@@ -1,10 +1,9 @@
 <!doctype html>
 <html lang="en">
 <head>
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Hobbit Balancer</title>
+<title>Prediction Game | Hobbit Balancer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -13,13 +12,10 @@
 <link rel="stylesheet" href="../css/components.css">
 <link rel="stylesheet" href="../css/pages.css">
 <script type="module" src="../js/app.js"></script>
-
 </head>
-
 <body>
-
 <header class="topbar">
-  <a class="brand" href="../index.html">⚔ Hobbit Balancer</a>
+  <a class="brand" href="../index.html">Hobbit Balancer</a>
   <nav class="tabs">
     <a data-page="balance" href="./balance.html">Balance</a>
     <a data-page="history" href="./history.html">History</a>
@@ -32,33 +28,9 @@
   </nav>
   <span id="sync" class="sync"></span>
 </header>
-
-<main class="shell">
-
-
-<section class="page" data-page="history">
-  <div class="page-header">
-    <div>
-      <h1>Match History</h1>
-      <p>Browse recorded results, team assignments, positions, and each player's Main Elo change.</p>
-    </div>
-    <button id="historyCheckNowBtn" class="btn">Check Now</button>
-  </div>
-  <p id="historyCheckStatus" class="muted">New matches are checked automatically every five minutes.</p>
-
-  <section class="card toolbar search-toolbar">
-    <label class="field-label" for="historySearch">Find a match</label>
-    <input id="historySearch" type="search" placeholder="Player, result, map, or match ID">
-    <button id="historyClearSearch" class="btn">Clear</button>
-  </section>
-
-  <section id="historyList"></section>
-</section>
-
-
-</main>
-<div class="toast" id="toast"></div>
-<div class="modal-root" id="modalRoot"></div>
-</body>
-
-</html>
+<main class="shell"><section class="page" data-page="predictions">
+  <div class="page-header"><div><h1>Match Oracle</h1><p>Pick the winner of five historic games before their results are revealed.</p></div></div>
+  <section id="predictionGame"></section>
+</section></main>
+<div class="toast" id="toast"></div><div class="modal-root" id="modalRoot"></div>
+</body></html>

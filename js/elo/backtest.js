@@ -15,16 +15,18 @@ export function buildBalancerBacktest(players, history) {
   for (const match of matches) {
     const winner = normalizeWinner(match);
     const timestamp = normalizedTimestamp(match);
-    const evilTotal = preMatchTeamTotal(
+    const evilPlayers = preMatchTeamRatings(
       replayPlayers,
       match.evilAssign,
       timestamp
     );
-    const goodTotal = preMatchTeamTotal(
+    const goodPlayers = preMatchTeamRatings(
       replayPlayers,
       match.goodAssign,
       timestamp
     );
+    const evilTotal = teamTotal(evilPlayers);
+    const goodTotal = teamTotal(goodPlayers);
 
     if (
       winner &&
@@ -52,7 +54,9 @@ export function buildBalancerBacktest(players, history) {
         eloGap: Math.abs(evilTotal - goodTotal),
         evilWinProbability,
         confidenceWeight: Math.abs(evilWinProbability - 0.5) * 2,
-        durationSeconds
+        durationSeconds,
+        evilPlayers,
+        goodPlayers
       });
     }
 
@@ -110,7 +114,7 @@ export function summarizeBalancerBacktest(matches) {
   };
 }
 
-function preMatchTeamTotal(players, assignments, timestamp) {
+function preMatchTeamRatings(players, assignments, timestamp) {
   if (!Array.isArray(assignments) || assignments.length !== 4) return NaN;
 
   const ratings = assignments.map(assignment => {
@@ -119,11 +123,20 @@ function preMatchTeamTotal(players, assignments, timestamp) {
       assignment.civId || assignment.civ || assignment.civName
     );
     if (!player || !civId) return NaN;
-    return ratingBreakdown(player, civId, timestamp).balancerElo;
+    return {
+      name: String(assignment.name || assignment.playerName || "Unknown"),
+      civ: String(assignment.civName || assignment.civ || civId),
+      elo: ratingBreakdown(player, civId, timestamp).balancerElo
+    };
   });
 
-  if (ratings.some(rating => !Number.isFinite(rating))) return NaN;
-  return ratings.reduce((sum, rating) => sum + rating, 0);
+  if (ratings.some(rating => !Number.isFinite(rating?.elo))) return NaN;
+  return ratings;
+}
+
+function teamTotal(players) {
+  if (!Array.isArray(players)) return NaN;
+  return players.reduce((sum, player) => sum + player.elo, 0);
 }
 
 function findPlayer(players, assignment) {

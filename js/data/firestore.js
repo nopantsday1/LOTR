@@ -7,6 +7,7 @@ import { initializeRatingModes } from "../elo/ratingModes.js";
 export function subscribeCoreData(onChange) {
   const playersRef = fb.collection(state.db, "players");
   const historyRef = fb.collection(state.db, "history");
+  const predictionsRef = fb.collection(state.db, "predictionResponses");
   let sourcePlayers = [];
   let playersLoaded = false;
   let fullHistoryLoaded = false;
@@ -40,10 +41,27 @@ export function subscribeCoreData(onChange) {
     }
   );
 
+  // Each response is deliberately kept as an immutable document. That makes
+  // the community total live across browsers without trusting a client-side
+  // counter.
+  const unsubPredictions = fb.onSnapshot(
+    predictionsRef,
+    snap => {
+      state.communityPredictions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      onChange?.();
+    },
+    error => {
+      // The rest of the app can still use players and match history if the
+      // optional community-prediction collection has not been allowed yet.
+      console.warn("Community predictions are unavailable:", error.code);
+    }
+  );
+
   return () => {
     unsubPlayers();
     unsubHistory();
     unsubFullHistory();
+    unsubPredictions();
   };
 }
 

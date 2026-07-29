@@ -7,6 +7,7 @@ export const state = {
   ratingMode: "original",
   history: [],
   fullHistory: [],
+  communityPredictions: [],
 
   currentUser: null,
   linkedPlayer: null,

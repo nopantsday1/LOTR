@@ -993,6 +993,69 @@
   margin-bottom: .35rem;
 }
 
+.community-prediction-divider {
+  height: 1px;
+  margin: 1.25rem 0;
+  background: var(--border);
+}
+
+.community-prediction-heading,
+.prediction-game-head,
+.prediction-team-title,
+.prediction-actions,
+.prediction-result-metrics {
+  display: flex;
+  justify-content: space-between;
+  gap: .75rem;
+  align-items: center;
+}
+
+.community-prediction-heading h3,
+.prediction-game-head h2 {
+  margin: .15rem 0 0;
+}
+
+.community-prediction-heading > strong {
+  color: var(--gold-bright);
+  font-family: "Cinzel", serif;
+  font-size: 1.7rem;
+}
+
+.prediction-game-card,
+.prediction-results {
+  max-width: 940px;
+  margin-inline: auto;
+}
+
+.prediction-game-prompt { margin: 1.25rem 0 .75rem; color: var(--dim); }
+.prediction-progress { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+.prediction-teams,
+.prediction-result-teams { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+.prediction-team { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--subtle-bg); padding: .8rem; }
+.prediction-team.evil { border-color: var(--evil-border); }
+.prediction-team.good { border-color: var(--good-border); }
+.prediction-team h3 { margin: 0; }
+.prediction-team-title > strong { color: var(--gold-bright); font-family: "Cinzel", serif; }
+.prediction-player { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: .45rem; align-items: baseline; border-top: 1px solid var(--border); padding: .45rem 0; font-size: 11px; }
+.prediction-player:first-of-type { margin-top: .5rem; }
+.prediction-player span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prediction-player small { color: var(--muted); font-size: 9px; }
+.prediction-player strong { color: var(--gold); }
+.prediction-player.concealed-elo { grid-template-columns: minmax(0, 1fr) auto; }
+.prediction-actions { justify-content: flex-end; flex-wrap: wrap; margin-top: 1rem; }
+.prediction-choice.evil { border-color: var(--evil-border); color: var(--evil); }
+.prediction-choice.good { border-color: var(--good-border); color: var(--good); }
+.prediction-result-list { display: grid; gap: .75rem; margin: 1rem 0; }
+.prediction-result { display: grid; gap: .65rem; border: 1px solid var(--border); border-left-width: 3px; border-radius: var(--radius-sm); background: var(--subtle-bg); padding: .8rem; }
+.prediction-result.correct { border-left-color: var(--good); }
+.prediction-result.incorrect { border-left-color: var(--evil); }
+.prediction-result > div:first-child { display: grid; gap: .2rem; }
+.prediction-result > div:first-child span,
+.prediction-result-metrics { color: var(--muted); font-size: 10px; }
+.prediction-result-metrics strong { color: var(--text); }
+.prediction-result .prediction-team { padding: .65rem; }
+.prediction-result .prediction-player { font-size: 10px; }
+
 .backtest-summary {
   display: flex;
   flex-wrap: wrap;
@@ -1630,11 +1693,27 @@
   .backtest-scatter {
     height: 280px;
   }
+
+  .prediction-teams,
+  .prediction-result-teams {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 520px) {
   .prediction-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .prediction-game-head,
+  .community-prediction-heading,
+  .prediction-result-metrics {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .prediction-actions .btn {
+    flex: 1 1 100%;
   }
 
   .help-section {
