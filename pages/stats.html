@@ -95,6 +95,26 @@
       <div class="stats-card-heading">
         <div>
           <div class="eyebrow">Balancer Backtest</div>
+          <h2>Does the Higher-Elo Team Win?</h2>
+        </div>
+        <div id="higherEloWinSummary" class="backtest-summary"></div>
+      </div>
+      <canvas
+        id="higherEloWinCanvas"
+        class="backtest-scatter"
+        width="1100"
+        height="380"
+        aria-label="Observed chance that the team with higher pre-match Elo wins, grouped by Elo gap"
+      ></canvas>
+      <div class="backtest-legend muted small">
+        <span><i class="observed"></i> Observed win rate</span>
+        <span><i class="trend"></i> Elo-model expectation</span>
+      </div>
+    </section>
+    <section class="card stats-wide">
+      <div class="stats-card-heading">
+        <div>
+          <div class="eyebrow">Balancer Backtest</div>
           <h2>Elo Gap and Game Length</h2>
         </div>
         <div id="durationCorrelationSummary" class="backtest-summary"></div>

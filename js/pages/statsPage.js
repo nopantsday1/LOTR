@@ -24,6 +24,8 @@ export function initStatsPage() {
   const backtestSampleSize = document.getElementById("backtestSampleSize");
   const correlationSummary = document.getElementById("durationCorrelationSummary");
   const correlationCanvas = document.getElementById("durationCorrelationCanvas");
+  const higherEloWinSummary = document.getElementById("higherEloWinSummary");
+  const higherEloWinCanvas = document.getElementById("higherEloWinCanvas");
   const rangeButtons = [...document.querySelectorAll("[data-range]")];
   if (!gamesPerDay) return;
 
@@ -73,6 +75,12 @@ export function initStatsPage() {
     if (correlationCanvas) {
       drawDurationCorrelation(correlationCanvas, displayedBacktest);
     }
+    if (higherEloWinSummary) {
+      higherEloWinSummary.innerHTML = renderHigherEloWinSummary(displayedBacktest);
+    }
+    if (higherEloWinCanvas) {
+      drawHigherEloWinRate(higherEloWinCanvas, displayedBacktest);
+    }
     rangeButtons.forEach(button => {
       button.classList.toggle("primary", button.dataset.range === selectedRange);
     });
@@ -100,10 +108,16 @@ export function initStatsPage() {
     if (correlationCanvas && displayedBacktest) {
       drawDurationCorrelation(correlationCanvas, displayedBacktest);
     }
+    if (higherEloWinCanvas && displayedBacktest) {
+      drawHigherEloWinRate(higherEloWinCanvas, displayedBacktest);
+    }
   });
   window.addEventListener("lotr:themeChanged", () => {
     if (correlationCanvas && displayedBacktest) {
       drawDurationCorrelation(correlationCanvas, displayedBacktest);
+    }
+    if (higherEloWinCanvas && displayedBacktest) {
+      drawHigherEloWinRate(higherEloWinCanvas, displayedBacktest);
     }
   });
 }
@@ -368,6 +382,138 @@ function renderCorrelationSummary(backtest) {
       <strong>${formatSignedDecimal(minutesPerHundred, 1)} min</strong>
     </span>
   `;
+}
+
+function renderHigherEloWinSummary(backtest) {
+  const prediction = backtest?.prediction;
+  if (!prediction?.comparable) return "";
+
+  return `
+    <span>
+      <small>Higher-Elo wins</small>
+      <strong>${(prediction.accuracy * 100).toFixed(1)}%</strong>
+    </span>
+    <span>
+      <small>Matches</small>
+      <strong>${prediction.comparable}</strong>
+    </span>
+  `;
+}
+
+function drawHigherEloWinRate(canvas, backtest) {
+  const width = Math.max(280, Math.round(canvas.clientWidth || 1100));
+  const height = Math.max(240, Math.round(canvas.clientHeight || 360));
+  const pixelRatio = window.devicePixelRatio || 1;
+  canvas.width = Math.round(width * pixelRatio);
+  canvas.height = Math.round(height * pixelRatio);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  const matches = (backtest?.matches || []).filter(match => match.predictedWinner);
+  if (!matches.length) {
+    ctx.fillStyle = themeColor("--muted", "#918d84");
+    ctx.font = "14px system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText("Not enough complete matches", width / 2, height / 2);
+    return;
+  }
+
+  const padding = {
+    top: 24,
+    right: width < 600 ? 18 : 28,
+    bottom: 52,
+    left: width < 600 ? 48 : 62
+  };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const gap95 = percentile(matches.map(match => match.eloGap), 0.95);
+  const step = niceStep(Math.max(gap95, 100) / 6);
+  const xMax = Math.max(step, Math.ceil(gap95 / step) * step);
+  const bins = buildHigherEloBins(matches, step, xMax);
+  const xAt = value => padding.left + (value / xMax) * plotWidth;
+  const yAt = value => padding.top + (1 - value) * plotHeight;
+
+  ctx.strokeStyle = themeColor("--chart-grid", "rgba(236,229,215,.1)");
+  ctx.fillStyle = themeColor("--muted", "#918d84");
+  ctx.lineWidth = 1;
+  ctx.font = `${width < 600 ? 9 : 11}px system-ui`;
+  for (let percent = 0; percent <= 100; percent += 25) {
+    const y = yAt(percent / 100);
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(width - padding.right, y);
+    ctx.stroke();
+    ctx.textAlign = "right";
+    ctx.fillText(`${percent}%`, padding.left - 9, y + 4);
+  }
+  for (let value = 0; value <= xMax; value += step) {
+    const x = xAt(value);
+    ctx.beginPath();
+    ctx.moveTo(x, padding.top);
+    ctx.lineTo(x, height - padding.bottom);
+    ctx.stroke();
+    ctx.textAlign = value === 0 ? "left" : value === xMax ? "right" : "center";
+    ctx.fillText(String(Math.round(value)), x, height - 25);
+  }
+  ctx.textAlign = "center";
+  ctx.fillText("Pre-match Balancer Elo gap (higher team ahead)", padding.left + plotWidth / 2, height - 6);
+
+  ctx.save();
+  ctx.setLineDash([7, 5]);
+  ctx.strokeStyle = themeColor("--gold-bright", "#f0bd72");
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let value = 0; value <= xMax; value += xMax / 80) {
+    const probability = 1 / (1 + Math.pow(10, -value / 1600));
+    if (value === 0) ctx.moveTo(xAt(value), yAt(probability));
+    else ctx.lineTo(xAt(value), yAt(probability));
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  const observed = bins.filter(bin => bin.games);
+  if (observed.length) {
+    ctx.strokeStyle = themeColor("--good", "#5bb89d");
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    observed.forEach((bin, index) => {
+      const x = xAt(bin.center);
+      const y = yAt(bin.winRate);
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    for (const bin of observed) {
+      const x = xAt(bin.center);
+      const y = yAt(bin.winRate);
+      ctx.fillStyle = themeColor("--good", "#5bb89d");
+      ctx.beginPath();
+      ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = themeColor("--muted", "#918d84");
+      ctx.font = `${width < 600 ? 8 : 9}px system-ui`;
+      ctx.textAlign = "center";
+      ctx.fillText(`n=${bin.games}`, x, Math.min(height - padding.bottom - 4, y + 16));
+    }
+  }
+}
+
+function buildHigherEloBins(matches, step, xMax) {
+  const bins = Array.from({ length: Math.max(1, Math.ceil(xMax / step)) }, (_, index) => ({
+    center: (index + 0.5) * step,
+    games: 0,
+    wins: 0
+  }));
+  matches.forEach(match => {
+    const index = Math.min(bins.length - 1, Math.floor(match.eloGap / step));
+    bins[index].games++;
+    if (match.correct) bins[index].wins++;
+  });
+  return bins.map(bin => ({
+    ...bin,
+    winRate: bin.games ? bin.wins / bin.games : NaN
+  }));
 }
 
 function drawDurationCorrelation(canvas, backtest) {

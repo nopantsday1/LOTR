@@ -10,15 +10,18 @@ export function initBalancePage() {
   const picker = document.getElementById("playerPicker");
   const count = document.getElementById("selectedCount");
   const balanceBtn = document.getElementById("balanceBtn");
-  const resetTeamsBtn = document.getElementById("resetTeamsBtn");
   const result = document.getElementById("balanceResult");
   const topSplits = document.getElementById("topSplits");
   const search = document.getElementById("balancePlayerSearch");
   const searchMeta = document.getElementById("balanceSearchMeta");
   let balanceOptions = [];
-  let selectionLocked = false;
+  let rollCount = 0;
 
   if (!picker) return;
+
+  // Balance selections and the roll count only live for this page session.
+  state.selectedPlayerIds.clear();
+  state.lastBalance = null;
 
   function renderPicker() {
     picker.innerHTML = "";
@@ -59,9 +62,7 @@ export function initBalancePage() {
         button.className = "btn player-picker-button";
         button.textContent = player.name || "Unknown";
         button.dataset.id = player.id;
-        button.disabled = selectionLocked;
         button.addEventListener("click", () => {
-          if (selectionLocked) return;
           if (state.selectedPlayerIds.has(player.id)) state.selectedPlayerIds.delete(player.id);
           else if (state.selectedPlayerIds.size < 8) state.selectedPlayerIds.add(player.id);
           clearBalanceResult();
@@ -74,21 +75,22 @@ export function initBalancePage() {
       picker.append(section);
     }
     count.textContent = `${state.selectedPlayerIds.size} / 8 selected`;
-    renderBalanceControls();
   }
 
   function generateBalance() {
-    if (selectionLocked) return;
-
     const selected = state.players.filter(p => state.selectedPlayerIds.has(p.id));
     if (selected.length !== 8) {
       toast("Select exactly 8 players", "err");
       return;
     }
 
-    balanceOptions = splitTeamOptions(selected, { count: 3 });
+    rollCount += 1;
+    renderRollCounter();
+    balanceOptions = splitTeamOptions(selected, {
+      count: 3,
+      previousSignatures: balanceOptions.map(option => option.signature)
+    });
     state.lastBalance = balanceOptions[0] || null;
-    selectionLocked = Boolean(state.lastBalance);
     renderBalanceOptions();
     renderBalanceResult();
     renderPicker();
@@ -96,7 +98,7 @@ export function initBalancePage() {
 
   function renderBalanceResult() {
     result.innerHTML = state.lastBalance
-      ? renderSplit(state.lastBalance)
+      ? renderSplit(state.lastBalance, rollCount)
       : `<p class="muted">No valid assignment found.</p>`;
     bindBalanceDragHandlers(result);
     result.querySelector("[data-copy-balance]")?.addEventListener("click", copyBalanceForLobby);
@@ -140,17 +142,9 @@ export function initBalancePage() {
     if (topSplits) topSplits.innerHTML = "";
   }
 
-  function resetTeams() {
-    state.selectedPlayerIds.clear();
-    selectionLocked = false;
-    clearBalanceResult();
-    renderPicker();
-  }
-
-  function renderBalanceControls() {
-    if (balanceBtn) balanceBtn.hidden = selectionLocked;
-    if (resetTeamsBtn) resetTeamsBtn.hidden = !selectionLocked;
-    if (search) search.disabled = selectionLocked;
+  function renderRollCounter() {
+    const count = result?.querySelector(".balance-roll-count");
+    if (count) count.textContent = rollCount;
   }
 
   function bindBalanceDragHandlers(container) {
@@ -202,15 +196,13 @@ export function initBalancePage() {
   }
 
   balanceBtn?.addEventListener("click", generateBalance);
-  resetTeamsBtn?.addEventListener("click", resetTeams);
   search?.addEventListener("input", renderPicker);
 
+  renderRollCounter();
   renderPicker();
   window.addEventListener("lotr:dataChanged", () => {
-    selectionLocked = false;
     renderPicker();
     clearBalanceResult();
-    renderBalanceControls();
   });
 }
 
@@ -237,11 +229,15 @@ function normalizeSearch(value) {
   return String(value || "").trim().toLocaleLowerCase();
 }
 
-function renderSplit(split) {
+function renderSplit(split, rollCount) {
   const lobbyString = formatBalanceForLobby(split);
 
   return `
     ${renderTeam("Evil", split.evil, split.manualAdjusted)}
+    <div class="balance-roll-counter" role="status" aria-label="Session rolls: ${rollCount}">
+      <span>Rolls</span>
+      <strong class="balance-roll-count">${rollCount}</strong>
+    </div>
     ${renderTeam("Good", split.good, split.manualAdjusted)}
     ${split.manualAdjusted
       ? `<div class="manual-balance-note">Manual balance, dragging has been used.</div>`

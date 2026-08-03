@@ -50,6 +50,15 @@ export function splitTeamOptions(selectedPlayers, options = {}) {
     : BALANCED_SCORE_RANGE;
   const eligible = candidates.filter(candidate => candidate.score <= bestScore + scoreRange);
   const count = Math.max(1, Number(options.count || DEFAULT_OPTION_COUNT));
+  const previousSignatures = new Set(options.previousSignatures || []);
+  const eligibleAlternatives = eligible.filter(candidate => !previousSignatures.has(candidate.signature));
+  const candidateAlternatives = candidates.filter(candidate => !previousSignatures.has(candidate.signature));
+  const eligiblePool = eligibleAlternatives.length >= count
+    ? eligibleAlternatives
+    : eligible;
+  const candidatePool = candidateAlternatives.length >= count
+    ? candidateAlternatives
+    : candidates;
   const selected = [];
   const metadata = {
     bestScore,
@@ -60,7 +69,7 @@ export function splitTeamOptions(selectedPlayers, options = {}) {
 
   addDistantOptions(
     selected,
-    eligible,
+    shuffled(eligiblePool),
     metadata,
     count,
     STRONG_OPTION_POSITION_CHANGES
@@ -69,7 +78,7 @@ export function splitTeamOptions(selectedPlayers, options = {}) {
 
   addDistantOptions(
     selected,
-    candidates,
+    shuffled(candidatePool),
     metadata,
     count,
     STRONG_OPTION_POSITION_CHANGES
@@ -78,13 +87,27 @@ export function splitTeamOptions(selectedPlayers, options = {}) {
 
   addDistantOptions(
     selected,
-    candidates,
+    shuffled(candidatePool),
     metadata,
     count,
     MIN_OPTION_POSITION_CHANGES
   );
 
   return selected;
+}
+
+function shuffled(items) {
+  const shuffledItems = [...items];
+
+  for (let index = shuffledItems.length - 1; index > 0; index -= 1) {
+    const replacementIndex = Math.floor(Math.random() * (index + 1));
+    [shuffledItems[index], shuffledItems[replacementIndex]] = [
+      shuffledItems[replacementIndex],
+      shuffledItems[index]
+    ];
+  }
+
+  return shuffledItems;
 }
 
 function addDistantOptions(selected, candidates, metadata, count, minChanges) {
