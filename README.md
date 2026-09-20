@@ -35,7 +35,7 @@ Security → Authentication → Users, meaning only people with project access c
 revoke access. Set `ADMIN_EMAIL = ""` for per-person accounts instead.
 
 The Auth SDK is imported dynamically from `js/data/auth.js` and loads only on
-the Admin page, so the other eight pages do not pay for it.
+the Admin page, so the other pages do not pay for it.
 
 **Signing in gates the UI; Firestore rules gate the data.** Publish
 `docs/firestore.rules` to require a signed-in admin for writes — until then,
@@ -51,15 +51,6 @@ locks you out.
 - **Civ proficiency** — per-civ strength derived from each player's record,
   feeding an effective Elo per civ
 - **Favourite & avoid civs** — nudges the balancer's assignment choice
-- **Live page** — LOTR lobbies **waiting to start** (roster, slots, how long
-  open) and games believed to be **in progress** (roster, elapsed time). The
-  AoE2 API never reports running games — a lobby simply vanishes when it starts
-  — so in-progress is inferred by noticing a lobby stop being advertised. The
-  Worker does that watching on a 2-minute cron and keeps state in KV, so it
-  works whether or not anyone has the page open. Elapsed time is accurate to
-  the cron interval, and entries clear once the match lands in the feed.
-  Without the Worker the browser falls back to `js/services/lobbyTracker.js`,
-  which can only catch games that start while the page is open.
 - **Select from lobby** — the Balance page ticks a lobby's community players
   straight into the picker. Lobby data comes live from
   `worker/lobby-proxy.js`; without that Worker it falls back to the committed

@@ -3,29 +3,16 @@
   //
   // Separate from the repo-root wrangler.jsonc, which serves the static site.
   // This is only the lobby proxy; the site itself stays on GitHub Pages.
+  //
+  // No cron trigger and no KV binding: those existed to detect games already in
+  // progress for the Live page, which has been removed. Without a consumer they
+  // would just be a scheduled job burning requests, so the Worker is back to
+  // answering requests only.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "lotr-lobby-proxy",
   "main": "lobby-proxy.js",
   "compatibility_date": "2025-09-27",
   "observability": {
     "enabled": true
-  },
-
-  // Every 2 minutes. The AoE2 API never reports a running game, so the only way
-  // to spot one is to notice a lobby stop being advertised -- which means
-  // checking on a schedule rather than when someone happens to open the page.
-  //
-  // 720 runs/day against a 100,000/day request limit. State is written only
-  // when the set of open lobbies changes, which keeps this inside the free
-  // plan's 1,000 KV writes/day.
-  "triggers": {
-    "crons": ["*/2 * * * *"]
-  },
-
-  "kv_namespaces": [
-    {
-      "binding": "LOBBY_STATE",
-      "id": "ea249df378bf441590b85f93e5c4c27b"
-    }
-  ]
+  }
 }

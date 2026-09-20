@@ -22,8 +22,7 @@ const PAGE_MODULES = {
   history: () => import("./pages/historyPage.js").then(m => m.initHistoryPage),
   players: () => import("./pages/playersPage.js").then(m => m.initPlayersPage),
   stats: () => import("./pages/statsPage.js").then(m => m.initStatsPage),
-  admin: () => import("./pages/adminPage.js").then(m => m.initAdminPage),
-  live: () => import("./pages/livePage.js").then(m => m.initLivePage),
+  admin: () => import("./pages/adminPage.js").then(m => m.initAdminPage),
   profile: () => import("./pages/profilePage.js").then(m => m.initProfilePage),
   predictions: () =>
     import("./pages/predictionsPage.js").then(m => m.initPredictionsPage)
