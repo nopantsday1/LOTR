@@ -51,12 +51,17 @@ locks you out.
 - **Civ proficiency** — per-civ strength derived from each player's record,
   feeding an effective Elo per civ
 - **Favourite & avoid civs** — nudges the balancer's assignment choice
-- **Open-lobby detection** — `lobby.json` lists LOTR/BFME/Hobbit lobbies that
-  are *waiting to start*. The Live page highlights any with 2+ community
-  members; the Balance page has a **Select from lobby** button that ticks them
-  straight into the picker. Both state how old the feed is. By default that is
-  the committed file, regenerated every ~5-15 minutes; deploy the optional
-  `worker/lobby-proxy.js` and the buttons fetch live instead (see DEPLOYMENT.md)
+- **Live page** — LOTR lobbies **waiting to start** (roster, slots, how long
+  open) and games believed to be **in progress** (roster, elapsed time). The
+  AoE2 API never reports running games — a lobby simply vanishes when it starts
+  — so in-progress is inferred by watching a tracked lobby stop being
+  advertised. It therefore only works if the page was open when the game began,
+  and the elapsed time is an estimate; entries clear once the match lands in the
+  feed. See `js/services/lobbyTracker.js`.
+- **Select from lobby** — the Balance page ticks a lobby's community players
+  straight into the picker. Lobby data comes live from
+  `worker/lobby-proxy.js`; without that Worker it falls back to the committed
+  `lobby.json` and says how stale it is
 - **Automatic match import** — new games in `matches.json` are recorded with
   idempotent writes keyed by match ID
 - **Rating modes** — "Original" replays from community seeds; "Base" holds main

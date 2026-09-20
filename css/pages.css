@@ -2031,3 +2031,45 @@
   .admin-match-actions { width: 100%; }
   .admin-match-actions .btn { flex: 1; }
 }
+
+/* Live page: waiting lobbies and inferred in-progress games. */
+
+.live-game { margin-bottom: 1rem; }
+
+.live-game-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.live-game-head h3 { margin: .15rem 0 0; }
+
+.live-game-running { border-color: var(--border-strong); }
+
+.live-game-timer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+}
+
+.live-game-timer strong {
+  font-size: 1.35rem;
+  color: var(--gold);
+}
+
+.live-roster {
+  margin-top: .6rem;
+  padding-top: .6rem;
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0 18px;
+}
+
+@media (max-width: 560px) {
+  .live-game-head { flex-direction: column; align-items: stretch; }
+  .live-game-timer { align-items: flex-start; }
+}
