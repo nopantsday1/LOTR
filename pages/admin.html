@@ -88,10 +88,22 @@
       <div class="eyebrow">1 · Roster</div>
       <h2>Add a Player</h2>
       <p class="muted small">
-        Find a profile ID by searching the player on
+        Without a profile ID a player's games cannot be auto-detected. The
+        quickest way to get one is to pick them out of recent games below;
+        failing that, search them on
         <a href="https://aoe2companion.com" target="_blank" rel="noopener noreferrer">aoe2companion.com</a>.
-        Without one, their games cannot be auto-detected.
       </p>
+
+      <div class="actions">
+        <button id="adminFindPlayersBtn" class="btn">Find players from recent games</button>
+        <label class="admin-inline-label">
+          <input type="checkbox" id="adminOnlyRegulars" checked>
+          Only those seen 2+ times
+        </label>
+      </div>
+      <p id="adminFindStatus" class="admin-status muted small"></p>
+      <div id="adminFoundPlayers" class="admin-match-list"></div>
+
 
       <div class="admin-field-row">
         <div>

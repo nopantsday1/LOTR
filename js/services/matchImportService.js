@@ -4,6 +4,7 @@ import {
   REJECT_NO_RESULT,
   REJECT_NO_TEAMS,
   feedMatchMeta,
+  lobbyAllowed,
   softRejectionReason
 } from "../core/matchRules.js";
 import { isForceIncluded } from "../data/matchOverrides.js";
@@ -338,4 +339,63 @@ function teamTotal(assignments) {
 
 function matchTimestamp(match) {
   return Number(match.completiontime || match.startgametime || 0) * 1000;
+}
+
+// Players who appear in LOTR games but are not on the roster.
+//
+// Adding someone normally means hunting for their AoE2 profile ID on an
+// external site. Every match in the feed already carries the profile ID and
+// alias of everyone who played, so the people worth adding can simply be listed
+// -- most frequent first, since a stranger who keeps turning up in community
+// games is exactly who the roster is missing.
+export async function findUnknownPlayersInFeed() {
+  const data = await fetchMatchesJson();
+  const identityPlayers = state.playerDatasets.original?.length
+    ? state.playerDatasets.original
+    : state.players;
+  const known = buildCommunityIdSet(identityPlayers);
+  const seen = new Map();
+
+  for (const rawMatch of data.matches || []) {
+    // Only games that pass the lobby-name rule; otherwise this fills up with
+    // strangers from unrelated Diplomacy lobbies.
+    if (!lobbyAllowed(rawMatch)) continue;
+
+    const timestamp = matchTimestamp(rawMatch);
+    const lobbyName = String(rawMatch.description || "").trim();
+    const members =
+      rawMatch.matchhistorymember || rawMatch.matchhistoryreportresults || [];
+
+    for (const member of members) {
+      const profileId = Number(member.profile_id);
+      if (!Number.isFinite(profileId) || known.has(profileId)) continue;
+
+      const entry = seen.get(profileId) || {
+        profileId,
+        name: "",
+        games: 0,
+        lastSeen: 0,
+        lobbies: new Set()
+      };
+      entry.games += 1;
+      if (lobbyName) entry.lobbies.add(lobbyName);
+      // Keep the most recent alias: names change, and the newest is likeliest
+      // to be what people call them now.
+      if (timestamp >= entry.lastSeen) {
+        entry.lastSeen = timestamp;
+        if (member.name) entry.name = member.name;
+      }
+      seen.set(profileId, entry);
+    }
+  }
+
+  return [...seen.values()]
+    .map(entry => ({
+      ...entry,
+      lobbies: [...entry.lobbies].slice(0, 3),
+      // The scraper resolves aliases from the AoE2 API; when that lookup fails
+      // it falls back to this placeholder, which is not a real name.
+      hasRealName: Boolean(entry.name) && !/^Player \d+$/.test(entry.name)
+    }))
+    .sort((a, b) => b.games - a.games || b.lastSeen - a.lastSeen);
 }

@@ -25,7 +25,10 @@ import {
   setEloAdjustment
 } from "../services/adminService.js";
 import { parseEloValue } from "../core/playerInput.js";
-import { classifyFeedMatches } from "../services/matchImportService.js";
+import {
+  classifyFeedMatches,
+  findUnknownPlayersInFeed
+} from "../services/matchImportService.js";
 import { downloadDataBackup } from "../services/exportService.js";
 import { decayedElo } from "../elo/elo.js";
 import {
@@ -179,6 +182,7 @@ export function initAdminPage() {
   }
 
   initEloSection();
+  initFindPlayersSection();
   initAddPlayerSection();
   initHistorySection();
   initRejectedSection();
@@ -430,6 +434,123 @@ function renderEloSummary() {
 
 // --- 1. Add player ---------------------------------------------------------
 
+// Discovering players from the match feed, so a profile ID never has to be
+// looked up by hand.
+let foundPlayers = null;
+
+function initFindPlayersSection() {
+  const button = document.getElementById("adminFindPlayersBtn");
+  if (!button) return;
+
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    setStatus("adminFindStatus", "Reading recent games...");
+
+    try {
+      foundPlayers = await findUnknownPlayersInFeed();
+      renderFoundPlayers();
+    } catch (err) {
+      console.error("[admin]", err);
+      setStatus("adminFindStatus", `Could not read the match feed: ${err.message}`, true);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  document.getElementById("adminOnlyRegulars")
+    ?.addEventListener("change", () => {
+      if (foundPlayers) renderFoundPlayers();
+    });
+
+  // Delegated: rows are re-rendered whenever the filter changes.
+  document.getElementById("adminFoundPlayers")
+    ?.addEventListener("click", onFoundPlayerClick);
+}
+
+function renderFoundPlayers() {
+  const list = document.getElementById("adminFoundPlayers");
+  if (!list || !foundPlayers) return;
+
+  const onlyRegulars = document
+    .getElementById("adminOnlyRegulars")?.checked !== false;
+  const shown = (onlyRegulars
+    ? foundPlayers.filter(p => p.games >= 2)
+    : foundPlayers
+  ).slice(0, 40);
+
+  const unnamed = foundPlayers.filter(p => !p.hasRealName).length;
+  setStatus(
+    "adminFindStatus",
+    `${foundPlayers.length} players in LOTR games are not on the roster` +
+    (shown.length < foundPlayers.length ? ` · showing ${shown.length}` : "") +
+    (unnamed
+      ? ` · ${unnamed} have no alias yet (the scraper resolves these on its next run)`
+      : "")
+  );
+
+  if (!shown.length) {
+    list.innerHTML = `<p class="muted small">No unknown players match that filter.</p>`;
+    return;
+  }
+
+  list.innerHTML = shown.map(player => {
+    const label = player.hasRealName
+      ? escapeHtml(player.name)
+      : `<span class="muted">${escapeHtml(player.name || "Unknown")}</span>`;
+    const lastSeen = player.lastSeen
+      ? new Date(player.lastSeen).toLocaleDateString()
+      : "unknown date";
+    const meta = [
+      `${player.games} game${player.games === 1 ? "" : "s"}`,
+      `last seen ${lastSeen}`,
+      `ID ${player.profileId}`,
+      player.lobbies.length ? `in "${player.lobbies[0]}"` : ""
+    ].filter(Boolean).map(escapeHtml).join(" · ");
+
+    return `
+      <article class="admin-match">
+        <div class="admin-match-head">
+          <div class="admin-match-body">
+            <strong>${label}</strong>
+            <div class="muted small">${meta}</div>
+          </div>
+          <div class="admin-match-actions">
+            <button class="btn primary" data-use-player="${escapeHtml(player.profileId)}">
+              Use this player
+            </button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+// Fills the form rather than writing straight away, so the name and starting
+// Elo can still be set before anything is saved.
+function onFoundPlayerClick(event) {
+  const button = event.target.closest("[data-use-player]");
+  if (!button) return;
+
+  const profileId = button.dataset.usePlayer;
+  const player = (foundPlayers || [])
+    .find(p => String(p.profileId) === String(profileId));
+  if (!player) return;
+
+  const nameInput = document.getElementById("adminNewName");
+  const idInput = document.getElementById("adminNewProfileId");
+  if (idInput) idInput.value = player.profileId;
+  if (nameInput) nameInput.value = player.hasRealName ? player.name : "";
+
+  setStatus(
+    "adminAddStatus",
+    player.hasRealName
+      ? `Filled in ${player.name}. Set a starting Elo, then Add player.`
+      : `Filled in profile ID ${player.profileId}. This player has no alias yet — type their name, then Add player.`
+  );
+  (nameInput?.value ? document.getElementById("adminNewSeedElo") : nameInput)?.focus();
+  nameInput?.scrollIntoView({ block: "center" });
+}
+
 function initAddPlayerSection() {
   const button = document.getElementById("adminAddPlayerBtn");
   if (!button) return;
@@ -451,6 +572,15 @@ function initAddPlayerSection() {
         const input = document.getElementById(id);
         if (input) input.value = "";
       });
+
+      // They are on the roster now, so drop them from the discovery list.
+      if (foundPlayers && created.profileId) {
+        foundPlayers = foundPlayers.filter(
+          player => String(player.profileId) !== String(created.profileId)
+        );
+        renderFoundPlayers();
+      }
+
       return created.profileId
         ? `Added ${created.name} at ${created.mainElo} Elo.`
         : `Added ${created.name} at ${created.mainElo} Elo. Without a profile ID their games will not auto-import.`;

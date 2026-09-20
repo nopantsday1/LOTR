@@ -5,7 +5,10 @@ from typing import Any, Dict, List, Optional
 FIREBASE_URL = "https://firestore.googleapis.com/v1/projects/lotr-9a2f2/databases/(default)/documents/players"
 HISTORY_URL  = "https://aoe-api.worldsedgelink.com/community/leaderboard/getRecentMatchHistory?title=age2&profile_ids={pids}&count=100"
 LOBBY_URL    = "https://aoe-api.worldsedgelink.com/community/leaderboard/getAvailableLobbies?title=age2&matchtype_id=0&maxplayers=8"
-PROFILE_URL  = "https://aoe-api.worldsedgelink.com/community/leaderboard/getLeaderboardProfiles?title=age2&profile_ids={pids}"
+# getLeaderboardProfiles now returns 404; getPersonalStat is the live endpoint.
+# The old one failing silently is why every non-community player in matches.json
+# is named "Player <id>" instead of their actual alias.
+PROFILE_URL  = "https://aoe-api.worldsedgelink.com/community/leaderboard/getPersonalStat?title=age2&profile_ids={pids}"
 HEADERS      = {"User-Agent": "HobbitBalancer/1.0"}
 
 API_DELAY   = 2.0
@@ -409,9 +412,22 @@ if unknown_pids:
             pids = json.dumps([int(p) for p in batch], separators=(",", ":"))
             url  = PROFILE_URL.format(pids=urllib.parse.quote(pids, safe="[],:"))
             data = fetch_url(url, timeout=10)
-            for profile in (data.get("result", {}).get("profiles") or data.get("profiles") or []):
+            # getPersonalStat nests players under statGroups[].members[]. The
+            # older flat shapes are still accepted in case the API changes back.
+            profiles = [
+                member
+                for group in (data.get("statGroups") or [])
+                for member in (group.get("members") or [])
+            ]
+            profiles += (data.get("result", {}).get("profiles") or data.get("profiles") or [])
+
+            for profile in profiles:
                 p_id = str(profile.get("profile_id", ""))
-                unknown_names[p_id] = (profile.get("alias") or profile.get("name") or f"Player {p_id}")
+                if not p_id:
+                    continue
+                alias = profile.get("alias") or profile.get("name")
+                if alias:
+                    unknown_names[p_id] = alias
         except Exception as e:
             print(f"  Name lookup failed (skipping): {e}")
         time.sleep(1.0)

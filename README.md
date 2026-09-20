@@ -95,10 +95,13 @@ both together.
 
 Sign in with your Firebase admin account (see **Admin access** above).
 
-1. **Add a player** — name, AoE2 profile ID (find it at
-   [aoe2companion.com](https://aoe2companion.com)) plus optional alt IDs and
-   starting Elo. Rejects duplicate names and profile IDs. A player without a
-   profile ID will not have their games auto-imported.
+1. **Add a player** — **Find players from recent games** lists everyone who has
+   played a LOTR game but is not on the roster, most frequent first, with their
+   profile ID, appearance count, last-seen date and a lobby they played in. One
+   click fills the form, so a profile ID never has to be hunted down on
+   [aoe2companion.com](https://aoe2companion.com). Rejects duplicate names and
+   profile IDs. A player without a profile ID will not have their games
+   auto-imported.
 2. **Change a player's Elo** — gated behind three steps (open the editor, enter
    a value, confirm), because an override changes the ladder and team balancing
    for everyone. You type the Elo the player should **have**; since ratings are
