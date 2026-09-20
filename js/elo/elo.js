@@ -71,12 +71,43 @@ export function rebuildInactivityState(players, history) {
     .slice()
     .sort((a, b) => matchTimestamp(a) - matchTimestamp(b));
 
+  // This runs players × matches times -- ~86,000 iterations at current volume --
+  // so the inner check dominates. Testing participation directly rebuilt an
+  // assignment array per pair, which made this the single most expensive step of
+  // the rating replay (~554ms). Indexing each match's identifying keys once
+  // turns the inner check into three hash lookups.
+  const index = matches.map(match => {
+    const assignments = [...(match.evilAssign || []), ...(match.goodAssign || [])];
+    const playerIds = new Set();
+    const profileIds = new Set();
+    const names = new Set();
+
+    for (const assignment of assignments) {
+      if (assignment.playerId) playerIds.add(String(assignment.playerId));
+      if (assignment.profileId) profileIds.add(String(assignment.profileId));
+      if (assignment.name) names.add(String(assignment.name));
+    }
+    return { timestamp: matchTimestamp(match), playerIds, profileIds, names };
+  });
+
   for (const player of players || []) {
     normalizePlayerRating(player);
-    const playedAt = matches
-      .filter(match => playerParticipated(player, match))
-      .map(matchTimestamp)
-      .filter(Boolean);
+    const id = String(player.id || "");
+    const profileId = String(player.profileId || "");
+    const name = String(player.name || "");
+    const playedAt = [];
+
+    for (const entry of index) {
+      // Falsy timestamps were dropped by the previous implementation too.
+      if (!entry.timestamp) continue;
+      if (
+        (id && entry.playerIds.has(id)) ||
+        (profileId && entry.profileIds.has(profileId)) ||
+        (name && entry.names.has(name))
+      ) {
+        playedAt.push(entry.timestamp);
+      }
+    }
 
     if (!playedAt.length) continue;
 
@@ -557,24 +588,6 @@ function recordRecoveryGame(player, timestamp) {
     player.returnGamesInWindow = 0;
     player.returnWindowStartedAt = 0;
   }
-}
-
-function playerParticipated(player, match) {
-  return [...(match.evilAssign || []), ...(match.goodAssign || [])]
-    .some(assignment => (
-      (
-        assignment.playerId &&
-        String(assignment.playerId) === String(player.id || "")
-      ) ||
-      (
-        assignment.profileId &&
-        String(assignment.profileId) === String(player.profileId || "")
-      ) ||
-      (
-        assignment.name &&
-        String(assignment.name) === String(player.name || "")
-      )
-    ));
 }
 
 function matchTimestamp(match) {

@@ -1,0 +1,69 @@
+name: Build Ratings
+
+# Precomputes player ratings into ratings.json.
+#
+# Ratings are derived by replaying the whole match history. That work is
+# identical for every visitor and only changes when history changes, so doing it
+# once here saves every page load a full Firestore fetch of ~1,000 documents
+# plus several hundred milliseconds of replay.
+#
+# The script imports the real modules from js/elo/, so there is no second
+# implementation of the Elo model to drift out of sync.
+#
+# The output carries a fingerprint of its inputs. The client replays instead
+# whenever live data disagrees, so a stale or failed run degrades to the old
+# behaviour rather than showing wrong ratings.
+
+on:
+  schedule:
+    # Offset from fetch-matches (which runs on the hour) so history written by
+    # clients after an import has a chance to land first.
+    - cron: '40 */3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-ratings
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build ratings.json from Firestore
+        run: node scripts/build-ratings.mjs
+
+      - name: Verify the generated file
+        run: |
+          set -euo pipefail
+          node -e "
+            const fs = require('fs');
+            const r = JSON.parse(fs.readFileSync('ratings.json', 'utf8'));
+            if (!r.modes?.original?.length) throw new Error('no original dataset');
+            if (!r.fingerprint?.hash) throw new Error('no fingerprint');
+            if (!r.ratingModelVersion) throw new Error('no ratingModelVersion');
+            const bad = r.modes.original.filter(p => !Number.isFinite(p.mainElo));
+            if (bad.length) throw new Error(bad.length + ' players have a non-finite mainElo');
+            console.log('ok:', r.modes.original.length, 'players,', r.fingerprint.matches, 'matches');
+          "
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ratings.json
+          if git diff --staged --quiet; then
+            echo "Ratings unchanged."
+          else
+            git commit -m "Update precomputed ratings [$(date -u '+%Y-%m-%d %H:%M')]"
+            git pull --rebase --autostash origin main
+            git push
+          fi

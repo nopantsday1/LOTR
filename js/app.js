@@ -8,43 +8,78 @@ import { toast } from "./ui/toast.js";
 import { startAutoMatchImport } from "./services/matchImportService.js";
 
 import { loadLocalData } from "./data/localData.js";
+import {
+  fetchPrecomputedRatings,
+  primeFromPrecomputed
+} from "./data/precomputedRatings.js";
 
-import { initBalancePage } from "./pages/balancePage.js";
-import { initHistoryPage } from "./pages/historyPage.js";
-import { initPlayersPage } from "./pages/playersPage.js";
-import { initStatsPage } from "./pages/statsPage.js";
-import { initAdminPage } from "./pages/adminPage.js";
-import { initLivePage } from "./pages/livePage.js";
-import { initProfilePage } from "./pages/profilePage.js";
-import { initPredictionsPage } from "./pages/predictionsPage.js";
+// Page modules are imported dynamically so a page only pays for its own code.
+// Importing all eight statically meant every page downloaded and parsed the
+// others -- the History page was pulling in statsPage.js (40KB), profilePage,
+// balancePage and adminPage for nothing, about 2s of module loading.
+const PAGE_MODULES = {
+  balance: () => import("./pages/balancePage.js").then(m => m.initBalancePage),
+  history: () => import("./pages/historyPage.js").then(m => m.initHistoryPage),
+  players: () => import("./pages/playersPage.js").then(m => m.initPlayersPage),
+  stats: () => import("./pages/statsPage.js").then(m => m.initStatsPage),
+  admin: () => import("./pages/adminPage.js").then(m => m.initAdminPage),
+  live: () => import("./pages/livePage.js").then(m => m.initLivePage),
+  profile: () => import("./pages/profilePage.js").then(m => m.initProfilePage),
+  predictions: () =>
+    import("./pages/predictionsPage.js").then(m => m.initPredictionsPage)
+};
+
+// Which pages actually need match history.
+//
+// A full page load reads ~1,275 Firestore documents; the free tier allows
+// 50,000 a day. Pages that only show the ladder read the 89 player documents
+// and take ratings from ratings.json instead, cutting their cost by ~93%.
+// Anything that renders individual matches still needs the history collection.
+const HISTORY_PAGES = new Set([
+  "history",
+  "stats",
+  "profile",
+  "predictions",
+  "admin"
+]);
+
+function needsHistory(page) {
+  return HISTORY_PAGES.has(page);
+}
 
 function emitDataChanged() {
   window.dispatchEvent(new CustomEvent("lotr:dataChanged"));
 }
 
-function initCurrentPage() {
+// Prediction responses only affect the Stats page, so they get their own event
+// rather than making every page rebuild its ratings.
+function emitPredictionsChanged() {
+  window.dispatchEvent(new CustomEvent("lotr:predictionsChanged"));
+}
+
+async function initCurrentPage() {
   initNavigation();
   initRatingModeToggle();
   initThemeToggle();
 
   const page = document.querySelector("main .page[data-page]")?.dataset.page;
+  const loadPage = PAGE_MODULES[page];
+  if (!loadPage) return;
 
-  const pageInitializers = {
-    balance: initBalancePage,
-    history: initHistoryPage,
-    players: initPlayersPage,
-    stats: initStatsPage,
-    admin: initAdminPage,
-    live: initLivePage,
-    profile: initProfilePage,
-    predictions: initPredictionsPage,
-  };
-
-  pageInitializers[page]?.();
+  try {
+    const init = await loadPage();
+    init?.();
+  } catch (err) {
+    console.error(`Failed to load the "${page}" page module`, err);
+    toast("This page failed to load", "err");
+  }
 }
 
 async function main() {
-  initCurrentPage();
+  // Awaited before any data subscription starts: page modules register their
+  // lotr:dataChanged listeners here, and a late listener would miss the first
+  // snapshot and render nothing.
+  await initCurrentPage();
 
   try {
     if (LOCAL_SANDBOX) {
@@ -53,9 +88,26 @@ async function main() {
       return;
     }
 
+    // Awaited, because whether history is fetched at all depends on having a
+    // usable ratings.json. It is one small static file, so the wait is short and
+    // it doubles as the first paint.
+    const precomputed = await fetchPrecomputedRatings();
+    if (precomputed) primeFromPrecomputed(precomputed);
+
+    const page = document.querySelector("main .page[data-page]")?.dataset.page;
+    // Without a usable file there is nothing to derive ratings from, so fall
+    // back to fetching history and replaying, exactly as before.
+    const includeHistory = needsHistory(page) || !precomputed;
+
     initFirebase();
-    subscribeCoreData(emitDataChanged);
-    startAutoMatchImport();
+    subscribeCoreData(emitDataChanged, emitPredictionsChanged, {
+      includeHistory,
+      precomputedModes: precomputed?.modes || null
+    });
+
+    // The importer reads and writes match history, so it only belongs on pages
+    // that already carry that cost.
+    if (includeHistory) startAutoMatchImport();
   } catch (err) {
     console.error(err);
     toast(

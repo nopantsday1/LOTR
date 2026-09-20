@@ -1861,3 +1861,130 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Admin panel ──────────────────────────────────────────────────────────── */
+
+.admin-field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.admin-readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 10px 0 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.admin-status {
+  margin-top: 10px;
+  min-height: 1.2em;
+}
+
+.admin-inline-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-match-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.admin-match {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.admin-match.is-flagged {
+  border-style: dashed;
+  opacity: 0.75;
+}
+
+.admin-match-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 260px;
+}
+
+.admin-match-body > strong {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .admin-match { align-items: stretch; }
+  .admin-match > .btn { width: 100%; }
+}
+
+/* A match an admin removed from the rating replay: still listed, visibly inert. */
+.match-card.is-elo-excluded {
+  opacity: 0.68;
+  border-style: dashed;
+}
+
+/* Show/hide password toggle, sitting inside the right edge of the field. */
+
+.password-field {
+  position: relative;
+  display: block;
+}
+
+/* The input keeps #adminLogin's own width/margin rules; only the right padding
+   changes, to leave room for the button. */
+.password-field input {
+  padding-right: 4.75rem;
+}
+
+.password-toggle {
+  position: absolute;
+  top: .35rem;
+  right: .5rem;
+  bottom: .75rem;
+  padding: 0 .6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  font-size: .8rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.password-toggle:hover {
+  color: var(--gold);
+  border-color: var(--border-strong);
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* Confirmation line for an Elo override. */
+.admin-elo-summary {
+  margin: .6rem 0;
+  padding: .7rem .9rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  font-size: 1.05rem;
+}
+
+.admin-elo-summary .positive { color: var(--good); }
+.admin-elo-summary .negative { color: var(--evil); }

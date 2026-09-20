@@ -5,6 +5,7 @@ import {
   buildBalancerBacktest,
   summarizeBalancerBacktest
 } from "../elo/backtest.js";
+import { PREDICTION_WINDOW } from "../data/firestore.js";
 import { fmtDuration } from "../utils/format.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -104,6 +105,8 @@ export function initStatsPage() {
 
   render();
   window.addEventListener("lotr:dataChanged", render);
+  // Stats is the only consumer of community predictions.
+  window.addEventListener("lotr:predictionsChanged", render);
   window.addEventListener("resize", () => {
     if (correlationCanvas && displayedBacktest) {
       drawDurationCorrelation(correlationCanvas, displayedBacktest);
@@ -358,7 +361,7 @@ function renderCommunityPredictionAccuracy(responses) {
   const accuracy = (correct / valid.length) * 100;
   return `
     <div class="community-prediction-heading"><div><div class="eyebrow">Community picks</div><h3>Community Prediction Accuracy</h3></div><strong>${accuracy.toFixed(1)}%</strong></div>
-    <p class="prediction-description">Every submitted answer from Match Oracle, across all visitors and devices.</p>
+    <p class="prediction-description">The most recent ${PREDICTION_WINDOW.toLocaleString()} submitted answers from Match Oracle, across all visitors and devices.</p>
     <div class="prediction-bar" aria-label="Community prediction accuracy ${accuracy.toFixed(1)} percent">
       <span class="correct" style="width:${accuracy}%"></span><span class="incorrect" style="width:${100 - accuracy}%"></span>
     </div>

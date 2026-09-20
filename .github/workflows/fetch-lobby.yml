@@ -1,12 +1,29 @@
 name: Fetch AoE2 Lobby Data
 
+# Publishes a small lobby.json containing only LOTR/BFME/Hobbit lobbies.
+#
+# The browser cannot call the Worlds Edge API directly (it sends no
+# Access-Control-Allow-Origin header), so this job acts as the fetcher and
+# commits the result as a static file.
+#
+# Filtering in scripts/filter_lobby.py rather than in the browser keeps
+# lobby.json tiny and byte-identical between runs when nothing relevant is
+# happening, so quiet periods produce no commit at all.
+
 on:
   schedule:
-    - cron: '* * * * *'   # every minute (GitHub minimum)
-  workflow_dispatch:          # allow manual trigger
+    # Every 5 minutes is GitHub's documented floor for scheduled workflows.
+    # Runs are best-effort and get dropped under load, so treat this as
+    # "roughly every 5-15 minutes" rather than a guarantee.
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: fetch-lobby
+  cancel-in-progress: false
 
 jobs:
   fetch:
@@ -17,23 +34,38 @@ jobs:
 
       - name: Fetch lobby data
         run: |
-          # Try up to 3 times, keep last successful result if all fail
-          for i in 1 2 3; do
-            curl -s "https://aoe-api.worldsedgelink.com/community/advertisement/findAdvertisements?title=age2&count=200" \
-              -o lobby_new.json \
-              --max-time 10 \
-              --fail && \
-            python3 -c "import json,sys; d=json.load(open('lobby_new.json')); assert isinstance(d.get('matches'), list); print(f'OK: {len(d[\"matches\"])} lobbies')" && \
-            mv lobby_new.json lobby.json && break || \
-            echo "Attempt $i failed, retrying..." && sleep 2
+          set -uo pipefail
+          # count is capped at 100 by the API; asking for 200 returns HTTP 400,
+          # which is what silently broke this workflow from March 2026 onwards.
+          URL="https://aoe-api.worldsedgelink.com/community/advertisement/findAdvertisements?title=age2&count=100"
+
+          ok=0
+          for attempt in 1 2 3; do
+            if curl -sS --fail --max-time 20 -o lobby_raw.json "$URL"; then
+              ok=1
+              break
+            fi
+            echo "Attempt $attempt failed, retrying in 5s..."
+            sleep 5
           done
-          # If lobby.json still doesn't exist, create empty placeholder
-          [ -f lobby.json ] || echo '{"matches":[]}' > lobby.json
+
+          if [ "$ok" -ne 1 ]; then
+            echo "::warning::Lobby API unreachable; leaving the existing lobby.json untouched."
+            exit 0
+          fi
+
+          python3 scripts/filter_lobby.py lobby_raw.json lobby.json
+          rm -f lobby_raw.json
 
       - name: Commit and push if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add lobby.json
-          git diff --staged --quiet || git commit -m "Update lobby data"
-          git push
+          if git diff --staged --quiet; then
+            echo "No lobby changes."
+          else
+            git commit -m "Update lobby data"
+            git pull --rebase --autostash origin main
+            git push
+          fi

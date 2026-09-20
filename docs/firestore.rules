@@ -1,0 +1,96 @@
+rules_version = '2';
+
+// Firestore security rules for lotr-9a2f2.
+//
+// Paste into Firebase Console > Firestore Database > Rules, then Publish.
+//
+// ORDER MATTERS FOR ROLLOUT. Publishing this before an admin account exists
+// will lock you out of the admin tools. Do it in this order:
+//
+//   1. Deploy the site with Firebase Authentication (js/data/auth.js).
+//   2. Firebase Console > Security > Authentication (click Get started if you
+//      have never used it) > Sign-in method > enable Email/Password.
+//   3. Users tab > Add user. One shared account is enough.
+//   4. Sign in at /pages/admin.html and confirm the tools appear.
+//   5. Only then publish these rules.
+//
+// Rules are OR'd: a rule evaluating to false never denies what another allows,
+// and anything with no matching rule is denied by default.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null;
+    }
+
+    // ── Players ──────────────────────────────────────────────────────────────
+    // Public read: the site and scrape_matches.py both read this unauthenticated.
+    // Admin write: only the admin panel changes Elo seeds, adjustments and the
+    // roster, and those now run as a signed-in user.
+    match /players/{playerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── Match history ────────────────────────────────────────────────────────
+    // Append-only by design. Match import runs in every visitor's browser, with
+    // no sign-in, so creation has to stay open -- but it is idempotent and keyed
+    // by the AoE2 match id, so the worst an anonymous client can do is add a
+    // match. Editing and deleting history requires an admin, which is what
+    // stops the ladder being wiped.
+    //
+    // A wrong match no longer needs deleting: exclude it from Elo in the admin
+    // panel, which is reversible.
+    match /history/{matchId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    // ── Admin match overrides ────────────────────────────────────────────────
+    // Written only by the admin panel. Shape is locked down so a malformed
+    // write cannot corrupt the rating replay.
+    match /matchOverrides/{matchId} {
+      allow read: if true;
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(['mode', 'reason', 'updatedAt'])
+        && request.resource.data.mode in ['include', 'exclude']
+        && request.resource.data.reason is string
+        && request.resource.data.updatedAt is number;
+      allow delete: if isAdmin();
+    }
+
+    // ── Match Oracle predictions ─────────────────────────────────────────────
+    // Anyone may submit; nobody may edit. Schema-locked, and `correct` must
+    // agree with `prediction` vs `winner`.
+    match /predictionResponses/{responseId} {
+      allow read: if true;
+      allow create: if
+        request.resource.data.keys().hasOnly([
+          'roundId', 'matchId', 'prediction', 'winner', 'correct', 'createdAt'
+        ]) &&
+        request.resource.data.prediction in ['evil', 'good'] &&
+        request.resource.data.winner in ['evil', 'good'] &&
+        request.resource.data.correct ==
+          (request.resource.data.prediction == request.resource.data.winner);
+      allow update, delete: if false;
+    }
+
+    // ── Legacy ───────────────────────────────────────────────────────────────
+    // None of these are referenced by the current codebase. Safe to delete.
+    match /auth_profiles/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    match /profiles_claimed/{profileId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

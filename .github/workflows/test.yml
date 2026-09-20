@@ -1,0 +1,36 @@
+name: Tests
+
+# The rating model is the part of this app that is expensive to get wrong:
+# ratings are derived by replaying the whole match history, so a subtle change
+# silently rewrites every player's Elo. These checks run on every push and PR.
+#
+# tests/rating-sanity.mjs deliberately imports only modules with no Firebase
+# dependency, so it runs in plain Node with no install step and no secrets.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Rating, match-rule and admin-input checks
+        run: node tests/rating-sanity.mjs
+
+      - name: Lobby filter checks
+        run: python3 tests/lobby_filter_test.py
+
+      - name: Precomputed ratings checks
+        run: node tests/precomputed-ratings-test.mjs

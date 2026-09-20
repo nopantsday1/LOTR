@@ -1,5 +1,12 @@
 import { CIVS, DEFAULT_ELO, TEAMID_MAP } from "../core/constants.js";
 import { LOCAL_SANDBOX } from "../core/config.js";
+import {
+  REJECT_NO_RESULT,
+  REJECT_NO_TEAMS,
+  feedMatchMeta,
+  softRejectionReason
+} from "../core/matchRules.js";
+import { isForceIncluded } from "../data/matchOverrides.js";
 import { state } from "../core/state.js";
 import {
   civElo,
@@ -96,6 +103,34 @@ async function runImport() {
   };
 }
 
+// Classifies the whole generated feed without writing anything, so the admin
+// panel can show which games were discarded and why.
+export async function classifyFeedMatches() {
+  const data = await fetchMatchesJson();
+  const identityPlayers = state.playerDatasets.original?.length
+    ? state.playerDatasets.original
+    : state.players;
+  const communityIds = buildCommunityIdSet(identityPlayers);
+  const profileMap = buildProfileMap(identityPlayers);
+  const known = new Set(
+    (state.fullHistory || [])
+      .flatMap(match => [match.id, match.gameId])
+      .filter(Boolean)
+      .map(String)
+  );
+
+  return (data.matches || [])
+    .map(rawMatch => {
+      const classified = classifyMatch(rawMatch, communityIds, profileMap);
+      return {
+        ...classified,
+        inHistory: known.has(classified.gameId),
+        timestamp: matchTimestamp(rawMatch)
+      };
+    })
+    .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
+}
+
 function mergeFeedMatchesIntoState(matches, known) {
   const previewMatches = matches
     .filter(match => !known.has(match.gameId))
@@ -136,18 +171,23 @@ function mergeFeedMatchesIntoState(matches, known) {
 }
 
 function normalizeMatch(rawMatch, communityIds, profileMap) {
-  const gameId = String(rawMatch.match_id || rawMatch.id || "");
-  const members = rawMatch.matchhistorymember || rawMatch.matchhistoryreportresults || [];
-  const duration = rawMatch.completiontime && rawMatch.startgametime
-    ? Number(rawMatch.completiontime) - Number(rawMatch.startgametime)
-    : null;
+  return classifyMatch(rawMatch, communityIds, profileMap).match;
+}
 
-  if (!gameId || members.length < 8 || (duration !== null && duration < 600)) {
-    return null;
-  }
-  if (members.filter(member => communityIds.has(Number(member.profile_id))).length < 4) {
-    return null;
-  }
+// Returns the normalized match plus, when it was dropped, the gate that dropped
+// it. The admin panel uses the reason to explain what is being discarded and to
+// offer a one-click override.
+export function classifyMatch(rawMatch, communityIds, profileMap) {
+  const base = feedMatchMeta(rawMatch, communityIds);
+  const { gameId, members, duration } = base;
+  const forced = gameId ? isForceIncluded(gameId) : false;
+  const meta = { ...base, members: undefined, forced };
+  const reject = reason => ({ ...meta, match: null, rejectedFor: reason });
+
+  // An explicit admin include bypasses the soft gates, but cannot manufacture a
+  // result or teams that the feed never reported.
+  const softReason = softRejectionReason(base, forced);
+  if (softReason) return reject(softReason);
 
   const hasPositions = members.some(member => positionFor(member));
   const isEvil = member => {
@@ -164,20 +204,24 @@ function normalizeMatch(rawMatch, communityIds, profileMap) {
   };
   const evilMembers = members.filter(isEvil).sort(comparePositions);
   const goodMembers = members.filter(isGood).sort(comparePositions);
-  if (!evilMembers.length || !goodMembers.length) return null;
+  if (!evilMembers.length || !goodMembers.length) return reject(REJECT_NO_TEAMS);
 
   const evilWins = evilMembers.filter(member => Number(member.resulttype) === 1).length;
   const goodWins = goodMembers.filter(member => Number(member.resulttype) === 1).length;
-  if (!evilWins && !goodWins) return null;
+  if (!evilWins && !goodWins) return reject(REJECT_NO_RESULT);
 
   return {
-    gameId,
-    winner: evilWins > goodWins ? "evil" : "good",
-    timestamp: matchTimestamp(rawMatch) || Date.now(),
-    duration,
-    mapName: rawMatch.description || rawMatch.mapname || "LOTR Match",
-    evilAssign: evilMembers.map(member => buildAssignment(member, profileMap)),
-    goodAssign: goodMembers.map(member => buildAssignment(member, profileMap)),
+    ...meta,
+    rejectedFor: null,
+    match: {
+      gameId,
+      winner: evilWins > goodWins ? "evil" : "good",
+      timestamp: matchTimestamp(rawMatch) || Date.now(),
+      duration,
+      mapName: rawMatch.description || rawMatch.mapname || "LOTR Match",
+      evilAssign: evilMembers.map(member => buildAssignment(member, profileMap)),
+      goodAssign: goodMembers.map(member => buildAssignment(member, profileMap)),
+    }
   };
 }
 

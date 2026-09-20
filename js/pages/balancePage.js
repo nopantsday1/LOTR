@@ -1,5 +1,10 @@
 import { state } from "../core/state.js";
 import { splitTeamOptions } from "../balancer/splitTeams.js";
+import { resolveLobbies } from "../services/aoeApi.js";
+import {
+  describeLobbyAge,
+  fetchLiveLobbies
+} from "../services/matchesService.js";
 import { toast } from "../ui/toast.js";
 import {
   assignmentPenalty,
@@ -22,6 +27,9 @@ export function initBalancePage() {
   // Balance selections and the roll count only live for this page session.
   state.selectedPlayerIds.clear();
   state.lastBalance = null;
+  // Players arrive asynchronously, so a ?players= preselection has to wait for
+  // the first dataset rather than running here.
+  let preselectApplied = false;
 
   function renderPicker() {
     picker.innerHTML = "";
@@ -198,9 +206,15 @@ export function initBalancePage() {
   balanceBtn?.addEventListener("click", generateBalance);
   search?.addEventListener("input", renderPicker);
 
+  initLobbyPicker(renderPicker);
+
   renderRollCounter();
   renderPicker();
   window.addEventListener("lotr:dataChanged", () => {
+    if (!preselectApplied && state.players.length) {
+      preselectApplied = true;
+      preselectFromQuery();
+    }
     renderPicker();
     clearBalanceResult();
   });
@@ -411,6 +425,93 @@ async function copyText(text) {
   } finally {
     textarea.remove();
   }
+}
+
+// "Select from lobby": ticks the community players sitting in the busiest open
+// LOTR lobby, so a game can be balanced without retyping the roster.
+//
+// lobby.json is rebuilt by a scheduled workflow every ~5 minutes (GitHub drops
+// runs under load, so 5-15 is normal), and the browser cannot call the AoE2 API
+// directly because it sends no CORS headers. The status line therefore always
+// states how old the data is rather than implying it is live.
+function initLobbyPicker(renderPicker) {
+  const button = document.getElementById("balanceFromLobbyBtn");
+  const status = document.getElementById("balanceLobbyStatus");
+  if (!button) return;
+
+  function say(message) {
+    if (status) status.textContent = message;
+  }
+
+  button.addEventListener("click", async () => {
+    if (!state.players.length) {
+      say("Still loading players. Try again in a moment.");
+      return;
+    }
+
+    button.disabled = true;
+    say("Checking the lobby feed...");
+
+    try {
+      const data = await fetchLiveLobbies();
+      const age = describeLobbyAge(data.lastModified, data.isLive);
+      const { lobbies, best } = resolveLobbies(data, state.players);
+
+      if (!best) {
+        say(
+          lobbies.length
+            ? `${lobbies.length} LOTR lobb${lobbies.length === 1 ? "y" : "ies"} open, but no 2+ community members in one · ${age}`
+            : `No LOTR lobbies open right now · ${age}`
+        );
+        return;
+      }
+
+      const picked = best.communityMembers
+        .map(member => member.player)
+        .filter(Boolean)
+        .slice(0, 8);
+
+      state.selectedPlayerIds.clear();
+      picked.forEach(player => state.selectedPlayerIds.add(player.id));
+      renderPicker();
+
+      const guests = best.memberCount - best.communityMembers.length;
+      const overflow = best.communityMembers.length > 8
+        ? ` (lobby has ${best.communityMembers.length}; took the first 8)`
+        : "";
+      const guestNote = guests > 0
+        ? ` · ${guests} unrecognised player${guests === 1 ? "" : "s"} skipped`
+        : "";
+
+      say(
+        `Selected ${picked.length} from "${best.description || "LOTR lobby"}"` +
+        `${overflow}${guestNote} · ${age}`
+      );
+    } catch (error) {
+      console.error("[balance] lobby lookup failed", error);
+      say("Could not read the lobby feed.");
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+
+// The Live page links here with ?players=id,id,... after detecting a lobby.
+// Only ids that exist in the current dataset are honoured, capped at 8.
+function preselectFromQuery() {
+  const raw = new URLSearchParams(location.search).get("players");
+  if (!raw) return;
+
+  const known = new Set(state.players.map(player => String(player.id)));
+  raw
+    .split(",")
+    .map(id => id.trim())
+    .filter(id => id && known.has(id))
+    .slice(0, 8)
+    .forEach(id => {
+      const player = state.players.find(candidate => String(candidate.id) === id);
+      if (player) state.selectedPlayerIds.add(player.id);
+    });
 }
 
 function escapeHtml(value) {

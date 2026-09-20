@@ -1,42 +1,77 @@
 import { state } from "../core/state.js";
 import { fmtDuration } from "../utils/format.js";
 import { importNewMatches } from "../services/matchImportService.js";
+import { createLazyList } from "../ui/lazyList.js";
 import { toast } from "../ui/toast.js";
 import {
   buildMatchRatingChanges,
   matchRatingKey
 } from "../elo/progress.js";
 
+const SEARCH_DEBOUNCE_MS = 150;
+
 export function initHistoryPage() {
   const list = document.getElementById("historyList");
   const search = document.getElementById("historySearch");
+  const meta = document.getElementById("historyResultMeta");
   if (!list) return;
 
-  function render() {
-    const q = (search?.value || "").toLowerCase();
-    const history = state.fullHistory?.length ? state.fullHistory : state.history;
-    const ratingChanges = buildMatchRatingChanges(state.players, history);
+  // The rating replay walks the whole history and costs ~0.8s at current
+  // volume. It depends only on the dataset, not on the search box, so it is
+  // cached and recomputed when the data actually changes -- previously it ran
+  // again on every keystroke.
+  let ratingChanges = new Map();
+  let searchIndex = new Map();
+  let sortedHistory = [];
+  let searchTimer = null;
 
-    const rows = history
+  const lazyList = createLazyList(list, {
+    pageSize: 20,
+    emptyHtml: '<p class="card muted">No matches found.</p>',
+    renderItem: match => renderMatchCard(
+      match,
+      ratingChanges.get(matchRatingKey(match))
+    ),
+    onRendered: (shown, total) => {
+      if (meta) {
+        meta.textContent = total
+          ? `Showing ${shown} of ${total} matches`
+          : "";
+      }
+    }
+  });
+
+  function rebuildDataset() {
+    const history = state.fullHistory?.length ? state.fullHistory : state.history;
+    ratingChanges = buildMatchRatingChanges(state.players, history);
+    sortedHistory = history
       .slice()
-      .sort((a, b) => {
-        const ta = Number(a.timestamp || 0);
-        const tb = Number(b.timestamp || 0);
-        return tb - ta; // newest first
-      })
-      .filter(match => {
-        if (!q) return true;
-        return JSON.stringify(match).toLowerCase().includes(q);
-      });
-    list.innerHTML = rows
-      .map(match => renderMatchCard(
-        match,
-        ratingChanges.get(matchRatingKey(match))
-      ))
-      .join("");
+      .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
+
+    // Pre-flatten each match into one lowercase haystack. The old filter ran
+    // JSON.stringify over every match on every keystroke.
+    searchIndex = new Map(
+      sortedHistory.map(match => [match, searchableText(match)])
+    );
   }
 
-  search?.addEventListener("input", render);
+  function applyFilter() {
+    const query = (search?.value || "").trim().toLowerCase();
+    const rows = query
+      ? sortedHistory.filter(match => searchIndex.get(match)?.includes(query))
+      : sortedHistory;
+    lazyList.setItems(rows);
+  }
+
+  function render() {
+    rebuildDataset();
+    applyFilter();
+  }
+
+  search?.addEventListener("input", () => {
+    window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(applyFilter, SEARCH_DEBOUNCE_MS);
+  });
 
   document.getElementById("historyCheckNowBtn")?.addEventListener("click", async event => {
     const button = event.currentTarget;
@@ -70,11 +105,30 @@ export function initHistoryPage() {
 
   document.getElementById("historyClearSearch")?.addEventListener("click", () => {
     search.value = "";
-    render();
+    applyFilter();
   });
 
   render();
   window.addEventListener("lotr:dataChanged", render);
+}
+
+// One lowercase haystack per match, built once per dataset instead of
+// JSON.stringify-ing every match on every keystroke.
+function searchableText(match) {
+  const assignments = [...(match.evilAssign || []), ...(match.goodAssign || [])];
+  return [
+    match.mapName,
+    match.winner,
+    match.gameId,
+    match.id,
+    match.date,
+    match.timestamp ? new Date(match.timestamp).toLocaleString() : "",
+    ...assignments.map(a => a.name),
+    ...assignments.map(a => a.civName)
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
 }
 
 function renderMatchCard(match, ratingChanges) {
@@ -88,13 +142,24 @@ function renderMatchCard(match, ratingChanges) {
   const goodTotal = teamTotal(match, "good", good);
 
   const winner = match.winner || match.result || "unknown";
+  // An admin can exclude a match from the rating replay. It stays listed here,
+  // flagged, so an exclusion is visible rather than a silent disappearance.
+  const excluded = match.eloExcluded === true;
+  const excludedNote = excluded
+    ? `<div class="small danger-text">Excluded from Elo${
+        match.eloExcludedReason
+          ? ` — ${escapeHtml(match.eloExcludedReason)}`
+          : ""
+      }</div>`
+    : "";
 
   return `
-    <article class="card match-card">
+    <article class="card match-card${excluded ? " is-elo-excluded" : ""}">
       <div class="match-head">
         <div>
           <strong>${escapeHtml(match.mapName || match.map || match.name || "LOTR Match")}</strong>
           <div class="muted small">${escapeHtml(date)}</div>
+          ${excludedNote}
         </div>
         <div class="winner-badge ${winner}">
           ${escapeHtml(String(winner).toUpperCase())}

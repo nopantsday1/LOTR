@@ -1,4 +1,5 @@
 import { CIVS } from "../core/constants.js";
+import { ratingEligibleHistory } from "../core/matchRules.js";
 import { state } from "../core/state.js";
 import { communityEloSeed } from "../data/communityEloSeeds.js";
 import {
@@ -16,6 +17,18 @@ export const BASE_RATING_MODE = {
   mainEloChangeMultiplier: 1
 };
 
+// Dormant registration: a flat starting point for every player, useful for
+// asking "what would the ladder look like with no seeding?". Not enabled by
+// default; add it to RATING_MODES below to switch it on.
+export const RATING_1000_MODE = {
+  label: "1000 Rating",
+  description: "Every player starts at 1000 before results are replayed",
+  startingElo: () => 1000,
+  mainEloChangeMultiplier: 1
+};
+
+// The modes offered in the UI, in cycle order. "original" must stay first: it is
+// the fallback used whenever a stored mode is unknown.
 export const RATING_MODES = {
   original: {
     label: "Original",
@@ -23,33 +36,69 @@ export const RATING_MODES = {
     startingElo: communityEloSeed,
     mainEloChangeMultiplier: 1
   },
-  // rating1000: {
-  //   label: "1000 Rating",
-  //   description: "Every player starts at 1000 before results are replayed",
-  //   startingElo: () => 1000,
-  //   mainEloChangeMultiplier: 1
-  // },
-  // Uncomment the next line to enable all three rating modes.
   base: BASE_RATING_MODE
 };
 
 const STORAGE_KEY = "lotr-rating-mode";
 
-export function initializeRatingModes(players, history) {
-  const sourcePlayers = normalizePlayerRatings(structuredClone(players || []));
-  state.playerDatasets = Object.fromEntries(
-    Object.entries(RATING_MODES).map(([modeId, mode]) => [
-      modeId,
-      buildReplayDataset(sourcePlayers, history, modeId, mode)
-    ])
+// The source data for replays, kept so a mode's dataset can be built later
+// rather than all of them upfront.
+let replaySource = { players: [], history: [] };
+
+// `precomputed` is the `modes` map from ratings.json, supplied only when its
+// fingerprint matches this exact data. Adopting it skips the replay entirely;
+// the replay source is still recorded so a mode the file does not contain can
+// be built later.
+export function initializeRatingModes(players, history, precomputed = null) {
+  replaySource = {
+    players: normalizePlayerRatings(structuredClone(players || [])),
+    history: history || []
+  };
+
+  // Each dataset is a full replay of every match: ~830ms at current volume.
+  // Building one per registered mode on every page load meant paying for modes
+  // nobody was looking at, so they are built on demand instead.
+  //
+  // "original" is the exception and is always built: the rest of the app reads
+  // it as the identity source for players (profile IDs, names, admin fields).
+  state.playerDatasets = {};
+
+  for (const [modeId, dataset] of Object.entries(precomputed || {})) {
+    if (RATING_MODES[modeId] && dataset?.length) {
+      state.playerDatasets[modeId] = normalizePlayerRatings(dataset);
+    }
+  }
+  state.ratingsArePrecomputed = Boolean(
+    precomputed && state.playerDatasets.original?.length
   );
+
+  // Builds "original" only if it was not adopted above.
+  ensureRatingDataset("original");
+
   setRatingMode(readStoredMode(), false);
+}
+
+// Builds a mode's replayed dataset if it does not exist yet, and returns it.
+export function ensureRatingDataset(modeId) {
+  const mode = RATING_MODES[modeId];
+  if (!mode) return null;
+  if (state.playerDatasets[modeId]?.length) return state.playerDatasets[modeId];
+  if (!replaySource.players.length) return null;
+
+  state.playerDatasets[modeId] = buildReplayDataset(
+    replaySource.players,
+    replaySource.history,
+    modeId,
+    mode
+  );
+  return state.playerDatasets[modeId];
 }
 
 export function setRatingMode(mode, notify = true) {
   const fallbackMode = Object.keys(RATING_MODES)[0];
   const nextMode = RATING_MODES[mode] ? mode : fallbackMode;
-  const dataset = state.playerDatasets[nextMode];
+  // Builds this mode's replay the first time it is selected.
+  const dataset = ensureRatingDataset(nextMode);
 
   if (!dataset?.length) return false;
 
@@ -76,9 +125,8 @@ export function setRatingMode(mode, notify = true) {
 }
 
 export function toggleRatingMode() {
-  const modes = Object.keys(RATING_MODES).filter(
-    mode => state.playerDatasets[mode]?.length
-  );
+  // Every registered mode is selectable; its dataset is built on selection.
+  const modes = Object.keys(RATING_MODES);
   if (!modes.length) return false;
 
   const currentIndex = modes.indexOf(state.ratingMode);
@@ -88,7 +136,7 @@ export function toggleRatingMode() {
 
 function buildReplayDataset(players, history, ratingMode, mode) {
   const replay = players.map(player =>
-    resetPlayer(player, mode.startingElo(player), ratingMode)
+    resetPlayer(player, startingEloFor(player, mode), ratingMode)
   );
   for (const player of replay) {
     player.ratingContext = {
@@ -96,7 +144,9 @@ function buildReplayDataset(players, history, ratingMode, mode) {
       mainEloChangeMultiplier: mode.mainEloChangeMultiplier
     };
   }
-  const matches = (history || [])
+  // Matches an admin has excluded stay in history and stay on the History page,
+  // but never reach the replay.
+  const matches = ratingEligibleHistory(history)
     .slice()
     .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
 
@@ -104,9 +154,30 @@ function buildReplayDataset(players, history, ratingMode, mode) {
     applyReplayMatchRatings(replay, match);
   }
 
+  applyManualAdjustments(replay);
   rebuildInactivityState(replay, matches);
   applyCommunityRatingContext(replay);
   return replay;
+}
+
+// An admin can override where a player's replay starts. This is the
+// architecturally honest knob: because ratings are derived, a direct write to
+// mainElo would be overwritten on the next load, whereas a seed survives.
+function startingEloFor(player, mode) {
+  const override = Number(player.ratingSeedOverride);
+  return Number.isFinite(override) && override > 0
+    ? override
+    : mode.startingElo(player);
+}
+
+// A signed nudge applied once the replay has finished, for when an admin wants
+// to correct a current rating without moving the starting point.
+function applyManualAdjustments(players) {
+  for (const player of players) {
+    const adjustment = Number(player.eloAdjustment);
+    if (!Number.isFinite(adjustment) || adjustment === 0) continue;
+    player.mainElo = Math.round(Number(player.mainElo || 0) + adjustment);
+  }
 }
 
 function resetPlayer(player, startingElo, ratingMode) {

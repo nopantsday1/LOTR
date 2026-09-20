@@ -1,0 +1,14 @@
+{
+  // Deploy with:  cd worker && npx wrangler deploy
+  //
+  // This is separate from the repo-root wrangler.jsonc, which serves the static
+  // site. This one is just the live-lobby proxy; the site itself stays on
+  // GitHub Pages.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lotr-lobby-proxy",
+  "main": "lobby-proxy.js",
+  "compatibility_date": "2025-09-27",
+  "observability": {
+    "enabled": true
+  }
+}

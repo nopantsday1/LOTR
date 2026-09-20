@@ -1,4 +1,5 @@
 import { CIVS, DEFAULT_ELO } from "../core/constants.js";
+import { ratingEligibleHistory } from "../core/matchRules.js";
 import {
   applyMatchRatings,
   civElo,
@@ -14,7 +15,7 @@ export function buildPlayerEloProgress(players, history, playerId, civId = "over
   const playerMap = new Map(
     players.map(player => [player.name, resetPlayerForReplay(player)])
   );
-  const matches = history
+  const matches = ratingEligibleHistory(history)
     .slice()
     .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
   const tracked = playerMap.get(originalPlayer.name);
@@ -47,7 +48,7 @@ export function buildPlayerEloProgress(players, history, playerId, civId = "over
 
 export function buildMatchRatingChanges(players, history) {
   const replayPlayers = players.map(resetPlayerForReplay);
-  const matches = history
+  const matches = ratingEligibleHistory(history)
     .slice()
     .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
   const changesByMatch = new Map();

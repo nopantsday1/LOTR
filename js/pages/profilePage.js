@@ -6,6 +6,7 @@ import {
 } from "../elo/elo.js";
 import { buildPlayerEloProgress } from "../elo/progress.js";
 import { RATING_MODES } from "../elo/ratingModes.js";
+import { createLazyList } from "../ui/lazyList.js";
 import { fmtDuration } from "../utils/format.js";
 
 export function initProfilePage() {
@@ -17,6 +18,16 @@ export function initProfilePage() {
   const historyMeta = document.getElementById("profileHistoryMeta");
 
   if (!profileHeader) return;
+
+  let currentPlayer = null;
+  let currentEloChanges = new Map();
+
+  const historyLazyList = createLazyList(historyList, {
+    pageSize: 20,
+    emptyHtml: '<p class="muted">No recorded games found for this player.</p>',
+    renderItem: match =>
+      renderPlayerMatch(match, currentPlayer, currentEloChanges.get(match))
+  });
 
   function themeColor(variable, fallback) {
     return getComputedStyle(document.documentElement)
@@ -208,9 +219,9 @@ export function initProfilePage() {
       historyMeta.textContent = `${matches.length} recorded ${matches.length === 1 ? "game" : "games"} · ${modeLabel} Main Elo changes`;
     }
 
-    historyList.innerHTML = matches.length
-      ? matches.map(match => renderPlayerMatch(match, player, eloChanges.get(match))).join("")
-      : `<p class="muted">No recorded games found for this player.</p>`;
+    currentPlayer = player;
+    currentEloChanges = eloChanges;
+    historyLazyList.setItems(matches);
   }
 
   function render() {

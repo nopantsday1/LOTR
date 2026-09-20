@@ -13,7 +13,6 @@
 <link rel="stylesheet" href="../css/components.css">
 <link rel="stylesheet" href="../css/pages.css">
 <script type="module" src="../js/app.js"></script>
-<script type="module" src="../js/exportData.js"></script>
 
 </head>
 
@@ -54,9 +53,11 @@
         <div id="selectedCount" class="muted">0 / 8 selected</div>
       </div>
       <div class="actions selection-actions">
+        <button id="balanceFromLobbyBtn" class="btn">Select from lobby</button>
         <button id="balanceBtn" class="btn primary">Balance Teams</button>
       </div>
     </div>
+    <p id="balanceLobbyStatus" class="muted small" aria-live="polite"></p>
     <div class="selection-search">
       <label class="field-label" for="balancePlayerSearch">Search players</label>
       <input
@@ -74,7 +75,6 @@
 
 </main>
 <div class="toast" id="toast"></div>
-<div class="modal-root" id="modalRoot"></div>
 </body>
 
 </html>

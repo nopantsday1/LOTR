@@ -1,4 +1,5 @@
 import { CIVS, normalizeCivName } from "../core/constants.js";
+import { ratingEligibleHistory } from "../core/matchRules.js";
 import { expectedTeamScore, ratingBreakdown } from "./elo.js";
 import {
   applyReplayMatchRatings,
@@ -7,7 +8,7 @@ import {
 
 export function buildBalancerBacktest(players, history) {
   const replayPlayers = (players || []).map(resetPlayerForReplay);
-  const matches = (history || [])
+  const matches = ratingEligibleHistory(history)
     .slice()
     .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
   const results = [];

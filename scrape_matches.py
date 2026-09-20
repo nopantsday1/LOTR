@@ -424,14 +424,37 @@ for m in match_map.values():
         mem["is_community"] = pid in community_ids
 
 # ── Filter and save ───────────────────────────────────────────────────────────
+#
+# Note on the lobby-name keyword rule (LOTR / BFME / HOBBIT):
+#
+# That filter is deliberately NOT applied here. It lives in the browser, in
+# js/core/matchRules.js, which drops non-matching lobbies before anything is
+# imported or rated. Keeping the rejected games in matches.json is what lets an
+# admin re-include a game the keyword rule got wrong -- a lobby called "Bobbit",
+# for example. Strip them here and that override becomes impossible, because the
+# game would no longer exist in the feed at all.
+#
+# The keyword counts below are reported only so CI logs show what the browser
+# will discard.
+
+LOBBY_KEYWORDS = ("lotr", "bfme", "hobbit", "bobbit")
 
 filtered = {
     mid: m for mid, m in match_map.items()
     if sum(1 for x in m["matchhistorymember"] if x.get("is_community")) >= 4
 }
 
+keyword_ok = sum(
+    1 for m in filtered.values()
+    if any(k in str(m.get("description", "")).lower() for k in LOBBY_KEYWORDS)
+)
+
 print(f"\n{'='*50}")
 print(f"RESULT: {len(filtered)} matches with 4+ community players")
+print(
+    f"  of which {keyword_ok} pass the lobby-name keyword rule "
+    f"({len(filtered) - keyword_ok} will be discarded client-side)"
+)
 for mid, m in sorted(filtered.items(), key=lambda x: x[1].get("completiontime", 0), reverse=True)[:10]:
     ts   = m.get("completiontime", 0)
     date = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M") if ts else "?"

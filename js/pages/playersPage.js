@@ -4,6 +4,9 @@ import {
   civGames,
   ratingBreakdown
 } from "../elo/elo.js";
+import { createLazyList } from "../ui/lazyList.js";
+
+const SEARCH_DEBOUNCE_MS = 150;
 
 export function initPlayersPage() {
   const list = document.getElementById("playersList");
@@ -11,6 +14,17 @@ export function initPlayersPage() {
   const civSort = document.getElementById("playersCivSort");
   const searchMeta = document.getElementById("playersSearchMeta");
   if (!list) return;
+
+  let currentCiv = "overall";
+  let currentRanks = new Map();
+  let searchTimer = null;
+
+  const lazyList = createLazyList(list, {
+    pageSize: 25,
+    emptyHtml: '<p class="card muted">No players match your search.</p>',
+    renderItem: player =>
+      renderPlayer(player, currentRanks.get(player.id), currentCiv)
+  });
 
   function render() {
     const query = normalizeSearch(search?.value);
@@ -27,26 +41,32 @@ export function initPlayersPage() {
         : `${players.length} ranked players`;
     }
 
-    list.innerHTML = players.length
-      ? players.map(player => renderPlayer(player, rankById.get(player.id), selectedCiv)).join("")
-      : `<p class="card muted">No players match your search.</p>`;
-
-    list.querySelectorAll(".player-rank-row").forEach(row => {
-      const openProfile = () => {
-        window.location.href =
-          `./profile.html?playerId=${encodeURIComponent(row.dataset.playerId)}`;
-      };
-      row.addEventListener("click", openProfile);
-      row.addEventListener("keydown", event => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          openProfile();
-        }
-      });
-    });
+    currentCiv = selectedCiv;
+    currentRanks = rankById;
+    lazyList.setItems(players);
   }
 
-  search?.addEventListener("input", render);
+  // Delegated, so rows appended by the lazy list stay interactive without
+  // rebinding listeners on every chunk.
+  function openProfileFrom(target) {
+    const row = target.closest(".player-rank-row");
+    if (!row?.dataset.playerId) return;
+    window.location.href =
+      `./profile.html?playerId=${encodeURIComponent(row.dataset.playerId)}`;
+  }
+
+  list.addEventListener("click", event => openProfileFrom(event.target));
+  list.addEventListener("keydown", event => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    if (!event.target.closest(".player-rank-row")) return;
+    event.preventDefault();
+    openProfileFrom(event.target);
+  });
+
+  search?.addEventListener("input", () => {
+    window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(render, SEARCH_DEBOUNCE_MS);
+  });
   civSort?.addEventListener("change", render);
   window.addEventListener("lotr:dataChanged", render);
   render();
