@@ -1899,12 +1899,12 @@
   margin-top: 12px;
 }
 
+/* The row is now a column: a header, and a roster panel that opens beneath it.
+   The header keeps the original side-by-side layout. */
 .admin-match {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 8px;
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1988,3 +1988,46 @@
 
 .admin-elo-summary .positive { color: var(--good); }
 .admin-elo-summary .negative { color: var(--evil); }
+
+/* Admin match rows: header plus an on-demand roster panel. */
+
+.admin-match-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.admin-match-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.admin-match-details {
+  width: 100%;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.admin-match-details[hidden] { display: none; }
+
+.admin-match-details h4 {
+  margin: 0 0 .4rem;
+  font-size: .9rem;
+}
+
+.admin-match-teams {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 560px) {
+  .admin-match-head { align-items: stretch; }
+  .admin-match-actions { width: 100%; }
+  .admin-match-actions .btn { flex: 1; }
+}

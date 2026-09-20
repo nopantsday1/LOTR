@@ -28,6 +28,10 @@ import { parseEloValue } from "../core/playerInput.js";
 import { classifyFeedMatches } from "../services/matchImportService.js";
 import { downloadDataBackup } from "../services/exportService.js";
 import { decayedElo } from "../elo/elo.js";
+import {
+  buildMatchRatingChanges,
+  matchRatingKey
+} from "../elo/progress.js";
 import { fmtDuration } from "../utils/format.js";
 import { toast } from "../ui/toast.js";
 
@@ -461,8 +465,9 @@ function initHistorySection() {
   if (!search) return;
 
   search.addEventListener("input", renderHistoryList);
-  document.getElementById("adminHistoryList")
-    ?.addEventListener("click", onMatchListClick);
+  const historyList = document.getElementById("adminHistoryList");
+  historyList?.addEventListener("click", onMatchListClick);
+  historyList?.addEventListener("click", onMatchDetailsClick);
 }
 
 function renderHistoryList() {
@@ -525,8 +530,9 @@ function initRejectedSection() {
     ?.addEventListener("change", () => {
       if (cachedRejected) renderRejectedList(cachedRejected);
     });
-  document.getElementById("adminRejectedList")
-    ?.addEventListener("click", onMatchListClick);
+  const rejectedList = document.getElementById("adminRejectedList");
+  rejectedList?.addEventListener("click", onMatchListClick);
+  rejectedList?.addEventListener("click", onMatchDetailsClick);
 }
 
 async function loadRejected() {
@@ -649,21 +655,179 @@ function matchRow({
     ? `<div class="small"><strong>${escapeHtml(flagLabel)}</strong></div>`
     : "";
 
+  // The roster is rendered on demand rather than upfront: 40 rows x 8 players
+  // is a lot of DOM for something usually only wanted on one match, and the
+  // recorded-game view needs a full rating replay to show Elo deltas.
   return `
     <article class="admin-match ${flagged ? "is-flagged" : ""}">
-      <div class="admin-match-body">
-        <strong>${escapeHtml(title)}</strong>
-        <div class="muted small">${metaLine}</div>
-        ${noteLine}
-        ${flagLine}
+      <div class="admin-match-head">
+        <div class="admin-match-body">
+          <strong>${escapeHtml(title)}</strong>
+          <div class="muted small">${metaLine}</div>
+          ${noteLine}
+          ${flagLine}
+        </div>
+        <div class="admin-match-actions">
+          <button
+            class="btn admin-match-toggle"
+            data-match-details="${escapeHtml(id)}"
+            aria-expanded="false"
+          >Players</button>
+          <button
+            class="btn ${buttonClass}"
+            data-match-action="${escapeHtml(action)}"
+            data-match-id="${escapeHtml(id)}"
+            ${disabled ? "disabled" : ""}
+          >${escapeHtml(buttonLabel)}</button>
+        </div>
       </div>
-      <button
-        class="btn ${buttonClass}"
-        data-match-action="${escapeHtml(action)}"
-        data-match-id="${escapeHtml(id)}"
-        ${disabled ? "disabled" : ""}
-      >${escapeHtml(buttonLabel)}</button>
+      <div class="admin-match-details" data-details-for="${escapeHtml(id)}" hidden></div>
     </article>
+  `;
+}
+
+// Rating deltas need a full replay of match history (~360ms), so it is computed
+// the first time a roster is opened and reused afterwards. Invalidated whenever
+// the underlying data changes.
+let cachedRatingChanges = null;
+let cachedRatingChangesFor = null;
+
+function ratingChangesForHistory() {
+  const history = state.fullHistory || [];
+  if (cachedRatingChanges && cachedRatingChangesFor === history) {
+    return cachedRatingChanges;
+  }
+  cachedRatingChanges = buildMatchRatingChanges(state.players, history);
+  cachedRatingChangesFor = history;
+  return cachedRatingChanges;
+}
+
+function onMatchDetailsClick(event) {
+  const toggle = event.target.closest("[data-match-details]");
+  if (!toggle) return;
+
+  const id = toggle.dataset.matchDetails;
+  const panel = toggle
+    .closest(".admin-match")
+    ?.querySelector(`[data-details-for="${CSS.escape(id)}"]`);
+  if (!panel) return;
+
+  if (!panel.hidden) {
+    panel.hidden = true;
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.textContent = "Players";
+    return;
+  }
+
+  // Rendered once, then kept, so reopening is instant.
+  if (!panel.dataset.loaded) {
+    panel.innerHTML = `<p class="muted small">Loading...</p>`;
+    panel.hidden = false;
+    // setTimeout, not requestAnimationFrame: rAF does not run in a hidden or
+    // background tab, which would leave this stuck on "Loading..." forever.
+    // Yielding at all is only so the placeholder paints before the replay.
+    window.setTimeout(() => {
+      try {
+        panel.innerHTML = toggle.closest("#adminRejectedList")
+          ? renderFeedRoster(id)
+          : renderRecordedRoster(id);
+        panel.dataset.loaded = "1";
+      } catch (err) {
+        console.error("[admin]", err);
+        panel.innerHTML = `<p class="small danger-text">Could not load players.</p>`;
+      }
+    }, 0);
+  }
+
+  panel.hidden = false;
+  toggle.setAttribute("aria-expanded", "true");
+  toggle.textContent = "Hide players";
+}
+
+// Recorded games: the same teams, civs and Elo deltas the History page shows.
+function renderRecordedRoster(id) {
+  const match = (state.fullHistory || []).find(m => overrideKey(m) === String(id));
+  if (!match) return `<p class="muted small">This match is no longer loaded.</p>`;
+
+  const changes = ratingChangesForHistory().get(matchRatingKey(match));
+  const evil = match.evilAssign || [];
+  const good = match.goodAssign || [];
+
+  if (!evil.length && !good.length) {
+    return `<p class="muted small">No team data was recorded for this match.</p>`;
+  }
+
+  return `
+    <div class="admin-match-teams">
+      ${rosterTeam("Evil", evil, changes, match.winner === "evil")}
+      ${rosterTeam("Good", good, changes, match.winner === "good")}
+    </div>
+  `;
+}
+
+function rosterTeam(label, assignments, changes, won) {
+  const rows = assignments.map(assignment => {
+    const name = assignment.name || assignment.playerName || "Unknown";
+    const player = (state.players || []).find(p => (
+      (assignment.profileId && p.profileId &&
+        String(assignment.profileId) === String(p.profileId)) ||
+      p.name === name
+    ));
+    const delta = player ? changes?.get(String(player.id)) : undefined;
+    const nameHtml = player
+      ? `<a class="player-link" href="./profile.html?playerId=${encodeURIComponent(player.id)}">${escapeHtml(name)}</a>`
+      : escapeHtml(name);
+    const deltaHtml = Number.isFinite(delta)
+      ? `<strong class="rating-delta ${delta > 0 ? "positive" : delta < 0 ? "negative" : ""}">${delta > 0 ? "+" : ""}${delta}</strong>`
+      : `<small class="muted">unrated</small>`;
+
+    return `
+      <div class="assignment-row">
+        <span>${nameHtml}</span>
+        <span class="assignment-rating">
+          <span class="muted">${escapeHtml(assignment.civName || assignment.civId || "")}</span>
+          ${deltaHtml}
+        </span>
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <section class="team ${label.toLowerCase()}-team">
+      <h4>${escapeHtml(label)}${won ? " · won" : ""}</h4>
+      ${rows || `<p class="muted small">No players recorded.</p>`}
+    </section>
+  `;
+}
+
+// Discarded games: no ratings exist yet, so show who was in the lobby and
+// which of them the roster recognises. That is the thing worth knowing before
+// deciding to include a game.
+function renderFeedRoster(id) {
+  const entry = (cachedRejected || []).find(e => String(e.gameId) === String(id));
+  if (!entry) return `<p class="muted small">This game is no longer loaded.</p>`;
+  if (!entry.roster?.length) {
+    return `<p class="muted small">The feed listed no players for this game.</p>`;
+  }
+
+  const rows = entry.roster
+    .slice()
+    .sort((a, b) => Number(b.isCommunity) - Number(a.isCommunity))
+    .map(member => `
+      <div class="assignment-row">
+        <span>${escapeHtml(member.name)}</span>
+        <span class="assignment-rating">
+          <span class="muted">${escapeHtml(member.civName || "")}</span>
+          <small class="muted">${member.isCommunity ? "community" : "guest"}</small>
+        </span>
+      </div>
+    `).join("");
+
+  return `
+    <section class="team">
+      <h4>In this game (${entry.roster.length})</h4>
+      ${rows}
+    </section>
   `;
 }
 

@@ -107,8 +107,13 @@ Sign in with your Firebase admin account (see **Admin access** above).
    override*.
 3. **Exclude games from Elo** — drops a recorded game from the rating replay.
    It stays in Firestore and stays listed on History, flagged. Reversible.
+   **Players** on each row expands the teams, civs and Elo deltas. Rendered on
+   demand: 40 rows of rosters is a lot of DOM, and the deltas need a full
+   rating replay.
 4. **Re-include discarded games** — lists what the importer skipped and why, and
-   lets you override the soft gates.
+   lets you override the soft gates. **Players** here shows the lobby roster
+   with each name tagged community or guest, which is what you want before
+   deciding to include a game.
 5. **Export all data** — JSON backup of players, history and overrides.
 
 ## Civilizations

@@ -181,7 +181,20 @@ export function classifyMatch(rawMatch, communityIds, profileMap) {
   const base = feedMatchMeta(rawMatch, communityIds);
   const { gameId, members, duration } = base;
   const forced = gameId ? isForceIncluded(gameId) : false;
-  const meta = { ...base, members: undefined, forced };
+  // A light roster instead of the raw members: the admin panel shows who was in
+  // a discarded game, which is the thing worth knowing before including it.
+  const roster = members.map(member => {
+    const profileId = Number(member.profile_id);
+    const player = profileMap[profileId] || null;
+    const civId = positionFor(member);
+    return {
+      profileId,
+      name: player?.name || member.name || `Player ${profileId}`,
+      isCommunity: Boolean(player),
+      civName: CIVS.find(civ => civ.id === civId)?.name || ""
+    };
+  });
+  const meta = { ...base, members: undefined, roster, forced };
   const reject = reason => ({ ...meta, match: null, rejectedFor: reason });
 
   // An explicit admin include bypasses the soft gates, but cannot manufacture a
