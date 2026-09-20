@@ -54,10 +54,12 @@ locks you out.
 - **Live page** — LOTR lobbies **waiting to start** (roster, slots, how long
   open) and games believed to be **in progress** (roster, elapsed time). The
   AoE2 API never reports running games — a lobby simply vanishes when it starts
-  — so in-progress is inferred by watching a tracked lobby stop being
-  advertised. It therefore only works if the page was open when the game began,
-  and the elapsed time is an estimate; entries clear once the match lands in the
-  feed. See `js/services/lobbyTracker.js`.
+  — so in-progress is inferred by noticing a lobby stop being advertised. The
+  Worker does that watching on a 2-minute cron and keeps state in KV, so it
+  works whether or not anyone has the page open. Elapsed time is accurate to
+  the cron interval, and entries clear once the match lands in the feed.
+  Without the Worker the browser falls back to `js/services/lobbyTracker.js`,
+  which can only catch games that start while the page is open.
 - **Select from lobby** — the Balance page ticks a lobby's community players
   straight into the picker. Lobby data comes live from
   `worker/lobby-proxy.js`; without that Worker it falls back to the committed

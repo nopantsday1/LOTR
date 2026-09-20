@@ -1,5 +1,5 @@
 import { state } from "../core/state.js";
-import { resolveLobbies } from "../services/aoeApi.js";
+import { buildProfileMap, resolveLobbies } from "../services/aoeApi.js";
 import {
   describeElapsed,
   describeWaiting,
@@ -97,10 +97,16 @@ function render(data, finished) {
     MIN_COMMUNITY_IN_LOBBY
   );
 
-  // Records what is open now and reports what disappeared since last poll.
-  const { inProgress } = trackLobbies(community, finished);
+  // The Worker watches on a schedule, so it sees games start whether or not
+  // anyone has this page open. Its answer wins. The browser-side tracker is
+  // only a fallback for when no Worker is configured, where it can at best
+  // notice a lobby vanish while someone happens to be watching.
+  const local = trackLobbies(community, finished);
+  const inProgress = Array.isArray(data.inProgress)
+    ? fromWorker(data.inProgress, players, finished)
+    : local.inProgress;
 
-  renderInProgress(inProgress);
+  renderInProgress(inProgress, Array.isArray(data.inProgress));
   renderWaiting(community);
 
   const idle = document.getElementById("liveIdle");
@@ -118,7 +124,40 @@ function render(data, finished) {
   return { waiting: community.length, inProgress: inProgress.length };
 }
 
-function renderInProgress(games) {
+// The Worker reports raw profile ids because it knows nothing about the
+// roster; resolving them here is what decides whether a game is a community
+// game at all.
+function fromWorker(games, players, finished) {
+  const byProfile = buildProfileMap(players);
+
+  return games
+    .filter(game => !finished.has(String(game.id)))
+    .map(game => {
+      const roster = (game.members || []).map(profileId => {
+        const player = byProfile[Number(profileId)] || null;
+        return {
+          name: player?.name || game.aliases?.[profileId] || `Player ${profileId}`,
+          isCommunity: Boolean(player),
+          playerId: player?.id || null
+        };
+      });
+      const communityCount = roster.filter(member => member.isCommunity).length;
+
+      return {
+        id: game.id,
+        description: game.description,
+        roster,
+        communityCount,
+        memberCount: roster.length,
+        startedAt: game.startedAt,
+        elapsedMs: game.elapsedMs
+      };
+    })
+    .filter(game => game.communityCount >= MIN_COMMUNITY_IN_LOBBY)
+    .sort((a, b) => a.elapsedMs - b.elapsedMs);
+}
+
+function renderInProgress(games, workerBacked) {
   const section = document.getElementById("liveInProgress");
   const list = document.getElementById("liveInProgressList");
   const meta = document.getElementById("liveInProgressMeta");
@@ -128,7 +167,9 @@ function renderInProgress(games) {
   if (!games.length) return;
 
   if (meta) {
-    meta.textContent = "estimated from when the lobby closed";
+    meta.textContent = workerBacked
+      ? "detected when the lobby closed"
+      : "only games that started while this page was open";
   }
 
   list.innerHTML = games.map(game => `
