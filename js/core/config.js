@@ -46,5 +46,5 @@ export const ADMIN_EMAIL = "admin@lotr-9a2f2.web.app";
 // smallest thing that actually works. See worker/lobby-proxy.js.
 //
 // Example: "https://lotr-lobby-proxy.your-name.workers.dev"
-export const LIVE_LOBBY_PROXY = "";
+export const LIVE_LOBBY_PROXY = "https://lotr-lobby-proxy.balo-malic.workers.dev";
 
