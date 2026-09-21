@@ -1,4 +1,70 @@
 {
- "avatars": [],
- "matches": []
+ "avatars": [
+  {
+   "alias": "Enriking the Wise",
+   "profile_id": 2998
+  },
+  {
+   "alias": "Kalveryan",
+   "profile_id": 406234
+  },
+  {
+   "alias": "Vasile the Everlasting Prince",
+   "profile_id": 1160118
+  },
+  {
+   "alias": "Blue Hat Magician",
+   "profile_id": 3630425
+  },
+  {
+   "alias": "[TAW] StratRebel",
+   "profile_id": 4054766
+  },
+  {
+   "alias": "Sari",
+   "profile_id": 4247471
+  },
+  {
+   "alias": "stan96",
+   "profile_id": 9035176
+  },
+  {
+   "alias": "wodaex",
+   "profile_id": 11779463
+  }
+ ],
+ "matches": [
+  {
+   "description": "Hobbit discord time",
+   "id": 508274694,
+   "mapname": "my map",
+   "matchmembers": [
+    {
+     "profile_id": 2998
+    },
+    {
+     "profile_id": 406234
+    },
+    {
+     "profile_id": 1160118
+    },
+    {
+     "profile_id": 3630425
+    },
+    {
+     "profile_id": 4054766
+    },
+    {
+     "profile_id": 4247471
+    },
+    {
+     "profile_id": 9035176
+    },
+    {
+     "profile_id": 11779463
+    }
+   ],
+   "maxplayers": 8
+  }
+ ]
 }
