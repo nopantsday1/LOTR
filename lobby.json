@@ -1,4 +1,63 @@
 {
- "avatars": [],
- "matches": []
+ "avatars": [
+  {
+   "alias": "TheSnowmanLord",
+   "profile_id": 302134
+  },
+  {
+   "alias": "TheHole",
+   "profile_id": 621852
+  },
+  {
+   "alias": "\u0444\u0456\u043d\u0441\u044c\u043a\u0430",
+   "profile_id": 1596720
+  },
+  {
+   "alias": "BlueWizard",
+   "profile_id": 2284057
+  },
+  {
+   "alias": "xPsyKo KiLLeRx",
+   "profile_id": 2918172
+  },
+  {
+   "alias": "Sari",
+   "profile_id": 4247471
+  },
+  {
+   "alias": "Jippi57",
+   "profile_id": 15006002
+  }
+ ],
+ "matches": [
+  {
+   "description": "LOTR Hobbit",
+   "id": 509205608,
+   "mapname": "my map",
+   "matchmembers": [
+    {
+     "profile_id": 302134
+    },
+    {
+     "profile_id": 621852
+    },
+    {
+     "profile_id": 1596720
+    },
+    {
+     "profile_id": 2284057
+    },
+    {
+     "profile_id": 2918172
+    },
+    {
+     "profile_id": 4247471
+    },
+    {
+     "profile_id": 15006002
+    }
+   ],
+   "maxplayers": 8
+  }
+ ]
 }
