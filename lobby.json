@@ -1,4 +1,63 @@
 {
- "avatars": [],
- "matches": []
+ "avatars": [
+  {
+   "alias": "Mastyjames",
+   "profile_id": 277618
+  },
+  {
+   "alias": "TheSnowmanLord",
+   "profile_id": 302134
+  },
+  {
+   "alias": "Trash Panda",
+   "profile_id": 476879
+  },
+  {
+   "alias": "TheHole",
+   "profile_id": 621852
+  },
+  {
+   "alias": "BlueWizard",
+   "profile_id": 2284057
+  },
+  {
+   "alias": "Blue Hat Magician",
+   "profile_id": 3630425
+  },
+  {
+   "alias": "Brodo Swaggins",
+   "profile_id": 23273523
+  }
+ ],
+ "matches": [
+  {
+   "description": "Hobbit LOTR Lobby simulator Party  ",
+   "id": 509484603,
+   "mapname": "my map",
+   "matchmembers": [
+    {
+     "profile_id": 277618
+    },
+    {
+     "profile_id": 302134
+    },
+    {
+     "profile_id": 476879
+    },
+    {
+     "profile_id": 621852
+    },
+    {
+     "profile_id": 2284057
+    },
+    {
+     "profile_id": 3630425
+    },
+    {
+     "profile_id": 23273523
+    }
+   ],
+   "maxplayers": 8
+  }
+ ]
 }
