@@ -1,4 +1,63 @@
 {
- "avatars": [],
- "matches": []
+ "avatars": [
+  {
+   "alias": "Hellblazer",
+   "profile_id": 330110
+  },
+  {
+   "alias": "Kalveryan",
+   "profile_id": 406234
+  },
+  {
+   "alias": "Vasile the Everlasting Prince",
+   "profile_id": 1160118
+  },
+  {
+   "alias": "stronk | Som1t",
+   "profile_id": 1211928
+  },
+  {
+   "alias": "duckeend",
+   "profile_id": 2800260
+  },
+  {
+   "alias": "DF",
+   "profile_id": 18620329
+  },
+  {
+   "alias": "joacox05",
+   "profile_id": 23182758
+  }
+ ],
+ "matches": [
+  {
+   "description": "Hobbit Bobbit ",
+   "id": 512417247,
+   "mapname": "my map",
+   "matchmembers": [
+    {
+     "profile_id": 330110
+    },
+    {
+     "profile_id": 406234
+    },
+    {
+     "profile_id": 1160118
+    },
+    {
+     "profile_id": 1211928
+    },
+    {
+     "profile_id": 2800260
+    },
+    {
+     "profile_id": 18620329
+    },
+    {
+     "profile_id": 23182758
+    }
+   ],
+   "maxplayers": 8
+  }
+ ]
 }
