@@ -1,35 +1,4 @@
 {
- "avatars": [
-  {
-   "alias": "nathan",
-   "profile_id": 752642
-  },
-  {
-   "alias": "[TAW] StratRebel",
-   "profile_id": 4054766
-  },
-  {
-   "alias": "stan96",
-   "profile_id": 9035176
-  }
- ],
- "matches": [
-  {
-   "description": "LOTR Hobbit 1200+",
-   "id": 513197317,
-   "mapname": "my map",
-   "matchmembers": [
-    {
-     "profile_id": 752642
-    },
-    {
-     "profile_id": 4054766
-    },
-    {
-     "profile_id": 9035176
-    }
-   ],
-   "maxplayers": 8
-  }
- ]
+ "avatars": [],
+ "matches": []
 }
