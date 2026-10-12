@@ -1,28 +1,4 @@
 {
- "avatars": [
-  {
-   "alias": "Faheroe",
-   "profile_id": 289595
-  },
-  {
-   "alias": "Kalveryan",
-   "profile_id": 406234
-  }
- ],
- "matches": [
-  {
-   "description": "HOBBIT LOTR",
-   "id": 513029816,
-   "mapname": "my map",
-   "matchmembers": [
-    {
-     "profile_id": 289595
-    },
-    {
-     "profile_id": 406234
-    }
-   ],
-   "maxplayers": 8
-  }
- ]
+ "avatars": [],
+ "matches": []
 }
