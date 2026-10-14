@@ -1,35 +1,4 @@
 {
- "avatars": [
-  {
-   "alias": "TheSnowmanLord",
-   "profile_id": 302134
-  },
-  {
-   "alias": "Trash Panda",
-   "profile_id": 476879
-  },
-  {
-   "alias": "San |2005 TOYOTA SEQUOIA LIMITED",
-   "profile_id": 24675440
-  }
- ],
- "matches": [
-  {
-   "description": "Hobbit | OnlyClowns",
-   "id": 513520932,
-   "mapname": "my map",
-   "matchmembers": [
-    {
-     "profile_id": 302134
-    },
-    {
-     "profile_id": 476879
-    },
-    {
-     "profile_id": 24675440
-    }
-   ],
-   "maxplayers": 8
-  }
- ]
+ "avatars": [],
+ "matches": []
 }
