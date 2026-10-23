@@ -1,28 +1,4 @@
 {
- "avatars": [
-  {
-   "alias": "TheHole",
-   "profile_id": 621852
-  },
-  {
-   "alias": "IL PUCE",
-   "profile_id": 4027105
-  }
- ],
- "matches": [
-  {
-   "description": "Hobbit LOTR Lobby simulator Party  ",
-   "id": 515563638,
-   "mapname": "my map",
-   "matchmembers": [
-    {
-     "profile_id": 621852
-    },
-    {
-     "profile_id": 4027105
-    }
-   ],
-   "maxplayers": 8
-  }
- ]
+ "avatars": [],
+ "matches": []
 }
