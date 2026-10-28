@@ -1,21 +1,4 @@
 {
- "avatars": [
-  {
-   "alias": "strangehobbits",
-   "profile_id": 21956703
-  }
- ],
- "matches": [
-  {
-   "description": "[Rematch] strangehobbits's Game",
-   "id": 516809196,
-   "mapname": "my map",
-   "matchmembers": [
-    {
-     "profile_id": 21956703
-    }
-   ],
-   "maxplayers": 8
-  }
- ]
+ "avatars": [],
+ "matches": []
 }
