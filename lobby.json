@@ -1,21 +1,4 @@
 {
- "avatars": [
-  {
-   "alias": "Perroargento",
-   "profile_id": 18454220
-  }
- ],
- "matches": [
-  {
-   "description": "pelotrudo",
-   "id": 517776383,
-   "mapname": "my map",
-   "matchmembers": [
-    {
-     "profile_id": 18454220
-    }
-   ],
-   "maxplayers": 8
-  }
- ]
+ "avatars": [],
+ "matches": []
 }
