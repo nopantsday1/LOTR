@@ -25,7 +25,11 @@ const PAGE_MODULES = {
   admin: () => import("./pages/adminPage.js").then(m => m.initAdminPage),
   profile: () => import("./pages/profilePage.js").then(m => m.initProfilePage),
   predictions: () =>
-    import("./pages/predictionsPage.js").then(m => m.initPredictionsPage)
+    import("./pages/predictionsPage.js").then(m => m.initPredictionsPage),
+  tournaments: () =>
+    import("./pages/tournamentsPage.js").then(m => m.initTournamentsPage),
+  "tournament-admin": () =>
+    import("./pages/tournamentAdminPage.js").then(m => m.initTournamentAdminPage)
 };
 
 // Which pages actually need match history.
@@ -99,6 +103,8 @@ async function main() {
     const includeHistory = needsHistory(page) || !precomputed;
 
     initFirebase();
+    // Pages with their own Firestore listeners (tournaments) wait for this.
+    window.dispatchEvent(new CustomEvent("lotr:dbReady"));
     subscribeCoreData(emitDataChanged, emitPredictionsChanged, {
       includeHistory,
       precomputedModes: precomputed?.modes || null
