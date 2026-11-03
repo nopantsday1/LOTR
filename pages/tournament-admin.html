@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hobbit Balancer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/layout.css">
+<link rel="stylesheet" href="../css/components.css">
+<link rel="stylesheet" href="../css/pages.css">
+<script type="module" src="../js/app.js"></script>
+
+</head>
+
+<body>
+
+<header class="topbar">
+  <a class="brand" href="../index.html">⚔ Hobbit Balancer</a>
+  <nav class="tabs">
+    <a data-page="balance" href="./balance.html">Balance</a>
+    <a data-page="history" href="./history.html">History</a>
+    <a data-page="players" href="./players.html">Players</a>
+    <a data-page="stats" href="./stats.html">Stats</a>
+    <a data-page="predictions" href="./predictions.html">Predict</a>
+    <a data-page="tournaments" href="./tournaments.html">Tournaments</a>
+    <a data-page="admin" href="./admin.html">Admin</a>
+    <a data-page="about" href="./about.html">About</a>
+  </nav>
+  <span id="sync" class="sync"></span>
+</header>
+
+<main class="shell">
+
+<section class="page" data-page="tournament-admin" data-nav="tournaments">
+  <div class="page-header">
+    <div>
+      <h1>Manage Tournaments</h1>
+      <p>Add a tournament, enter its players and crown the champions. Results appear on the <a class="player-link" href="./tournaments.html">Tournaments</a> page.</p>
+    </div>
+    <button id="tAdminSignOut" class="btn" hidden>Sign out</button>
+  </div>
+
+  <section id="tAdminLogin" class="card">
+    <div class="eyebrow">Restricted Area</div>
+    <h2>Admin Sign In</h2>
+    <p class="muted small">Same password as the Admin page. If you are already signed in there, you are signed in here too.</p>
+    <form id="tAdminLoginForm" autocomplete="on">
+      <div id="tAdminEmailField" hidden>
+        <label class="field-label" for="tAdminEmail">Admin email</label>
+        <input type="email" id="tAdminEmail" name="email" autocomplete="username" placeholder="you@example.com">
+      </div>
+      <label class="field-label" for="tAdminPass">Password</label>
+      <input type="password" id="tAdminPass" name="password" autocomplete="current-password" placeholder="Password" required>
+      <p id="tAdminError" class="admin-status small"></p>
+      <div class="actions">
+        <button type="submit" id="tAdminSignIn" class="btn primary">Sign in</button>
+      </div>
+    </form>
+  </section>
+
+  <section id="tAdminTools" hidden>
+    <section id="tEditor" class="card">
+      <div class="eyebrow">Tournament</div>
+      <h2 id="tEditorTitle">New Tournament</h2>
+
+      <div class="admin-field-row">
+        <div>
+          <label class="field-label" for="tName">Name</label>
+          <input type="text" id="tName" placeholder="e.g. The Battle for Erebor">
+        </div>
+        <div>
+          <label class="field-label" for="tDate">Date</label>
+          <input type="date" id="tDate">
+        </div>
+      </div>
+      <div class="admin-field-row">
+        <div>
+          <label class="field-label" for="tFormat">Format (optional)</label>
+          <input type="text" id="tFormat" placeholder="e.g. 4v4, double elimination">
+        </div>
+        <div>
+          <label class="field-label" for="tChampionTeam">Winning team name (optional)</label>
+          <input type="text" id="tChampionTeam" placeholder="e.g. The Iron Hills Boys">
+        </div>
+      </div>
+      <label class="field-label" for="tNotes">Notes (optional)</label>
+      <textarea id="tNotes" rows="2" placeholder="Prize, map pool, a memorable final…"></textarea>
+
+      <div class="section-heading tournament-subhead">
+        <h3>Players</h3>
+        <span id="tEntrantCount" class="muted small"></span>
+      </div>
+
+      <label class="field-label" for="tRosterSearch">Add from the roster</label>
+      <input type="search" id="tRosterSearch" placeholder="Type a name, Enter adds the first match" autocomplete="off">
+      <div id="tRosterList" class="entrant-chips roster-picker"></div>
+
+      <form id="tGuestForm" class="guest-form">
+        <label class="field-label" for="tGuestName">Or add a guest (not on the roster)</label>
+        <div class="guest-row">
+          <input type="text" id="tGuestName" placeholder="Guest name" maxlength="60">
+          <button type="submit" class="btn">Add guest</button>
+        </div>
+      </form>
+
+      <p class="muted small">Mark the winners with <strong>🏆 Champion</strong> (a whole team can be champions). Leave it empty while the tournament is still running.</p>
+      <div id="tEntrants" class="entrant-list"></div>
+
+      <div class="actions">
+        <button type="button" id="tSaveBtn" class="btn primary">Save tournament</button>
+        <button type="button" id="tCancelEdit" class="btn" hidden>Cancel editing</button>
+      </div>
+      <p id="tSaveStatus" class="admin-status muted small"></p>
+    </section>
+
+    <section class="card">
+      <div class="eyebrow">Record</div>
+      <h2>All Tournaments</h2>
+      <div id="tExisting" class="admin-match-list"></div>
+    </section>
+  </section>
+</section>
+
+</main>
+<div class="toast" id="toast"></div>
+</body>
+
+</html>

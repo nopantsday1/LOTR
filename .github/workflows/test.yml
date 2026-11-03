@@ -34,3 +34,6 @@ jobs:
 
       - name: Precomputed ratings checks
         run: node tests/precomputed-ratings-test.mjs
+
+      - name: Tournament checks
+        run: node tests/tournaments-test.mjs

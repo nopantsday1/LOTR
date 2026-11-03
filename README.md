@@ -117,6 +117,24 @@ Sign in with your Firebase admin account (see **Admin access** above).
    deciding to include a game.
 5. **Export all data** — JSON backup of players, history and overrides.
 
+## Tournaments
+
+- **`pages/tournaments.html`** (public) — the hall of champions (most titles,
+  then runner-up finishes) and a card for every tournament: date, format,
+  champions, runner-up, notes and the full player list. Tournaments with no
+  champion yet are listed as upcoming / in progress.
+- **`pages/tournament-admin.html`** (admin sign-in) — create, edit and delete
+  tournaments. Players are picked from the roster (so titles follow a player
+  through renames and link to their profile) or added as guests by name; each
+  is then marked 🏆 Champion, 🥈 Runner-up or plain player. A whole team can be
+  champions.
+
+Data lives in the `tournaments` Firestore collection (shape documented in
+`js/core/tournaments.js`). It is read only on these two pages, a handful of
+documents. **Publish the updated `docs/firestore.rules`** — once the rules are
+live, a collection with no rule is denied, so saving fails until the new
+`tournaments` block is published.
+
 ## Civilizations
 
 Listed in player position order (P1–P8):
